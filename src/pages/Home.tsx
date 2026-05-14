@@ -1,5 +1,6 @@
 import { motion, type Variants } from "framer-motion";
 import { useGetWaitlistCount } from "@/api-client";
+import { apiSnippetHtml } from "@/generated/api-snippet";
 import { TerminalTranscript } from "@/components/TerminalTranscript";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import {
@@ -310,30 +311,10 @@ export default function Home() {
             <div className="absolute top-0 right-0 px-3 py-1 bg-border text-muted-foreground text-xs uppercase tracking-widest">
               POST /api/v1/call
             </div>
-            <pre className="text-gray-300 font-mono mt-4">
-              <span className="text-pink-400">await</span> fetch(
-              <span className="text-green-400">
-                'https://api.agentcaller.io/v1/call'
-              </span>
-              , {"{"}
-              method: <span className="text-green-400">'POST'</span>, headers:{" "}
-              {"{"}
-              <span className="text-blue-400">'Authorization'</span>:{" "}
-              <span className="text-green-400">'Bearer ac_live_...'</span>,
-              <span className="text-primary font-bold">'X-402-Payment'</span>:{" "}
-              <span className="text-green-400">'usdc:base:0.12'</span>
-              {"}"}, body: JSON.stringify({"{"}
-              phone: <span className="text-green-400">'+14155550199'</span>,
-              objective:{" "}
-              <span className="text-green-400">
-                'Book a table for 2 on Friday at 7pm.'
-              </span>
-              , extract: {"{"}
-              time: <span className="text-green-400">'string'</span>, confirmed:{" "}
-              <span className="text-green-400">'boolean'</span>
-              {"}"}
-              {"}"}){"}"});
-            </pre>
+            <div
+              className="mt-4 text-sm [&_pre]:!bg-transparent [&_pre]:overflow-x-auto [&_pre]:font-mono"
+              dangerouslySetInnerHTML={{ __html: apiSnippetHtml }}
+            />
           </motion.div>
         </div>
       </section>
@@ -442,7 +423,13 @@ export default function Home() {
       <footer className="py-8 px-6 border-t border-border/50 bg-background text-sm">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
           <div className="text-muted-foreground uppercase tracking-widest mb-4 md:mb-0">
-            &copy; 2026 AgentCaller.io
+            By Gianfranco{" "}
+            <a
+              href="https://x.com/gianpaj"
+              className="hover:text-primary transition-colors"
+            >
+              @gianpaj
+            </a>
           </div>
           <div className="flex space-x-6 uppercase tracking-widest text-muted-foreground">
             <a href="#" className="hover:text-primary transition-colors">

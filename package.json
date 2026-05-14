@@ -6,10 +6,12 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
+    "prebuild": "pnpm gen:snippet",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "codegen": "orval --config ./orval.config.ts",
+    "gen:snippet": "node scripts/gen-snippet.mjs",
     "db:push": "drizzle-kit push --config ./drizzle.config.ts"
   },
   "dependencies": {
@@ -46,6 +48,7 @@
     "drizzle-kit": "^0.31.9",
     "orval": "^8.5.2",
     "prettier": "^3.8.1",
+    "shiki": "^4.0.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.9.2",
