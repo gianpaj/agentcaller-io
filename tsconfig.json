@@ -22,7 +22,6 @@
     "jsx": "preserve",
     "lib": ["esnext", "dom", "dom.iterable"],
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
     "types": ["node", "vite/client"],
     "baseUrl": ".",
     "paths": {
