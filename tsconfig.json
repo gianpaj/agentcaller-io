@@ -23,11 +23,16 @@
     "lib": ["esnext", "dom", "dom.iterable"],
     "resolveJsonModule": true,
     "types": ["node", "vite/client"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["./src/*"],
+    },
   },
-  "include": ["src", "api", "vite.config.ts", "orval.config.ts", "drizzle.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src",
+    "api",
+    "vite.config.ts",
+    "orval.config.ts",
+    "drizzle.config.ts",
+  ],
+  "exclude": ["node_modules", "dist"],
 }
