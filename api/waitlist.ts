@@ -20,7 +20,15 @@ export default async function handler(
       const [entry] = await db
         .insert(waitlistTable)
         .values({ email })
+        .onConflictDoNothing({ target: waitlistTable.email })
         .returning();
+
+      if (!entry) {
+        res
+          .status(409)
+          .json({ error: "This email is already on the waitlist." });
+        return;
+      }
 
       res.status(201).json({
         id: entry.id,
@@ -28,13 +36,10 @@ export default async function handler(
         createdAt: entry.createdAt.toISOString(),
       });
     } catch (err: unknown) {
-      const pgErr = err as { code?: string };
-      if (pgErr.code === "23505") {
-        res.status(409).json({ error: "Email already on waitlist" });
-        return;
-      }
       console.error("Failed to insert waitlist entry", err);
-      res.status(500).json({ error: "Internal server error" });
+      res
+        .status(500)
+        .json({ error: "Something went wrong. Please try again." });
     }
     return;
   }
