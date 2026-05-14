@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sql } from "drizzle-orm";
-import { db, waitlistTable } from "../src/db";
-import { JoinWaitlistBody } from "../src/api-zod";
+import { db, waitlistTable } from "../src/db/index.js";
+import { JoinWaitlistBody } from "../src/api-zod/generated/api.js";
 
 export default async function handler(
   req: VercelRequest,
