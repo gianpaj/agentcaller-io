@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sql } from "drizzle-orm";
-import { db } from "../src/db/index.js";
+import { db, waitlistTable } from "../src/db/index.js";
 
 export default async function handler(
   req: VercelRequest,
@@ -26,17 +26,16 @@ export default async function handler(
     return;
   }
 
-  const [[totalResult], [newThisWeekResult]] = await Promise.all([
-    db.execute<{ count: string }>(
-      sql`SELECT count(*) AS count FROM waitlist`,
-    ),
-    db.execute<{ count: string }>(
-      sql`SELECT count(*) AS count FROM waitlist WHERE created_at >= now() - interval '7 days'`,
-    ),
+  const [totalResult, newThisWeekResult] = await Promise.all([
+    db.select({ count: sql<number>`cast(count(*) as int)` }).from(waitlistTable),
+    db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(waitlistTable)
+      .where(sql`created_at >= now() - interval '7 days'`),
   ]);
 
-  const total = Number(totalResult.count);
-  const newThisWeek = Number(newThisWeekResult.count);
+  const total = totalResult[0]?.count ?? 0;
+  const newThisWeek = newThisWeekResult[0]?.count ?? 0;
 
   const date = new Date().toISOString().slice(0, 10);
   const message =
