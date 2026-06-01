@@ -6,6 +6,18 @@
       "sourceType": "github",
       "skillPath": "skills/landing-page-vercel/SKILL.md",
       "computedHash": "a6e4b52d2f44c9df4188ac17420f127d88522836182d1fe44084ce7c98b57220"
+    },
+    "telnyx-voice-javascript": {
+      "source": "team-telnyx/ai",
+      "sourceType": "github",
+      "skillPath": "skills/telnyx-voice-javascript/SKILL.md",
+      "computedHash": "e06def0c2c66fff0a8395a98a78db8f1d996bd4ebfb912fccb9da4fe54b79ce0"
+    },
+    "telnyx-voice-streaming-javascript": {
+      "source": "team-telnyx/ai",
+      "sourceType": "github",
+      "skillPath": "skills/telnyx-voice-streaming-javascript/SKILL.md",
+      "computedHash": "e1518c3979cf79b77c326d415d52da488efb7e49c968289ecbc3d79d32a811e4"
     }
   }
 }
