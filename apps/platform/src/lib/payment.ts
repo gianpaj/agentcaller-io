@@ -49,12 +49,24 @@ export function readPaymentPayload(request: Request) {
   }
 }
 
+const VERIFY_TIMEOUT_MS = 10_000;
+const SETTLE_TIMEOUT_MS = 30_000;
+
+async function callCdp(path: "verify" | "settle", body: unknown, timeoutMs: number, timeoutStatus: number) {
+  try {
+    return await fetch(`https://api.cdp.coinbase.com/platform/v2/x402/${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getServerEnv().CDP_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new ApiError(timeoutStatus, `Payment ${path} did not respond in time`);
+  }
+}
+
 export async function verifyPayment(paymentPayload: unknown, requirements: PaymentRequirements) {
-  const response = await fetch("https://api.cdp.coinbase.com/platform/v2/x402/verify", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getServerEnv().CDP_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ x402Version: 2, paymentPayload, paymentRequirements: requirements.accepts[0] }),
-  });
+  const response = await callCdp("verify", { x402Version: 2, paymentPayload, paymentRequirements: requirements.accepts[0] }, VERIFY_TIMEOUT_MS, 402);
   if (!response.ok) throw new ApiError(402, "Payment authorization could not be verified");
   const verified = (await response.json()) as { isValid?: boolean; payer?: string };
   if (!verified.isValid) throw new ApiError(402, "Payment authorization is not valid");
@@ -62,15 +74,11 @@ export async function verifyPayment(paymentPayload: unknown, requirements: Payme
 }
 
 export async function settlePayment(paymentPayload: unknown, requirements: PaymentRequirements, amountMicros: number) {
-  const response = await fetch("https://api.cdp.coinbase.com/platform/v2/x402/settle", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getServerEnv().CDP_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      x402Version: 2,
-      paymentPayload,
-      paymentRequirements: { ...requirements.accepts[0], amount: String(amountMicros) },
-    }),
-  });
+  const response = await callCdp("settle", {
+    x402Version: 2,
+    paymentPayload,
+    paymentRequirements: { ...requirements.accepts[0], amount: String(amountMicros) },
+  }, SETTLE_TIMEOUT_MS, 502);
   if (!response.ok) throw new ApiError(502, "Payment settlement could not be completed");
   return (await response.json()) as { success?: boolean; transaction?: string; payer?: string; errorReason?: string };
 }

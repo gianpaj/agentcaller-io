@@ -12,7 +12,6 @@ Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The
   "destination": "+34915200000",
   "destinationCountry": "ES",
   "language": "es",
-  "voiceId": "ara",
   "maxDurationSeconds": 600,
   "maxAmountUsd": 1.2,
   "task": {
@@ -28,4 +27,23 @@ Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The
 }
 ```
 
-The ceiling must cover the destination's connection fee and one started minute. AgentCaller stops the call at the first of the amount or duration limits.
+## Limits
+
+`maxDurationSeconds` is enforced on the call itself: AgentCaller hangs up when it elapses.
+
+`maxAmountUsd` is a billing ceiling, not a call timer. It must cover the destination's connection
+fee and one started minute, and you are never charged more than it — but it does not by itself end
+a call. Size `maxDurationSeconds` to the spend you are willing to authorize.
+
+You are charged the connection fee plus every started minute, capped at `maxAmountUsd`. A call that
+connects and fails still incurs the connection fee and one started minute.
+
+## Voices
+
+`voiceId` is optional and defaults to the platform voice for your language. Supplying one that is
+not enabled for your client returns `422`. Ask an operator to enable a voice before using it.
+
+## Correlation
+
+`clientReference` is an optional free-text field, echoed back on the call resource and in list
+responses. Use it to tie a call to your own records.
