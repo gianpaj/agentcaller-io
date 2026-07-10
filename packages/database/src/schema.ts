@@ -1,4 +1,5 @@
-import { boolean, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const callState = pgEnum("call_state", ["queued", "dialing", "in_progress", "completed", "failed", "cancelled"]);
 export const paymentState = pgEnum("payment_state", ["authorized", "settling", "settled", "failed"]);
@@ -11,6 +12,7 @@ const timestamps = {
 export const clientProfiles = pgTable("client_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  supabaseUserId: uuid("supabase_user_id").unique(),
   githubUserId: text("github_user_id").unique(),
   webhookUrl: text("webhook_url"),
   webhookSecret: text("webhook_secret"),
@@ -39,7 +41,9 @@ export const rateCards = pgTable("rate_cards", {
   startedMinuteFeeMicros: integer("started_minute_fee_micros").notNull(),
   active: boolean("active").notNull().default(false),
   ...timestamps,
-});
+}, (table) => [
+  uniqueIndex("one_active_rate_card_per_country").on(table.country).where(sql`${table.active}`),
+]);
 
 export const calls = pgTable("calls", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -49,6 +53,7 @@ export const calls = pgTable("calls", {
   destinationCountry: text("destination_country").notNull(),
   language: text("language").notNull(),
   voiceId: text("voice_id"),
+  clientReference: text("client_reference"),
   task: jsonb("task").notNull(),
   maxDurationSeconds: integer("max_duration_seconds").notNull(),
   maxAmountMicros: integer("max_amount_micros").notNull(),
@@ -63,7 +68,10 @@ export const calls = pgTable("calls", {
   endedAt: timestamp("ended_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   ...timestamps,
-});
+}, (table) => [
+  unique("calls_client_idempotency_key").on(table.clientId, table.idempotencyKey),
+  index("calls_client_created_index").on(table.clientId, table.createdAt.desc()),
+]);
 
 export const callEvents = pgTable("call_events", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -71,7 +79,9 @@ export const callEvents = pgTable("call_events", {
   type: text("type").notNull(),
   payload: jsonb("payload").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("call_events_call_index").on(table.callId),
+]);
 
 export const paymentSettlements = pgTable("payment_settlements", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -84,7 +94,9 @@ export const paymentSettlements = pgTable("payment_settlements", {
   transactionHash: text("transaction_hash"),
   status: text("status").notNull(),
   ...timestamps,
-});
+}, (table) => [
+  uniqueIndex("payment_settlements_call_index").on(table.callId).where(sql`${table.callId} is not null`),
+]);
 
 export const webhookDeliveries = pgTable("webhook_deliveries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -96,4 +108,7 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
   lastError: text("last_error"),
   payload: jsonb("payload").notNull(),
   ...timestamps,
-});
+}, (table) => [
+  index("webhook_deliveries_pending_index").on(table.nextAttemptAt, table.createdAt).where(sql`${table.deliveredAt} is null`),
+  index("webhook_deliveries_call_index").on(table.callId),
+]);

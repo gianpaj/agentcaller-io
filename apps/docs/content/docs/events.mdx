@@ -7,4 +7,31 @@ Poll `GET /api/v1/calls/{id}` or receive signed events at the webhook endpoint c
 
 Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Payment state moves separately through `authorized`, `settling`, `settled`, or `failed`.
 
-Each webhook contains an event ID and timestamp. Verify the HMAC signature before processing it, store the event ID for replay protection, and make your handler idempotent.
+## Webhook delivery
+
+Each delivery is a `POST` with a JSON body of `{ id, timestamp, type, data }` and three headers:
+
+| Header | Value |
+| --- | --- |
+| `AgentCaller-Event` | The event ID, identical to `id` in the body |
+| `AgentCaller-Timestamp` | ISO-8601 signing timestamp, identical to `timestamp` in the body |
+| `AgentCaller-Signature` | `sha256=<hex>` |
+
+The signature is `HMAC-SHA256(secret, "{timestamp}.{rawBody}")`, hex-encoded. Your signing secret is
+shown next to the webhook endpoint in the control room, and is unique to your client.
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(rawBody, headers, secret) {
+  const timestamp = headers["agentcaller-timestamp"];
+  const expected = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
+  const received = headers["agentcaller-signature"].replace(/^sha256=/, "");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+}
+```
+
+Verify the signature against the raw request body before parsing it, reject timestamps outside your
+tolerance window, store the event ID for replay protection, and make your handler idempotent.
+Deliveries are retried with exponential backoff, capped at one hour between attempts and ten
+attempts in total. Redirects are not followed, and endpoints must be public HTTPS addresses.

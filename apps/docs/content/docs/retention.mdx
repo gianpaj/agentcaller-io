@@ -1,8 +1,10 @@
 ---
 title: Retention and deletion
-description: Call artifacts are short-lived and delete together.
+description: Call artifacts are yours to delete.
 ---
 
-Recordings exist only when the business consents. They expire after seven days. Redacted transcripts expire after 30 days.
+The agent asks the recipient for recording consent at the start of every call, and continues without recording when consent is not granted. When no recording exists, `GET /api/v1/calls/{id}/recording` returns `404`.
+
+Transcripts and recordings are retained until you delete them. AgentCaller does not currently expire or redact call artifacts on a schedule, so treat the call resource as the system of record and delete what you no longer need.
 
 `DELETE /api/v1/calls/{id}` deletes the recording, transcript, request details, outcome, and portal-visible history together. AgentCaller retains only a non-content settlement receipt for reconciliation.
