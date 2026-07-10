@@ -17,9 +17,10 @@
 # allowlist. Only do this for packages from trusted organizations, and remove
 # the exclusion once the 1-day window has passed.
 #
-# This file holds pnpm settings only — this is a single package, not a
-# workspace/monorepo.
-# ============================================================================
+packages:
+  - apps/*
+  - packages/*
+
 autoInstallPeers: false
 
 minimumReleaseAge: 1440

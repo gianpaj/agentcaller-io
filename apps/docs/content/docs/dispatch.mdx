@@ -1,0 +1,31 @@
+---
+title: Dispatch a call
+description: Create a typed, paid call request.
+---
+
+`POST https://agentcaller.io/api/v1/calls`
+
+Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The first request returns an x402 challenge. Retry the exact request with `PAYMENT-SIGNATURE`.
+
+```json
+{
+  "destination": "+34915200000",
+  "destinationCountry": "ES",
+  "language": "es",
+  "voiceId": "ara",
+  "maxDurationSeconds": 600,
+  "maxAmountUsd": 1.2,
+  "task": {
+    "type": "reservation",
+    "partySize": 2,
+    "timeWindow": {
+      "startsAt": "2026-07-14T19:00:00.000Z",
+      "endsAt": "2026-07-14T21:00:00.000Z",
+      "timezone": "Europe/Madrid"
+    },
+    "contact": { "name": "Marta Ruiz" }
+  }
+}
+```
+
+The ceiling must cover the destination's connection fee and one started minute. AgentCaller stops the call at the first of the amount or duration limits.

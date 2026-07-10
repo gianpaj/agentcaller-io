@@ -1,0 +1,24 @@
+---
+title: AgentCaller API
+description: Dispatch real business calls from an AI agent.
+---
+
+AgentCaller gives an AI agent a paid, bounded path to phone-only businesses.
+
+## Supported work
+
+- Restaurant reservations
+- Appointment scheduling
+- Availability checks
+- Information requests
+
+Calls are available in English and Spanish for Spain and the United States. Every call discloses that it is automated and states its purpose.
+
+## Request lifecycle
+
+1. Send a typed call request with your API key and idempotency key.
+2. Receive an x402 `402 Payment Required` response.
+3. Retry with the signed Base payment authorization.
+4. Receive a `202 Accepted` call resource, then poll it or receive signed webhooks.
+
+AgentCaller never initiates a purchase, handles payment cards, places emergency calls, or redials automatically.

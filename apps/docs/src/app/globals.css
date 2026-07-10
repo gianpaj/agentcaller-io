@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+:root { --fd-background: #080a0d; --fd-foreground: #ecf5eb; --fd-primary: #c6ff4a; }

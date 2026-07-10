@@ -1,0 +1,35 @@
+{
+  "name": "@agentcaller/platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentcaller/contracts": "workspace:*",
+    "@agentcaller/database": "workspace:*",
+    "@aws-sdk/client-s3": "3.1083.0",
+    "@aws-sdk/s3-request-presigner": "3.1083.0",
+    "livekit-server-sdk": "^2.17.0",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.97.0",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.14.0",
+    "next": "^16.2.10",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

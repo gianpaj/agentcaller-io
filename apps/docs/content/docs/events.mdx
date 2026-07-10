@@ -1,0 +1,10 @@
+---
+title: Events and polling
+description: Track a dispatch without losing a terminal result.
+---
+
+Poll `GET /api/v1/calls/{id}` or receive signed events at the webhook endpoint configured in the control room.
+
+Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Payment state moves separately through `authorized`, `settling`, `settled`, or `failed`.
+
+Each webhook contains an event ID and timestamp. Verify the HMAC signature before processing it, store the event ID for replay protection, and make your handler idempotent.
