@@ -150,11 +150,12 @@ export async function submitCall(
     if (
       input.task.type === "connect_me" &&
       callbackRate &&
-      attemptReserve(input.task, rate, callbackRate) > maxAmountMicros
+      attemptReserve(input.task, rate, callbackRate) * input.task.maxAttempts >
+        maxAmountMicros
     )
       throw new ApiError(
         422,
-        "Spend cap must cover both legs at their duration limits",
+        "Spend cap must cover every attempt at both legs' duration limits",
       );
 
     if (!operatorFunded && !request.headers.get("payment-signature"))

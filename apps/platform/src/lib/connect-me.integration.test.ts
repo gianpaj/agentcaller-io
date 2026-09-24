@@ -464,6 +464,29 @@ run("connect ledger with PostgreSQL locks", () => {
       status: 403,
     });
   });
+  it("rejects a cap that cannot fund every attempt", async () => {
+    const [admin] = await db
+      .update(clientProfiles)
+      .set({ isOperator: true })
+      .where(eq(clientProfiles.id, clientId))
+      .returning();
+    routeState.client = admin;
+    await db
+      .insert(rateCards)
+      .values({ version: randomUUID(), country: "ES", active: true, ...rate });
+    const response = await POST(
+      new Request("https://offline.invalid/api/v1/calls", {
+        method: "POST",
+        headers: {
+          "idempotency-key": randomUUID(),
+          "x-agentcaller-funding": "operator",
+        },
+        body: JSON.stringify({ ...input, maxAmountUsd: 0.01 }),
+      }),
+    );
+    expect(response.status).toBe(422);
+    expect(await db.select().from(calls)).toHaveLength(1);
+  });
   it("cannot dispatch an x402 job through the operator permission path", async () => {
     await expect(authorizeOperatorCall(callId)).rejects.toMatchObject({
       status: 403,

@@ -105,8 +105,10 @@ Refusal, voicemail, unclear IVR, uncertain detection and failed callback stop th
 job. IVR navigation defaults to zero digits; an explicitly positive limit allows
 at most five clearly identified menu choices. No voicemail message is left.
 
-The spend cap reserves both legs at their maximum durations using pinned rate
-snapshots, including waiting and conversation. It may stop before six attempts.
+The spend cap must cover `maxAttempts` times both legs at their maximum
+durations, using pinned rate snapshots that include waiting and conversation.
+Reservations are not released between attempts. Expiry or the attempt count can
+still stop a job early.
 Configure conservative all-in rate cards that cover the exact destination
 classes, provider surcharges and inference. Current country-level rates cannot
 prove an actual Telnyx invoice ceiling. Missing connection/end observations leave

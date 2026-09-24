@@ -47,7 +47,9 @@ Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
 
 The platform reserves the worst-case quoted cost of both legs before each
-attempt. Only confirmed busy/no-answer can schedule another attempt. Unknown
+attempt and does not release that hold. Admission rejects a cap that cannot
+fund every `maxAttempts` reserve. Only confirmed busy/no-answer can schedule
+another attempt. Unknown
 dial outcomes, refusal, voicemail, uncertain classification and failed handoff
 stop the job. Local observation of SIP answer/disconnection drives leg usage;
 missing cost stays null. Reservations are deliberately not refunded between
