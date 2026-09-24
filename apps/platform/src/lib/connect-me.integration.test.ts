@@ -349,6 +349,30 @@ run("connect ledger with PostgreSQL locks", () => {
       nextAttemptAt: "2026-09-21T07:00:00.000Z",
     });
   });
+  it("does not retry busy after the business leg connects", async () => {
+    const { send } = await start();
+    await send("dial", { leg: "business" });
+    await send("connected", { leg: "business", at: now.toISOString() });
+    await send("finish", { reason: "busy" });
+    const [call] = await db.select().from(calls);
+    const [job] = await db.select().from(connectJobs);
+    expect(call!.endedAt).not.toBeNull();
+    expect(job!.attemptCount).toBe(1);
+    expect(job!.nextAttemptAt).toEqual(now);
+  });
+  it("does not retry no-answer after the callback leg exists", async () => {
+    const { send } = await start();
+    await send("dial", { leg: "business" });
+    await send("connected", { leg: "business", at: now.toISOString() });
+    await send("human");
+    await send("dial", { leg: "callback" });
+    await send("finish", { reason: "no_answer" });
+    const [call] = await db.select().from(calls);
+    const [job] = await db.select().from(connectJobs);
+    expect(call!.endedAt).not.toBeNull();
+    expect(job!.attemptCount).toBe(1);
+    expect(job!.nextAttemptAt).toEqual(now);
+  });
   it("worker loss after dial intent stops, retains unknown cost, never redials", async () => {
     const { send } = await start();
     await send("dial", { leg: "business" });
