@@ -1,25 +1,41 @@
 import { redirect } from "next/navigation";
-import { getAuthCallbackUrl } from "@/lib/auth-redirect";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-export default async function LoginPage() {
+import { LoginForm } from "./login-form";
+import { signInWithGithub } from "./actions";
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) redirect("/app");
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "github",
-    options: { redirectTo: getAuthCallbackUrl() },
-  });
-  if (error || !data.url)
-    return (
-      <main className="grid-noise flex min-h-screen items-center justify-center p-6">
-        <p className="signal-border bg-[#0d1117] p-6 text-sm">
-          GitHub sign-in is not configured. Set the Supabase GitHub provider and
-          try again.
+  const { error } = await searchParams;
+  return (
+    <main className="phone-app phone-login">
+      <section className="phone-panel">
+        <p className="phone-eyebrow">AgentCaller</p>
+        <h1>Your calling assistant</h1>
+        <p className="phone-muted">Sign in with your operator account.</p>
+        <LoginForm />
+        <details>
+          <summary>Other sign-in options</summary>
+          <form action={signInWithGithub}>
+            <button className="phone-secondary">Continue with GitHub</button>
+          </form>
+        </details>
+        {error && (
+          <p role="alert">
+            GitHub sign-in is unavailable. Use your email and password.
+          </p>
+        )}
+        <p className="phone-muted">
+          Accounts are created by the operator. For password recovery, use the
+          Supabase dashboard.
         </p>
-      </main>
-    );
-  redirect(data.url);
+      </section>
+    </main>
+  );
 }

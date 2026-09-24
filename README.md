@@ -16,8 +16,9 @@ Spanish, with per-call time and spend limits.
 
 An accepted task should be narrow, reversible, and easy to verify. The intended
 MVP supports calls to Spain and the United States and excludes purchases,
-payment-card handling, regulated services, emergency calls, and automatic
-redialing.
+payment-card handling, regulated services, emergency calls, and unrestricted
+automatic redialing. The `connect_me` exception below permits bounded retries
+only for confirmed busy/no-answer outcomes.
 
 The target lifecycle is:
 
@@ -31,6 +32,38 @@ The target lifecycle is:
 
 The current implementation reaches parts of this flow, but not the complete
 contract.
+
+### Bounded connection task
+
+`connect_me` connects a Spanish or Italian geographic business number to a
+Spanish mobile, with independently configured business and callback languages.
+Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
+press-1 handoff are implemented and tested offline. Operators can use the
+[operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
+without x402. It requires an enabled server-managed operator profile, an explicit
+funding header, exact destination allowlists and a deployment spend cap.
+**Paid connect-me requests remain blocked** by the unsupported payment scheme.
+Operator jobs record their authorization and `paymentState: not_required`; they
+do not create a payment receipt or settle through x402.
+
+The platform reserves the worst-case quoted cost of both legs before each
+attempt. Only confirmed busy/no-answer can schedule another attempt. Unknown
+dial outcomes, refusal, voicemail, uncertain classification and failed handoff
+stop the job. Local observation of SIP answer/disconnection drives leg usage;
+missing cost stays null. Reservations are deliberately not refunded between
+attempts. They bound quoted usage, not an unverified carrier invoice.
+
+The business and mobile remain in separate LiveKit rooms until callback DTMF 1
+and a durable acceptance check. Both AI sessions are silenced before the mobile
+moves into the business room. The worker remains alive to supervise cleanup.
+Recording is disabled. LiveKit AMD plus conversational signals are fallible;
+Spanish/Italian accuracy and all real PSTN behavior remain unverified.
+
+See [dispatch setup and controlled test procedure](apps/docs/content/docs/dispatch.mdx)
+and the [decision record](.agents/notes/implemented/telephony/2026-09-18-bounded-connect-me.md).
+The existing API exposes job details and cancellation; the portal shows outcomes
+and a cancel action. Job deletion is blocked pending provider cleanup and payment
+reconciliation.
 
 ## Repository map
 
@@ -74,20 +107,20 @@ secrets, and webhook retry lease are also useful foundations.
 
 ## Feasibility
 
-Verdict as of 2026-08-18: the product is technically feasible, but the current
-repository is a prototype rather than a working MVP.
+The product is technically feasible, but the current repository is a prototype
+rather than a working MVP.
 
-| Area                    | Assessment                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                       |
-| Voice path              | Blocked; the session starts before answer and cannot reliably classify no-answer, voicemail, or connected duration |
-| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                |
-| Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                              |
-| Hangup                  | Blocked; prompt instructions do not close the PSTN leg after success, refusal, or policy rejection                 |
-| Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented               |
-| Deployment              | Blocked; the voice-agent build emits no `dist`, while its Docker image requires `dist/main.js`                     |
-| Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies            |
-| Verification            | Narrow; 43 assertions cover contracts and platform helpers, with no voice, provider, database, or end-to-end tests |
+| Area                    | Assessment                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                           |
+| Voice path              | Worker owns dialing and waits for SIP answer; connect-me detection and handoff require live verification               |
+| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                    |
+| Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
+| Hangup                  | Blocked; prompt instructions do not close the PSTN leg after success, refusal, or policy rejection                     |
+| Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
+| Deployment              | Worker build emits bundled `dist/main.js`; deployment and provider limits require live verification                    |
+| Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
+| Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
 The most important provider mismatches are documented upstream:
 
@@ -169,12 +202,13 @@ Run the workspace checks from the repository root:
 ```bash
 pnpm typecheck
 pnpm test
+pnpm test:connect-db # isolated disposable PostgreSQL; requires Docker
 pnpm format:check
 pnpm build
 ```
 
-The 2026-08-18 review found existing formatting drift and the voice-agent emit
-failure described above. When changing a scoped package, run its checks directly
+The 2026-08-18 review records baseline failures. The worker build emits its
+entrypoint; repository-wide formatting drift remains. When changing a scoped package, run its checks directly
 as well:
 
 ```bash

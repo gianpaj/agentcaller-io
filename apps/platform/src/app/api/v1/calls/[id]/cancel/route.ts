@@ -7,18 +7,46 @@ import { roomNameForCall, stopCall } from "@/lib/livekit";
 import { elapsedSeconds, settleCallOnce } from "@/lib/settlement";
 import { queueWebhook } from "@/lib/webhooks";
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+import { cancelConnect } from "@/lib/connect-me";
+import { cleanupConnectRooms } from "@/lib/connect-scheduler";
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
     const client = await authenticateApiRequest(request);
     const { id } = await context.params;
-    const [call] = await database().select().from(calls).where(and(eq(calls.id, id), eq(calls.clientId, client.id), isNull(calls.deletedAt))).limit(1);
+    const [call] = await database()
+      .select()
+      .from(calls)
+      .where(
+        and(
+          eq(calls.id, id),
+          eq(calls.clientId, client.id),
+          isNull(calls.deletedAt),
+        ),
+      )
+      .limit(1);
     if (!call) throw new ApiError(404, "Call not found");
-    if (["completed", "failed", "cancelled"].includes(call.state)) throw new ApiError(409, "Call is already terminal");
+    if ((call.task as { type?: string }).type === "connect_me") {
+      const data = await cancelConnect(call.id, client.id);
+      await cleanupConnectRooms(call.id);
+      return Response.json({ data });
+    }
+    if (["completed", "failed", "cancelled"].includes(call.state))
+      throw new ApiError(409, "Call is already terminal");
 
     // Claim the transition before tearing down, so a racing agent event cannot settle a call we
     // are about to cancel and we cannot cancel twice.
-    const [cancelled] = await database().update(calls)
-      .set({ state: "cancelled", endedAt: new Date(), updatedAt: new Date(), outcome: { reason: "cancelled_by_client" } })
+    const [cancelled] = await database()
+      .update(calls)
+      .set({
+        state: "cancelled",
+        endedAt: new Date(),
+        updatedAt: new Date(),
+        outcome: { reason: "cancelled_by_client" },
+      })
       .where(and(eq(calls.id, call.id), eq(calls.state, call.state)))
       .returning();
     if (!cancelled) throw new ApiError(409, "Call is already terminal");
@@ -28,15 +56,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     try {
       await stopCall(call.livekitRoom ?? roomNameForCall(call.id));
     } catch (error) {
-      console.error("Failed to tear down LiveKit room for cancelled call", call.id, error);
+      console.error(
+        "Failed to tear down LiveKit room for cancelled call",
+        call.id,
+        error,
+      );
     }
 
-    await database().insert(callEvents).values({ callId: call.id, type: "call.cancelled", payload: { reason: "cancelled_by_client" } });
-    await queueWebhook(call.id, "call.cancelled", { callId: call.id, state: "cancelled" });
+    await database()
+      .insert(callEvents)
+      .values({
+        callId: call.id,
+        type: "call.cancelled",
+        payload: { reason: "cancelled_by_client" },
+      });
+    await queueWebhook(call.id, "call.cancelled", {
+      callId: call.id,
+      state: "cancelled",
+    });
 
     // The agent's terminal event is ignored once a call is terminal, so cancel owns settlement
     // for whatever the call already consumed. Otherwise the authorization is never captured.
-    await settleCallOnce(cancelled, elapsedSeconds(call, cancelled.endedAt ?? new Date()));
+    await settleCallOnce(
+      cancelled,
+      elapsedSeconds(call, cancelled.endedAt ?? new Date()),
+    );
     return Response.json({ data: cancelled });
   } catch (error) {
     return errorResponse(error);

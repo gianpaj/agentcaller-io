@@ -73,7 +73,8 @@ requires it.
 - Return a schema-validated result for the requested task. A transcript or verbal
   recap is not a structured result.
 - Reject purchases, payment-card handling, regulated services, emergencies, and
-  automatic redialing unless a later approved design deliberately changes scope.
+  automatic redialing except for the bounded `connect_me` task described in
+  README.md. Other tasks must never redial automatically.
 - Test English and Spanish behavior independently.
 
 ### Tenancy, privacy, and outbound requests

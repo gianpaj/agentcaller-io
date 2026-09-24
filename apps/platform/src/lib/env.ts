@@ -9,9 +9,15 @@ const serverEnv = z.object({
   WEBHOOK_SIGNING_SECRET: z.string().min(32),
   AGENT_CALLBACK_SECRET: z.string().min(32),
   CRON_SECRET: z.string().min(32),
-  CDP_API_KEY: z.string().min(1),
-  X402_PAY_TO: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  X402_USDC_ASSET: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  CDP_API_KEY: z.string().min(1).optional(),
+  X402_PAY_TO: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
+  X402_USDC_ASSET: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
   LIVEKIT_URL: z.string().url(),
   LIVEKIT_API_KEY: z.string().min(1),
   LIVEKIT_API_SECRET: z.string().min(1),

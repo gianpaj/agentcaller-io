@@ -12,14 +12,25 @@ import { queueWebhook } from "@/lib/webhooks";
 const TERMINAL_STATES = ["completed", "failed", "cancelled"] as const;
 
 const eventSchema = z.object({
-  type: z.enum(["call.dialing", "call.in_progress", "call.completed", "call.failed", "call.cancelled"]),
+  type: z.enum([
+    "call.dialing",
+    "call.in_progress",
+    "call.completed",
+    "call.failed",
+    "call.cancelled",
+  ]),
   durationSeconds: z.number().int().min(0).max(1800).optional(),
   outcome: z.record(z.string(), z.unknown()).optional(),
-  transcript: z.array(z.object({
-    speaker: z.string().max(40),
-    text: z.string().max(4000),
-    at: z.string().max(40),
-  })).max(2000).optional(),
+  transcript: z
+    .array(
+      z.object({
+        speaker: z.string().max(40),
+        text: z.string().max(4000),
+        at: z.string().max(40),
+      }),
+    )
+    .max(2000)
+    .optional(),
   recordingKey: z.string().min(1).max(300).optional(),
   recordingConsent: z.boolean().optional(),
 });
@@ -30,28 +41,48 @@ function isTerminal(state: string): boolean {
   return (TERMINAL_STATES as readonly string[]).includes(state);
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
-    if (!timingSafeCompare(request.headers.get("x-agentcaller-agent-secret"), getServerEnv().AGENT_CALLBACK_SECRET)) {
+    if (
+      !timingSafeCompare(
+        request.headers.get("x-agentcaller-agent-secret"),
+        getServerEnv().AGENT_CALLBACK_SECRET,
+      )
+    ) {
       throw new ApiError(401, "Unauthorized agent event");
     }
     const { id } = await context.params;
     const event = eventSchema.parse(await request.json());
-    const [call] = await database().select().from(calls).where(eq(calls.id, id)).limit(1);
+    const [call] = await database()
+      .select()
+      .from(calls)
+      .where(eq(calls.id, id))
+      .limit(1);
     if (!call) throw new ApiError(404, "Call not found");
+
+    if ((call.task as { type?: string }).type === "connect_me")
+      throw new ApiError(409, "Use the connect lifecycle endpoint");
 
     // A terminal call is final. Late or replayed events must never reopen it, because an active
     // call is billable, counts against the concurrency limit, and can be settled again.
-    if (isTerminal(call.state)) return Response.json({ data: call, ignored: "call is already terminal" });
+    if (isTerminal(call.state))
+      return Response.json({ data: call, ignored: "call is already terminal" });
 
     const state = event.type.replace("call.", "") as CallRow["state"];
     const terminal = isTerminal(state);
 
-    if (event.recordingKey && !isRecordingKeyForCall(event.recordingKey, call.id)) {
+    if (
+      event.recordingKey &&
+      !isRecordingKeyForCall(event.recordingKey, call.id)
+    ) {
       throw new ApiError(422, "Recording key is outside this call's prefix");
     }
 
-    const [updated] = await database().update(calls)
+    const [updated] = await database()
+      .update(calls)
       .set({
         state,
         outcome: event.outcome ?? call.outcome,
@@ -64,13 +95,27 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       // Re-check the state we read: a concurrent event may have made the call terminal since.
       .where(and(eq(calls.id, id), eq(calls.state, call.state)))
       .returning();
-    if (!updated) return Response.json({ data: call, ignored: "call changed state concurrently" });
+    if (!updated)
+      return Response.json({
+        data: call,
+        ignored: "call changed state concurrently",
+      });
 
     // The transcript and recording key already live on the call row; keeping a second copy in the
     // event payload doubles storage and would survive any future purge of calls.transcript.
-    const { transcript: _transcript, recordingKey: _recordingKey, ...eventPayload } = event;
-    await database().insert(callEvents).values({ callId: id, type: event.type, payload: eventPayload });
-    await queueWebhook(id, event.type, { callId: id, state, outcome: event.outcome });
+    const {
+      transcript: _transcript,
+      recordingKey: _recordingKey,
+      ...eventPayload
+    } = event;
+    await database()
+      .insert(callEvents)
+      .values({ callId: id, type: event.type, payload: eventPayload });
+    await queueWebhook(id, event.type, {
+      callId: id,
+      state,
+      outcome: event.outcome,
+    });
 
     if (terminal) await settleCallOnce(updated, event.durationSeconds);
     return Response.json({ data: updated });

@@ -6,7 +6,11 @@ import { database } from "@/lib/database";
 import { assertPublicWebhookUrl } from "@/lib/webhook-url";
 import { requireClientProfile } from "@/lib/portal";
 
-function boundedInteger(value: FormDataEntryValue | null, min: number, max: number) {
+function boundedInteger(
+  value: FormDataEntryValue | null,
+  min: number,
+  max: number,
+) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) return undefined;
   return Math.min(Math.max(parsed, min), max);
@@ -19,12 +23,50 @@ export async function updateControls(formData: FormData) {
 
   const webhookUrl = String(formData.get("webhookUrl") ?? "").trim();
   const callsPerMinute = boundedInteger(formData.get("callsPerMinute"), 1, 60);
-  const maxConcurrentCalls = boundedInteger(formData.get("maxConcurrentCalls"), 1, 20);
-  if (callsPerMinute === undefined || maxConcurrentCalls === undefined) throw new Error("Throttle values must be whole numbers");
+  const maxConcurrentCalls = boundedInteger(
+    formData.get("maxConcurrentCalls"),
+    1,
+    20,
+  );
+  if (callsPerMinute === undefined || maxConcurrentCalls === undefined)
+    throw new Error("Throttle values must be whole numbers");
   if (webhookUrl) await assertPublicWebhookUrl(webhookUrl);
 
-  await database().update(clientProfiles)
-    .set({ webhookUrl: webhookUrl || null, callsPerMinute, maxConcurrentCalls, updatedAt: new Date() })
+  await database()
+    .update(clientProfiles)
+    .set({
+      webhookUrl: webhookUrl || null,
+      callsPerMinute,
+      maxConcurrentCalls,
+      updatedAt: new Date(),
+    })
     .where(eq(clientProfiles.id, profile.id));
   revalidatePath("/app");
+}
+
+export async function cancelConnectJob(formData: FormData) {
+  const profile = await requireClientProfile();
+  const id = String(formData.get("callId") ?? "");
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid call ID");
+  const { cancelConnect } = await import("@/lib/connect-me");
+  const { cleanupConnectRooms } = await import("@/lib/connect-scheduler");
+  await cancelConnect(id, profile.id);
+  await cleanupConnectRooms(id);
+  revalidatePath("/app");
+  revalidatePath(`/app/calls/${id}`);
+}
+
+export async function cancelFromHistory(
+  _previous: { error: string },
+  formData: FormData,
+) {
+  try {
+    await cancelConnectJob(formData);
+    return { error: "" };
+  } catch {
+    return {
+      error:
+        "Could not confirm cleanup. Refresh to check the call status; cancellation can be retried safely.",
+    };
+  }
 }

@@ -1,5 +1,8 @@
 # AgentCaller MVP Design
 
+Historical design. The bounded `connect_me` redial exception and current payment
+blocker are defined in [README.md](../../README.md#bounded-connection-task).
+
 ## Goal
 
 AgentCaller lets an AI agent make an outbound business call, complete an allowed task, and return a structured result. The MVP supports English and Spanish calls to Spain and the United States. It supports reservations, appointments, availability checks, and information requests. It does not support purchases, card data, regulated services, emergencies, or automatic redialing.
