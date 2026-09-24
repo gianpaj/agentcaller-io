@@ -1,12 +1,12 @@
 import { AgentDispatchClient, RoomServiceClient } from "livekit-server-sdk";
 import type { CreateCallInput } from "@agentcaller/contracts";
-import { getServerEnv } from "./env";
+import { getLiveKitEnv } from "./env";
 
 let dispatchClient: AgentDispatchClient | undefined;
 let roomClient: RoomServiceClient | undefined;
 
 function credentials() {
-  const env = getServerEnv();
+  const env = getLiveKitEnv();
   return [
     env.LIVEKIT_URL,
     env.LIVEKIT_API_KEY,
@@ -19,7 +19,7 @@ export function roomNameForCall(callId: string) {
 }
 
 export async function dispatchCall(callId: string, input: CreateCallInput) {
-  const env = getServerEnv();
+  const env = getLiveKitEnv();
   const region = input.destinationCountry === "ES" ? "eu" : "us";
   const agentName =
     region === "eu" ? env.LIVEKIT_AGENT_EU : env.LIVEKIT_AGENT_US;
@@ -51,7 +51,7 @@ export async function dispatchConnectAttempt(
   await authorizeOperatorCall(callId);
   if (!dispatchClient)
     dispatchClient = new AgentDispatchClient(...credentials());
-  await dispatchClient.createDispatch(room, getServerEnv().LIVEKIT_AGENT_EU, {
+  await dispatchClient.createDispatch(room, getLiveKitEnv().LIVEKIT_AGENT_EU, {
     metadata: JSON.stringify({ kind: "connect_me", callId, attemptId }),
   });
 }

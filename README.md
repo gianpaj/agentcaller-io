@@ -183,6 +183,12 @@ cp apps/platform/.env.example apps/platform/.env.local
 cp apps/voice-agent/.env.example apps/voice-agent/.env
 ```
 
+The platform dashboard and email/password login require only `DATABASE_URL`,
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and the deployment's
+`NEXT_PUBLIC_APP_URL`. The remaining blocks in `apps/platform/.env.example` are
+validated when their API, scheduler, telephony, payment, or recording path runs.
+Do not add placeholder provider credentials to make the dashboard load.
+
 Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase
 environment before running the platform.

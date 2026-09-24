@@ -1,6 +1,6 @@
 import { connectEventSchema } from "@agentcaller/contracts";
 import { timingSafeCompare, ApiError } from "@/lib/auth";
-import { getServerEnv } from "@/lib/env";
+import { getAgentCallbackEnv } from "@/lib/env";
 import { errorResponse } from "@/lib/http";
 import { connectCommand } from "@/lib/connect-me";
 import { authorizeOperatorCall } from "@/lib/operator-funding";
@@ -12,7 +12,7 @@ export async function POST(
     if (
       !timingSafeCompare(
         request.headers.get("x-agentcaller-agent-secret"),
-        getServerEnv().AGENT_CALLBACK_SECRET,
+        getAgentCallbackEnv().AGENT_CALLBACK_SECRET,
       )
     )
       throw new ApiError(401, "Unauthorized");

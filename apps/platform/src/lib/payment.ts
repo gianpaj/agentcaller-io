@@ -1,4 +1,4 @@
-import { getServerEnv } from "./env";
+import { getPaymentEnv } from "./env";
 import { ApiError } from "./auth";
 
 type PaymentRequirements = {
@@ -16,7 +16,7 @@ type PaymentRequirements = {
 export function paymentRequirements(
   maxAmountMicros: number,
 ): PaymentRequirements {
-  const env = getServerEnv();
+  const env = getPaymentEnv();
   if (!env.CDP_API_KEY || !env.X402_PAY_TO || !env.X402_USDC_ASSET)
     throw new ApiError(503, "x402 payment is not configured");
   return {
@@ -76,7 +76,7 @@ async function callCdp(
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${getServerEnv().CDP_API_KEY}`,
+          Authorization: `Bearer ${getPaymentEnv().CDP_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),

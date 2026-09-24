@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { ApiError, timingSafeCompare } from "@/lib/auth";
 import { database } from "@/lib/database";
-import { getServerEnv } from "@/lib/env";
+import { getAgentCallbackEnv } from "@/lib/env";
 import { errorResponse } from "@/lib/http";
 import { isRecordingKeyForCall } from "@/lib/r2";
 import { settleCallOnce } from "@/lib/settlement";
@@ -49,7 +49,7 @@ export async function POST(
     if (
       !timingSafeCompare(
         request.headers.get("x-agentcaller-agent-secret"),
-        getServerEnv().AGENT_CALLBACK_SECRET,
+        getAgentCallbackEnv().AGENT_CALLBACK_SECRET,
       )
     ) {
       throw new ApiError(401, "Unauthorized agent event");
