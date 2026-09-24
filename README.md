@@ -189,6 +189,22 @@ The platform dashboard and email/password login require only `DATABASE_URL`,
 validated when their API, scheduler, telephony, payment, or recording path runs.
 Do not add placeholder provider credentials to make the dashboard load.
 
+Password recovery uses the deployment origin from `NEXT_PUBLIC_APP_URL` and
+returns through `/auth/callback`. In Supabase **Authentication → URL
+Configuration**, set the Site URL to the stable deployment and allow these
+redirect URLs:
+
+```text
+http://localhost:3000/auth/callback
+https://agentcaller-git-feat-bounded-connect-me-gianpaj.vercel.app/auth/callback
+```
+
+Add the exact callback URL for each stable deployment. For changing Vercel
+preview hosts, Supabase also supports a preview wildcard such as
+`https://*-gianpaj.vercel.app/**`. Keep the exact URL for production. The
+password-reset email template must use `{{ .ConfirmationURL }}` or otherwise
+honor `{{ .RedirectTo }}` so the application-provided callback is preserved.
+
 Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase
 environment before running the platform.

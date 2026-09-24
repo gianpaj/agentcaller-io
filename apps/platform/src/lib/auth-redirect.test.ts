@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAuthCallbackUrl } from "./auth-redirect";
+import {
+  getAuthCallbackUrl,
+  getPasswordRecoveryCallbackUrl,
+  getSafeAuthRedirect,
+} from "./auth-redirect";
 
 describe("getAuthCallbackUrl", () => {
   it("uses the configured production URL before deployment URLs", () => {
@@ -28,4 +32,25 @@ describe("getAuthCallbackUrl", () => {
   it("uses localhost during local development", () => {
     expect(getAuthCallbackUrl({})).toBe("http://localhost:3000/auth/callback");
   });
+
+  it("routes password recovery through the callback", () => {
+    expect(
+      getPasswordRecoveryCallbackUrl({
+        NEXT_PUBLIC_APP_URL: "https://agentcaller.io",
+      }),
+    ).toBe("https://agentcaller.io/auth/callback?next=%2Freset-password");
+  });
+});
+
+describe("getSafeAuthRedirect", () => {
+  it.each(["/app", "/reset-password"])("allows %s", (path) => {
+    expect(getSafeAuthRedirect(path)).toBe(path);
+  });
+
+  it.each([null, "", "https://example.com", "//example.com", "/admin"])(
+    "sends an untrusted destination to the app",
+    (path) => {
+      expect(getSafeAuthRedirect(path)).toBe("/app");
+    },
+  );
 });
