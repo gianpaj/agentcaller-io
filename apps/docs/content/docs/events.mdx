@@ -40,12 +40,17 @@ attempts in total. Redirects are not followed, and endpoints must be public HTTP
 
 ## Connect-me jobs
 
-For `connect_me`, `queued` includes scheduled retries, `dialing` includes callback
-setup, and `in_progress` means both humans have joined. Polling details include
-`job`, immutable `attempts`, and separate `legs`; `measuredMicros: null` means
-unknown, not free. `outcome.reason` reports refusal, exhausted attempts, callback
-failure, uncertainty, expiry or limits. Call completion does not imply payment
-settlement.
+For `connect_me`, `queued` includes a scheduled retry. While that retry is waiting,
+`outcome.reason` is `busy`, `no_answer`, or `outside_window`. `dialing` starts when
+the business leg is dialed and continues through classification and callback setup.
+`in_progress` means the callback participant has been moved into the business room.
+Polling returns `job`, the current `attempts` (a row changes until it is
+`terminal`), and separate `legs`. `measuredMicros: null` means unknown, not free.
+`outcome.reason` is a `connectReasons` value, including `connected`, `cancelled`,
+`voicemail`, `worker_lost`, `dial_unknown`, `refused`, `attempts_exhausted`,
+`callback_declined`, `callback_timeout`, `callback_hangup`, `uncertain_answer`,
+`expired`, `spend_limit`, and `duration_limit`. Call completion does not imply
+payment settlement.
 
 `POST /api/v1/calls/{id}/cancel` authorizes by tenant, closes the durable job before
 cleanup, and prevents late acceptance from reopening it. The portal offers the
