@@ -95,11 +95,13 @@ export async function connectCommand(
       .where(eq(connectJobs.callId, callId));
     if (!job) throw new ApiError(409, "Missing job");
     // Even a replayed permission must not authorize work after cancellation or worker loss.
+    const expired = now.getTime() >= Date.parse(task.expiresAt);
+    // Finish stays open after expiry so the worker can hang up with the real reason.
     if (
       call.endedAt ||
       attempt.endedAt ||
       now.getTime() - attempt.heartbeatAt.getTime() > 90_000 ||
-      now.getTime() >= Date.parse(task.expiresAt)
+      (expired && event.action !== "finish")
     )
       return { allowed: false };
     if (
@@ -346,16 +348,21 @@ export async function claimConnectAttempt(
         and(eq(callAttempts.callId, callId), isNull(callAttempts.endedAt)),
       );
     if (active) {
-      if (
-        now.getTime() - active.heartbeatAt.getTime() > 90_000 ||
-        now >= active.cleanupUntil ||
-        now.getTime() >= Date.parse(task.expiresAt)
-      ) {
+      const heartbeatStale =
+        now.getTime() - active.heartbeatAt.getTime() > 90_000;
+      const expired = now.getTime() >= Date.parse(task.expiresAt);
+      const pastCleanup = now >= active.cleanupUntil;
+      if (heartbeatStale || expired || pastCleanup) {
+        const reason = heartbeatStale
+          ? "worker_lost"
+          : expired
+            ? "expired"
+            : "duration_limit";
         await tx
           .update(callAttempts)
-          .set({ state: "terminal", endedAt: now, reason: "worker_lost" })
+          .set({ state: "terminal", endedAt: now, reason })
           .where(eq(callAttempts.id, active.id));
-        await terminal(tx, callId, "worker_lost", now);
+        await terminal(tx, callId, reason, now);
       }
       return null;
     }

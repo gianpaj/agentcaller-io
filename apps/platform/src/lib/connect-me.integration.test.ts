@@ -274,6 +274,49 @@ run("connect ledger with PostgreSQL locks", () => {
     );
     expect((await db.select().from(calls))[0]!.endedAt).toBeNull();
   });
+  it("keeps a live heartbeat through expiry and records that finish", async () => {
+    const { attempt, event } = await start();
+    const at = new Date("2026-09-19T10:00:00Z");
+    await db
+      .update(callAttempts)
+      .set({ heartbeatAt: at })
+      .where(eq(callAttempts.id, attempt.id));
+    expect(
+      await connectCommand(
+        callId,
+        event("finish", { reason: "duration_limit" }),
+        db,
+        at,
+      ),
+    ).toMatchObject({ allowed: true });
+    expect((await db.select().from(calls))[0]!.outcome).toMatchObject({
+      reason: "duration_limit",
+    });
+  });
+  it("expires a heartbeating attempt instead of marking the worker lost", async () => {
+    const { attempt } = await start();
+    const at = new Date("2026-09-19T10:00:00Z");
+    await db
+      .update(callAttempts)
+      .set({ heartbeatAt: at })
+      .where(eq(callAttempts.id, attempt.id));
+    expect(await claimConnectAttempt(callId, db, at)).toBeNull();
+    expect((await db.select().from(calls))[0]!.outcome).toMatchObject({
+      reason: "expired",
+    });
+  });
+  it("closes a heartbeating attempt past cleanup as a duration limit", async () => {
+    const { attempt } = await start();
+    const at = new Date(now.getTime() + 1_000_000);
+    await db
+      .update(callAttempts)
+      .set({ heartbeatAt: at, cleanupUntil: new Date(at.getTime() - 1000) })
+      .where(eq(callAttempts.id, attempt.id));
+    expect(await claimConnectAttempt(callId, db, at)).toBeNull();
+    expect((await db.select().from(calls))[0]!.outcome).toMatchObject({
+      reason: "duration_limit",
+    });
+  });
   it("worker loss after dial intent stops, retains unknown cost, never redials", async () => {
     const { send } = await start();
     await send("dial", { leg: "business" });
