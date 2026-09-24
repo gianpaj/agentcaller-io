@@ -196,15 +196,17 @@ Configuration**, set the Site URL to the stable deployment and allow these
 redirect URLs:
 
 ```text
-http://localhost:3000/auth/callback
-https://agentcaller-git-feat-bounded-connect-me-gianpaj.vercel.app/auth/callback
+http://localhost:3000/auth/callback*
+https://agentcaller-git-feat-bounded-connect-me-gianpaj.vercel.app/auth/callback*
 ```
 
-Add the exact callback URL for each stable deployment. For changing Vercel
-preview hosts, Supabase also supports a preview wildcard such as
-`https://*-gianpaj.vercel.app/**`. Keep the exact URL for production. The
-password-reset email template must use `{{ .ConfirmationURL }}` or otherwise
-honor `{{ .RedirectTo }}` so the application-provided callback is preserved.
+The trailing `*` permits the allowlisted callback's recovery query string. Add
+the callback pattern for each stable deployment. For changing Vercel preview
+hosts, Supabase also supports a preview wildcard such as
+`https://*-gianpaj.vercel.app/**`. Keep the narrow callback pattern for
+production. The password-reset email template must use
+`{{ .ConfirmationURL }}` or otherwise honor `{{ .RedirectTo }}` so the
+application-provided callback is preserved.
 
 `NEXT_PUBLIC_APP_URL` is optional for Vercel previews. The platform uses
 Vercel's stable `VERCEL_BRANCH_URL`, which requires **Automatically expose
