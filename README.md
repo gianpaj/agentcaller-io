@@ -119,7 +119,7 @@ rather than a working MVP.
 | Voice path              | Worker owns dialing and waits for SIP answer; connect-me detection and handoff require live verification               |
 | Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                    |
 | Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
-| Hangup                  | Blocked; prompt instructions do not close the PSTN leg after success, refusal, or policy rejection                     |
+| Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
 | Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
 | Deployment              | Worker build emits bundled `dist/main.js`; deployment and provider limits require live verification                    |
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
