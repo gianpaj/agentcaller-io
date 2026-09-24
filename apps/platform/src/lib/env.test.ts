@@ -23,6 +23,49 @@ describe("scoped server environment", () => {
     });
   });
 
+  it("accepts the Vercel Supabase integration variable names", () => {
+    expect(
+      getDatabaseEnv({
+        POSTGRES_URL:
+          "postgresql://postgres:password@pooler.example.test/postgres",
+      }),
+    ).toEqual({
+      DATABASE_URL:
+        "postgresql://postgres:password@pooler.example.test/postgres",
+    });
+    expect(
+      getSupabaseEnv({
+        NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      }),
+    ).toEqual({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+    });
+  });
+
+  it("prefers explicitly configured application variables", () => {
+    expect(
+      getDatabaseEnv({
+        DATABASE_URL: "postgresql://explicit.example.test/postgres",
+        POSTGRES_URL: "postgresql://integration.example.test/postgres",
+      }),
+    ).toEqual({
+      DATABASE_URL: "postgresql://explicit.example.test/postgres",
+    });
+    expect(
+      getSupabaseEnv({
+        SUPABASE_URL: "https://explicit.supabase.co",
+        SUPABASE_PUBLISHABLE_KEY: "explicit-key",
+        NEXT_PUBLIC_SUPABASE_URL: "https://integration.supabase.co",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "integration-key",
+      }),
+    ).toEqual({
+      SUPABASE_URL: "https://explicit.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "explicit-key",
+    });
+  });
+
   it("fails when an unconfigured integration is actually requested", () => {
     for (const name of [
       "LIVEKIT_URL",

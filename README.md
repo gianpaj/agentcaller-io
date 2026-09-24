@@ -183,10 +183,13 @@ cp apps/platform/.env.example apps/platform/.env.local
 cp apps/voice-agent/.env.example apps/voice-agent/.env
 ```
 
-The platform dashboard and email/password login require only `DATABASE_URL`,
-`SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Set `NEXT_PUBLIC_APP_URL` for a
-production or non-Vercel deployment. The remaining blocks in
-`apps/platform/.env.example` are validated when their API, scheduler,
+The platform dashboard and email/password login require a database URL, a
+Supabase URL, and a Supabase publishable key. The canonical names are
+`DATABASE_URL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. The Vercel
+Supabase integration names `POSTGRES_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are accepted as fallbacks. Set
+`NEXT_PUBLIC_APP_URL` for a production or non-Vercel deployment. The remaining
+blocks in `apps/platform/.env.example` are validated when their API, scheduler,
 telephony, payment, or recording path runs. Do not add placeholder provider
 credentials to make the dashboard load.
 
@@ -198,6 +201,11 @@ URI from the Supabase Connect panel, replace its password placeholder, and set
 it for the matching Vercel environment. A database URL left by another storage
 integration will authenticate the user and then fail when the portal queries
 `client_profiles`.
+
+Connect the Supabase resource to every Vercel environment that runs the
+platform. Feature branches use Vercel's **Preview** environment even when they
+act as staging. Integration variables scoped only to **Production** are absent
+from preview functions. Redeploy after changing the resource connection scope.
 
 Password recovery uses `NEXT_PUBLIC_APP_URL` or Vercel's stable deployment
 origin and returns through `/auth/callback`. In Supabase **Authentication → URL

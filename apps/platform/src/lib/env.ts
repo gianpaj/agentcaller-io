@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+type Environment = Record<string, string | undefined>;
+
 const databaseEnv = z.object({
   DATABASE_URL: z.string().url(),
 });
@@ -48,12 +50,21 @@ const r2Env = z.object({
   R2_BUCKET: z.string().min(1),
 });
 
-export function getDatabaseEnv() {
-  return databaseEnv.parse(process.env);
+export function getDatabaseEnv(env: Environment = process.env) {
+  return databaseEnv.parse({
+    DATABASE_URL: env.DATABASE_URL || env.POSTGRES_URL,
+  });
 }
 
-export function getSupabaseEnv() {
-  return supabaseEnv.parse(process.env);
+export function getSupabaseEnv(env: Environment = process.env) {
+  return supabaseEnv.parse({
+    SUPABASE_URL: env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY:
+      env.SUPABASE_PUBLISHABLE_KEY ||
+      env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      env.SUPABASE_ANON_KEY ||
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  });
 }
 
 export function getApiAuthEnv() {
