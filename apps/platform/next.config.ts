@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Vercel packages its own runtime output. Standalone output is for
+  // self-hosted deployments and conflicts with Vercel's Next.js adapter.
+  output: process.env.VERCEL ? undefined : "standalone",
   serverExternalPackages: ["pg"],
 };
 
