@@ -42,7 +42,7 @@ const run = url ? describe : describe.skip;
 run("connect ledger with PostgreSQL locks", () => {
   if (url && !["localhost", "127.0.0.1"].includes(new URL(url).hostname))
     throw new Error("Use a disposable local PostgreSQL database");
-  const { db, pool } = createDatabase(url ?? "postgresql://localhost/unused");
+  const { db, client } = createDatabase(url ?? "postgresql://localhost/unused");
   const now = new Date("2026-09-18T10:00:00Z");
   const rate = { connectionFeeMicros: 1000, startedMinuteFeeMicros: 1000 };
   const input = createCallSchema.parse({
@@ -68,7 +68,7 @@ run("connect ledger with PostgreSQL locks", () => {
   let callId: string;
   let clientId: string;
   beforeAll(async () => {
-    await pool.query(
+    await client.unsafe(
       "create extension if not exists pgcrypto; create schema if not exists auth; create or replace function auth.uid() returns uuid language sql as 'select null::uuid'; create or replace function auth.jwt() returns jsonb language sql as 'select null::jsonb';",
     );
     for (const migration of [
@@ -79,7 +79,7 @@ run("connect ledger with PostgreSQL locks", () => {
       "20260918200100_operator_funding.sql",
       "20260924120000_connect_room_cleanup.sql",
     ])
-      await pool.query(
+      await client.unsafe(
         readFileSync(
           new URL(
             `../../../../supabase/migrations/${migration}`,
@@ -92,7 +92,7 @@ run("connect ledger with PostgreSQL locks", () => {
   afterAll(async () => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
-    await pool.end();
+    await client.end();
   });
   beforeEach(async () => {
     routeState.db = db;

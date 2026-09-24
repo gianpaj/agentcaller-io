@@ -205,11 +205,11 @@ it for the matching Vercel environment. A database URL left by another storage
 integration will authenticate the user and then fail when the portal queries
 `client_profiles`.
 
-The database package applies libpq semantics to `sslmode=require` connection
-strings so Supabase pooler traffic remains encrypted without requiring its CA
-certificate in the Vercel runtime. Connections that request `verify-ca` or
-`verify-full` keep certificate verification enabled and must provide the
-appropriate CA configuration.
+The platform uses one short-lived `postgres.js` connection per Vercel instance,
+with prepared statements disabled so the Supabase transaction pooler can
+multiplex it. `sslmode=require` encrypts that connection without a CA bundle.
+Connections that request `verify-ca` or `verify-full` keep certificate
+verification enabled and must provide the appropriate CA configuration.
 
 Connect the Supabase resource to every Vercel environment that runs the
 platform. Feature branches use Vercel's **Preview** environment even when they

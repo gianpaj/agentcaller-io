@@ -53,7 +53,7 @@ async function claimBatch() {
     where d.id = due.id
     returning d.id, d.call_id, d.event_type, d.attempt, d.payload
   `);
-  return (claimed.rows ?? []) as ClaimedDelivery[];
+  return [...claimed] as ClaimedDelivery[];
 }
 
 async function markDelivered(id: string, attempt: number) {

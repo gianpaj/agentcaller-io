@@ -1,23 +1,21 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
 export * from "./schema";
 
+/** Drop the node-postgres flag. postgres.js already encrypts sslmode=require without a CA. */
 export function normalizeDatabaseUrl(connectionString: string) {
   const url = new URL(connectionString);
-  if (
-    url.searchParams.get("sslmode") === "require" &&
-    !url.searchParams.has("uselibpqcompat")
-  )
-    url.searchParams.set("uselibpqcompat", "true");
+  url.searchParams.delete("uselibpqcompat");
   return url.toString();
 }
 
 export function createDatabase(connectionString: string) {
-  const pool = new pg.Pool({
-    connectionString: normalizeDatabaseUrl(connectionString),
-    max: 5,
+  const client = postgres(normalizeDatabaseUrl(connectionString), {
+    prepare: false,
+    max: 1,
+    idle_timeout: 20,
   });
-  return { db: drizzle(pool, { schema }), pool };
+  return { db: drizzle(client, { schema }), client };
 }
