@@ -190,6 +190,15 @@ production or non-Vercel deployment. The remaining blocks in
 telephony, payment, or recording path runs. Do not add placeholder provider
 credentials to make the dashboard load.
 
+`DATABASE_URL` must point to the PostgreSQL database where the
+`supabase/migrations` files were applied. When Supabase Auth and Supabase
+PostgreSQL share a project, confirm that the project reference in the database
+connection matches `SUPABASE_URL`. For Vercel, copy the **Transaction pooler**
+URI from the Supabase Connect panel, replace its password placeholder, and set
+it for the matching Vercel environment. A database URL left by another storage
+integration will authenticate the user and then fail when the portal queries
+`client_profiles`.
+
 Password recovery uses `NEXT_PUBLIC_APP_URL` or Vercel's stable deployment
 origin and returns through `/auth/callback`. In Supabase **Authentication → URL
 Configuration**, set the Site URL to the stable deployment and allow these
