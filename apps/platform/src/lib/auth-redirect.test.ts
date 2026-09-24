@@ -23,6 +23,26 @@ describe("getAuthCallbackUrl", () => {
     ).toBe("https://agentcaller-git-pr-42.vercel.app/auth/callback");
   });
 
+  it("uses the stable branch URL before the changing deployment URL", () => {
+    expect(
+      getAuthCallbackUrl({
+        VERCEL_ENV: "preview",
+        VERCEL_BRANCH_URL: "agentcaller-git-pr-42.vercel.app",
+        VERCEL_URL: "agentcaller-a1b2c3.vercel.app",
+      }),
+    ).toBe("https://agentcaller-git-pr-42.vercel.app/auth/callback");
+  });
+
+  it("uses the stable project URL for a production deployment", () => {
+    expect(
+      getAuthCallbackUrl({
+        VERCEL_ENV: "production",
+        VERCEL_PROJECT_PRODUCTION_URL: "agentcaller.io",
+        VERCEL_BRANCH_URL: "agentcaller-git-main.vercel.app",
+      }),
+    ).toBe("https://agentcaller.io/auth/callback");
+  });
+
   it("uses VERCEL_URL when the framework-prefixed variable is unavailable", () => {
     expect(
       getAuthCallbackUrl({ VERCEL_URL: "agentcaller-abc123.vercel.app" }),

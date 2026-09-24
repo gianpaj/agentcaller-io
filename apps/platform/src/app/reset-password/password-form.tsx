@@ -5,9 +5,11 @@ import { passwordRequirements } from "@/lib/password-recovery";
 import { updatePassword } from "./actions";
 
 export function PasswordForm() {
-  const [state, action, pending] = useActionState(updatePassword, {
-    error: "",
-  });
+  const [state, action, pending] = useActionState(
+    updatePassword,
+    { error: "" },
+    "/reset-password",
+  );
 
   return (
     <form action={action} className="phone-form">

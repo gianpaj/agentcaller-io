@@ -21,11 +21,19 @@ export async function requestPasswordReset(
     redirectTo: getPasswordRecoveryCallbackUrl(),
   });
 
-  if (error)
+  if (error) {
+    console.error("Password reset request failed", {
+      code: error.code,
+      status: error.status,
+    });
     return {
-      error: "Unable to send a reset email. Wait a moment and try again.",
+      error:
+        error.status === 429
+          ? "Too many reset emails were requested. Wait and try again later."
+          : "Unable to send a reset email. Check the Supabase redirect configuration and try again.",
       submitted: false,
     };
+  }
 
   return { error: "", submitted: true };
 }

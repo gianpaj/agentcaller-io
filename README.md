@@ -184,13 +184,14 @@ cp apps/voice-agent/.env.example apps/voice-agent/.env
 ```
 
 The platform dashboard and email/password login require only `DATABASE_URL`,
-`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and the deployment's
-`NEXT_PUBLIC_APP_URL`. The remaining blocks in `apps/platform/.env.example` are
-validated when their API, scheduler, telephony, payment, or recording path runs.
-Do not add placeholder provider credentials to make the dashboard load.
+`SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. Set `NEXT_PUBLIC_APP_URL` for a
+production or non-Vercel deployment. The remaining blocks in
+`apps/platform/.env.example` are validated when their API, scheduler,
+telephony, payment, or recording path runs. Do not add placeholder provider
+credentials to make the dashboard load.
 
-Password recovery uses the deployment origin from `NEXT_PUBLIC_APP_URL` and
-returns through `/auth/callback`. In Supabase **Authentication → URL
+Password recovery uses `NEXT_PUBLIC_APP_URL` or Vercel's stable deployment
+origin and returns through `/auth/callback`. In Supabase **Authentication → URL
 Configuration**, set the Site URL to the stable deployment and allow these
 redirect URLs:
 
@@ -204,6 +205,11 @@ preview hosts, Supabase also supports a preview wildcard such as
 `https://*-gianpaj.vercel.app/**`. Keep the exact URL for production. The
 password-reset email template must use `{{ .ConfirmationURL }}` or otherwise
 honor `{{ .RedirectTo }}` so the application-provided callback is preserved.
+
+`NEXT_PUBLIC_APP_URL` is optional for Vercel previews. The platform uses
+Vercel's stable `VERCEL_BRANCH_URL`, which requires **Automatically expose
+System Environment Variables** in the Vercel project settings. Each push gets a
+new immutable deployment URL, but its branch URL remains stable.
 
 Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase

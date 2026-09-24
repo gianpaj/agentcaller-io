@@ -10,8 +10,14 @@ function toOrigin(value: string) {
 }
 
 export function getAuthCallbackUrl(env: AuthRedirectEnv = process.env) {
+  const productionUrl =
+    env.VERCEL_ENV === "production"
+      ? env.VERCEL_PROJECT_PRODUCTION_URL
+      : undefined;
   const baseUrl =
     env.NEXT_PUBLIC_APP_URL ||
+    productionUrl ||
+    env.VERCEL_BRANCH_URL ||
     env.NEXT_PUBLIC_VERCEL_URL ||
     env.VERCEL_URL ||
     "http://localhost:3000";

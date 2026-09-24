@@ -2,7 +2,11 @@
 import { useActionState } from "react";
 import { signIn } from "./actions";
 export function LoginForm() {
-  const [state, action, pending] = useActionState(signIn, { error: "" });
+  const [state, action, pending] = useActionState(
+    signIn,
+    { error: "" },
+    "/login",
+  );
   return (
     <form action={action} className="phone-form">
       <label>

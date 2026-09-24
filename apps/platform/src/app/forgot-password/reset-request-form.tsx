@@ -4,10 +4,11 @@ import { useActionState } from "react";
 import { requestPasswordReset } from "./actions";
 
 export function ResetRequestForm() {
-  const [state, action, pending] = useActionState(requestPasswordReset, {
-    error: "",
-    submitted: false,
-  });
+  const [state, action, pending] = useActionState(
+    requestPasswordReset,
+    { error: "", submitted: false },
+    "/forgot-password",
+  );
 
   if (state.submitted)
     return (
