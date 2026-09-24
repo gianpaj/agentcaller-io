@@ -23,4 +23,5 @@ Thumbs.db
 .vercel
 .env*.local
 .env*
+!.env.example
 supabase/.temp/

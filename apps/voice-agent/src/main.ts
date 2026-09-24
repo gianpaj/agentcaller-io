@@ -3,12 +3,14 @@ import {
   defineAgent,
   inference,
   voice,
-  WorkerOptions,
+  ServerOptions,
 } from "@livekit/agents";
 import {
   connectDispatchSchema,
   createCallSchema,
 } from "@agentcaller/contracts";
+import { dirname, resolve } from "node:path";
+import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { SipClient, RoomServiceClient } from "livekit-server-sdk";
@@ -17,7 +19,7 @@ import { reportEvent, type TranscriptEntry } from "./platform.js";
 import { connectLiveKit } from "./connect-livekit.js";
 
 const dispatchSchema = z.object({
-  callId: z.string().uuid(),
+  callId: z.uuid(),
   input: createCallSchema,
   region: z.enum(["eu", "us"]),
 });
@@ -150,7 +152,7 @@ export default defineAgent({
     };
 
     ctx.addShutdownCallback(async () => {
-      await rooms.deleteRoom(roomName).catch(() => {});
+      await rooms.deleteRoom(roomName).catch(() => { });
       await reportTerminal("call.completed", { reason: "call_ended" });
     });
 
@@ -184,7 +186,7 @@ export default defineAgent({
           "Begin the call now with the required disclosure and purpose.",
       });
     } catch (error) {
-      await rooms.deleteRoom(roomName).catch(() => {});
+      await rooms.deleteRoom(roomName).catch(() => { });
       console.error("Voice session failed for", callId);
       await reportTerminal("call.failed", {
         reason: "agent_session_failed",
@@ -195,5 +197,10 @@ export default defineAgent({
   },
 });
 
-if (process.argv[1] === fileURLToPath(import.meta.url))
-  cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  // Production start receives env from the host. Local `dev` reads this package's .env.
+  if (process.argv[2] === "dev") {
+    loadEnvFile(resolve(dirname(fileURLToPath(import.meta.url)), "../.env"));
+  }
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
+}

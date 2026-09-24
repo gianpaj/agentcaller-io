@@ -251,6 +251,10 @@ pnpm --filter @agentcaller/docs dev
 pnpm --filter @agentcaller/voice-agent dev
 ```
 
+The voice worker dev command loads `apps/voice-agent/.env`. Values already set
+in the environment stay in place. The production start command does not read
+that file.
+
 ## Validation
 
 Run the workspace checks from the repository root:

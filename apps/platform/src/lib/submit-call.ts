@@ -9,7 +9,7 @@ import {
   connectJobs,
   clientProfiles,
 } from "@agentcaller/database";
-import { and, desc, eq, gte, isNull, lt } from "drizzle-orm";
+import { and, eq, gte, isNull } from "drizzle-orm";
 import { ApiError } from "@/lib/auth";
 import { database } from "@/lib/database";
 import { dispatchCall } from "@/lib/livekit";
@@ -130,10 +130,10 @@ export async function submitCall(
     const [callbackRate] =
       input.task.type === "connect_me"
         ? await database()
-            .select()
-            .from(rateCards)
-            .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
-            .limit(1)
+          .select()
+          .from(rateCards)
+          .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
+          .limit(1)
         : [];
     if (input.task.type === "connect_me" && !callbackRate)
       throw new ApiError(503, "No Spanish callback rate");
@@ -151,7 +151,7 @@ export async function submitCall(
       input.task.type === "connect_me" &&
       callbackRate &&
       attemptReserve(input.task, rate, callbackRate) * input.task.maxAttempts >
-        maxAmountMicros
+      maxAmountMicros
     )
       throw new ApiError(
         422,
@@ -166,9 +166,9 @@ export async function submitCall(
     const verified = operatorFunded
       ? undefined
       : await verifyPayment(
-          paymentPayload,
-          paymentRequirements(maxAmountMicros),
-        );
+        paymentPayload,
+        paymentRequirements(maxAmountMicros),
+      );
 
     // Persist funding authorization with the job before any dispatch.
     let call: typeof calls.$inferSelect;
