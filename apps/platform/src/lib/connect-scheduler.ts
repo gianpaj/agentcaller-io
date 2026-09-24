@@ -1,47 +1,57 @@
 import { authorizeOperatorCall } from "./operator-funding";
 import { callAttempts } from "@agentcaller/database";
-import { and, eq, gt, isNotNull, or, inArray, asc } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, or, inArray, asc } from "drizzle-orm";
 import { database } from "./database";
 import { stopCall, dispatchConnectAttempt } from "./livekit";
 import { claimConnectAttempt, dueConnectJobs } from "./connect-me";
 
+const UNCERTAIN_CLEANUP = [
+  "dial_unknown",
+  "worker_lost",
+  "cancelled",
+  "configuration_error",
+];
+const UNCERTAIN_RETRY_MS = 15 * 60 * 1000;
+
 export async function cleanupConnectRooms(callId?: string) {
+  const now = new Date();
   const attempts = await database()
     .select()
     .from(callAttempts)
     .where(
       and(
         isNotNull(callAttempts.endedAt),
+        isNull(callAttempts.roomsCleanedAt),
         or(
-          gt(callAttempts.cleanupUntil, new Date()),
-          inArray(callAttempts.reason, [
-            "dial_unknown",
-            "worker_lost",
-            "cancelled",
-            "configuration_error",
-          ]),
+          gt(callAttempts.cleanupUntil, now),
+          and(
+            inArray(callAttempts.reason, UNCERTAIN_CLEANUP),
+            gt(
+              callAttempts.endedAt,
+              new Date(now.getTime() - UNCERTAIN_RETRY_MS),
+            ),
+          ),
         ),
         ...(callId ? [eq(callAttempts.callId, callId)] : []),
       ),
     )
     .orderBy(asc(callAttempts.updatedAt))
     .limit(100);
-  const cleanup = await Promise.allSettled(
-    attempts.flatMap((a) => [
-      stopCall(a.businessRoom),
-      stopCall(a.callbackRoom),
-    ]),
-  );
-  for (const attempt of attempts)
-    await database()
-      .update(callAttempts)
-      .set({ updatedAt: new Date() })
-      .where(eq(callAttempts.id, attempt.id));
-  return {
-    attempts: attempts.length,
-    failedRooms: cleanup.filter((result) => result.status === "rejected")
-      .length,
-  };
+  let failedRooms = 0;
+  for (const attempt of attempts) {
+    const cleanup = await Promise.allSettled([
+      stopCall(attempt.businessRoom),
+      stopCall(attempt.callbackRoom),
+    ]);
+    const failed = cleanup.filter((result) => result.status === "rejected");
+    failedRooms += failed.length;
+    if (failed.length === 0)
+      await database()
+        .update(callAttempts)
+        .set({ roomsCleanedAt: new Date() })
+        .where(eq(callAttempts.id, attempt.id));
+  }
+  return { attempts: attempts.length, failedRooms };
 }
 /** Only durably authorized operator jobs may dispatch; paid connect jobs remain blocked. */
 export async function drainConnectJobs(dispatch = dispatchConnectAttempt) {

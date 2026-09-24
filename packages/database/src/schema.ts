@@ -266,6 +266,7 @@ export const callAttempts = pgTable(
     reason: text("reason"),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     cleanupUntil: timestamp("cleanup_until", { withTimezone: true }).notNull(),
+    roomsCleanedAt: timestamp("rooms_cleaned_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -278,6 +279,9 @@ export const callAttempts = pgTable(
     uniqueIndex("one_active_attempt")
       .on(t.callId)
       .where(sql`${t.endedAt} is null`),
+    index("call_attempts_pending_cleanup")
+      .on(t.updatedAt)
+      .where(sql`${t.endedAt} is not null and ${t.roomsCleanedAt} is null`),
   ],
 ).enableRLS();
 export const callLegs = pgTable(

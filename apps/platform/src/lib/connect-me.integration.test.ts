@@ -77,6 +77,7 @@ run("connect ledger with PostgreSQL locks", () => {
       "20260918190000_connect_me.sql",
       "20260918200000_operator_payment_state.sql",
       "20260918200100_operator_funding.sql",
+      "20260924120000_connect_room_cleanup.sql",
     ])
       await pool.query(
         readFileSync(
