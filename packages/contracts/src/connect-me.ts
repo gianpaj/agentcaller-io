@@ -67,6 +67,7 @@ export const connectReasons = [
   "callback_hangup",
   "connected",
   "cancelled",
+  "outside_window",
   "duration_limit",
   "spend_limit",
   "expired",
@@ -129,6 +130,15 @@ export function legLimit(task: ConnectMeTask, leg: "business" | "callback") {
   return leg === "business"
     ? task.waitingSeconds + task.handoffSeconds + task.conversationSeconds
     : task.acceptanceSeconds + task.conversationSeconds;
+}
+/** Next open minute, or null when none remains before the ringing deadline. */
+export function nextWindowStart(task: ConnectMeTask, now: Date): Date | null {
+  const limit = Date.parse(task.expiresAt) - task.ringingSeconds * 1000;
+  for (let t = now.getTime() + 60_000; t < limit; t += 60_000) {
+    const at = new Date(t);
+    if (inCallingWindow(task, at)) return at;
+  }
+  return null;
 }
 export function retryTime(
   task: ConnectMeTask,

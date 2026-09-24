@@ -100,7 +100,11 @@ export async function connectLiveKit(
     action: ConnectEvent["action"],
     fields?: Partial<ConnectEvent>,
   ) => {
-    const response = (await request(action, fields)) as { allowed?: boolean };
+    const response = (await request(action, fields)) as {
+      allowed?: boolean;
+      defer?: string;
+    };
+    if (response.defer === "outside_window") return "deferred";
     return response.allowed === true;
   };
   const stop = (reason: ConstructorParameters<typeof CallStopped>[0]) => {

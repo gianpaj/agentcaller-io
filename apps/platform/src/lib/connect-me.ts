@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   createCallSchema,
   inCallingWindow,
+  nextWindowStart,
   retryTime,
   legLimit,
   type ConnectEvent,
@@ -117,6 +118,7 @@ export async function connectCommand(
       return receipt.attemptId === attempt.id
         ? receipt.response
         : { allowed: false };
+    let defer: "outside_window" | undefined;
     const legs = await tx
       .select()
       .from(callLegs)
@@ -145,11 +147,21 @@ export async function connectCommand(
           .where(eq(callAttempts.id, attempt.id));
         break;
       case "dial":
+        if (
+          event.leg === "business" &&
+          !leg &&
+          attempt.state === "running" &&
+          !inCallingWindow(task, now)
+        ) {
+          allowed = false;
+          defer = "outside_window";
+          break;
+        }
         allowed =
           !!event.leg &&
           !leg &&
           (event.leg === "business"
-            ? attempt.state === "running" && inCallingWindow(task, now)
+            ? attempt.state === "running"
             : attempt.state === "human" && business?.state === "connected");
         if (allowed) {
           await tx.insert(callLegs).values({
@@ -240,10 +252,14 @@ export async function connectCommand(
           break;
         }
         // Only explicit pre-answer SIP failures may retry. Connected or uncertain legs never do.
-        const retry =
-          !business?.connectedAt && !callback && attempt.state === "running"
-            ? retryTime(task, attempt.ordinal, event.reason, now)
-            : null;
+        // A closed window defers to the next open minute instead of cancelling the job.
+        const preAnswer =
+          !business?.connectedAt && !callback && attempt.state === "running";
+        const retry = !preAnswer
+          ? null
+          : event.reason === "outside_window"
+            ? nextWindowStart(task, now)
+            : retryTime(task, attempt.ordinal, event.reason, now);
         await tx
           .update(callAttempts)
           .set({ state: "terminal", reason: event.reason, endedAt: now })
@@ -268,9 +284,11 @@ export async function connectCommand(
           await terminal(
             tx,
             callId,
-            ["busy", "no_answer"].includes(event.reason)
-              ? "attempts_exhausted"
-              : event.reason,
+            event.reason === "outside_window"
+              ? "expired"
+              : ["busy", "no_answer"].includes(event.reason)
+                ? "attempts_exhausted"
+                : event.reason,
             now,
           );
         break;
@@ -290,6 +308,7 @@ export async function connectCommand(
       });
     const response = {
       allowed,
+      ...(defer ? { defer } : {}),
       ...(event.action === "claim" && allowed
         ? {
             input,

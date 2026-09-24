@@ -120,6 +120,15 @@ describe("connect workflow", () => {
       expect(io.bridge).not.toHaveBeenCalled();
     },
   );
+  it("defers a closed window instead of cancelling", async () => {
+    const { io } = harness();
+    vi.mocked(io.command).mockResolvedValue("deferred");
+    expect(await runConnectFlow(input, io)).toBe("outside_window");
+    expect(io.dial).not.toHaveBeenCalled();
+    expect(io.command).toHaveBeenLastCalledWith("finish", {
+      reason: "outside_window",
+    });
+  });
   it("never dials without durable permission", async () => {
     const { io } = harness();
     vi.mocked(io.command).mockResolvedValue(false);

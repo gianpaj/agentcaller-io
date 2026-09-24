@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCallSchema,
   inCallingWindow,
+  nextWindowStart,
   retryTime,
   connectMeTaskSchema,
   isBusinessDestination,
@@ -85,6 +86,16 @@ describe("bounded task contract", () => {
     expect(inCallingWindow(task, new Date("2026-09-19T10:00:00Z"))).toBe(false);
     expect(inCallingWindow(task, new Date("2026-12-18T07:00:00Z"))).toBe(false);
     expect(inCallingWindow(task, new Date("2026-12-18T08:00:00Z"))).toBe(true);
+  });
+  it("defers a closed window to the next open minute before expiry", () => {
+    const closed = new Date("2026-09-18T15:00:00Z");
+    expect(nextWindowStart(task, closed)).toBeNull();
+    expect(
+      nextWindowStart(
+        { ...task, expiresAt: "2026-09-21T12:00:00.000Z" },
+        closed,
+      )?.toISOString(),
+    ).toBe("2026-09-21T07:00:00.000Z");
   });
   it("only retries busy/no-answer before limits expire", () => {
     const now = new Date("2026-09-18T10:00:00Z");

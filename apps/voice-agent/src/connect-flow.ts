@@ -14,7 +14,7 @@ export interface ConnectIO {
   command(
     action: ConnectEvent["action"],
     fields?: Partial<ConnectEvent>,
-  ): Promise<boolean>;
+  ): Promise<boolean | "deferred">;
   dial(leg: Leg): Promise<void>;
   classify(): Promise<
     "human" | "voicemail" | "ivr_unresolved" | "uncertain_answer" | "refused"
@@ -62,7 +62,9 @@ export async function runConnectFlow(
     fields?: Partial<ConnectEvent>,
   ) => {
     if (io.signal.aborted) throw io.signal.reason;
-    if (!(await io.command(action, fields))) throw new CallStopped("cancelled");
+    const verdict = await io.command(action, fields);
+    if (verdict === "deferred") throw new CallStopped("outside_window");
+    if (verdict !== true) throw new CallStopped("cancelled");
     if (io.signal.aborted) throw io.signal.reason;
   };
   try {

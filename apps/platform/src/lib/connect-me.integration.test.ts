@@ -317,6 +317,38 @@ run("connect ledger with PostgreSQL locks", () => {
       reason: "duration_limit",
     });
   });
+  it("requeues a business dial that misses the calling window", async () => {
+    const { attempt, event } = await start();
+    const at = new Date("2026-09-18T15:01:00Z");
+    await db
+      .update(calls)
+      .set({
+        task: { ...input.task, expiresAt: "2026-09-21T12:00:00.000Z" },
+      })
+      .where(eq(calls.id, callId));
+    await db
+      .update(callAttempts)
+      .set({ heartbeatAt: at })
+      .where(eq(callAttempts.id, attempt.id));
+    expect(
+      await connectCommand(callId, event("dial", { leg: "business" }), db, at),
+    ).toEqual({ allowed: false, defer: "outside_window" });
+    expect(
+      await connectCommand(
+        callId,
+        event("finish", { reason: "outside_window" }),
+        db,
+        at,
+      ),
+    ).toMatchObject({ allowed: true });
+    const [call] = await db.select().from(calls);
+    expect(call!.endedAt).toBeNull();
+    expect(call!.state).toBe("queued");
+    expect(call!.outcome).toMatchObject({
+      reason: "outside_window",
+      nextAttemptAt: "2026-09-21T07:00:00.000Z",
+    });
+  });
   it("worker loss after dial intent stops, retains unknown cost, never redials", async () => {
     const { send } = await start();
     await send("dial", { leg: "business" });
