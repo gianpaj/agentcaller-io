@@ -1,14 +1,306 @@
 @import "tailwindcss";
 
-:root { --void: #080a0d; --panel: #0d1117; --ink: #ecf5eb; --muted: #8c9a92; --line: #273129; --signal: #c6ff4a; --ember: #ff7a45; }
-* { box-sizing: border-box; }
-html { background: var(--void); }
-body { margin: 0; min-width: 320px; color: var(--ink); background: var(--void); font-family: "DM Mono", "Courier New", monospace; }
-a { color: inherit; text-decoration: none; }
-button, input { font: inherit; }
-.grid-noise { background-image: linear-gradient(rgba(198,255,74,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(198,255,74,.045) 1px,transparent 1px),radial-gradient(circle at 75% -10%,rgba(198,255,74,.12),transparent 32rem); background-size: 3.25rem 3.25rem,3.25rem 3.25rem,auto; }
-.scanline::after { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .12; background: repeating-linear-gradient(0deg,transparent 0 2px,rgba(255,255,255,.025) 3px); mix-blend-mode: overlay; }
-.signal-border { border: 1px solid var(--line); box-shadow: inset 0 0 0 1px rgba(198,255,74,.025); }
-.signal-border:hover { border-color: rgba(198,255,74,.55); }
-.label { color: var(--muted); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; }
-.status-dot { display: inline-block; width: .5rem; height: .5rem; margin-right: .45rem; border-radius: 50%; background: var(--signal); box-shadow: 0 0 12px var(--signal); }
+:root {
+  --void: #080a0d;
+  --panel: #0d1117;
+  --ink: #ecf5eb;
+  --muted: #8c9a92;
+  --line: #273129;
+  --signal: #c6ff4a;
+  --ember: #ff7a45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--void);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--ink);
+  background: var(--void);
+  font-family: "DM Mono", "Courier New", monospace;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.grid-noise {
+  background-image: linear-gradient(rgba(198, 255, 74, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(198, 255, 74, .045) 1px, transparent 1px), radial-gradient(circle at 75% -10%, rgba(198, 255, 74, .12), transparent 32rem);
+  background-size: 3.25rem 3.25rem, 3.25rem 3.25rem, auto;
+}
+
+.scanline::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .12;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, .025) 3px);
+  mix-blend-mode: overlay;
+}
+
+.signal-border {
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 0 1px rgba(198, 255, 74, .025);
+}
+
+.signal-border:hover {
+  border-color: rgba(198, 255, 74, .55);
+}
+
+.label {
+  color: var(--muted);
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.status-dot {
+  display: inline-block;
+  width: .5rem;
+  height: .5rem;
+  margin-right: .45rem;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 12px var(--signal);
+}
+
+.phone-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--void);
+}
+
+.phone-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.phone-panel {
+  width: min(100%, 28rem);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 1.25rem;
+}
+
+.phone-eyebrow {
+  color: var(--signal);
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.phone-muted,
+.phone-panel .phone-muted {
+  color: var(--muted);
+  font-size: .85rem;
+  line-height: 1.5;
+}
+
+.phone-form,
+.phone-fields {
+  display: grid;
+  gap: .85rem;
+}
+
+.phone-form label,
+.phone-check {
+  display: grid;
+  gap: .35rem;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.phone-form input,
+.phone-form select,
+.phone-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--void);
+  color: var(--ink);
+  padding: .75rem .8rem;
+}
+
+.phone-form button,
+.phone-primary,
+.phone-secondary,
+.phone-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 2.75rem;
+  padding: .7rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.phone-primary {
+  background: var(--signal);
+  color: var(--void);
+  font-weight: 700;
+}
+
+.phone-secondary {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.phone-danger {
+  background: transparent;
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+.phone-error {
+  color: var(--ember);
+}
+
+.phone-header,
+.phone-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .9rem 1rem;
+  border-color: var(--line);
+}
+
+.phone-header {
+  border-bottom: 1px solid var(--line);
+}
+
+.phone-header a,
+.phone-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.phone-main {
+  flex: 1;
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  padding: 1.25rem 1rem 5.5rem;
+}
+
+.phone-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.phone-title h1 {
+  margin: .25rem 0 0;
+  font-size: 2rem;
+  letter-spacing: -.06em;
+}
+
+.phone-nav {
+  position: sticky;
+  bottom: 0;
+  justify-content: space-around;
+  border-top: 1px solid var(--line);
+  background: #0d1117f2;
+}
+
+.phone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.phone-empty {
+  display: grid;
+  justify-items: start;
+  gap: .75rem;
+  border: 1px solid var(--line);
+  padding: 1.5rem;
+}
+
+.phone-recents,
+.phone-attempts,
+.phone-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.phone-recents li,
+.phone-attempts li,
+.phone-leg,
+.phone-between {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  border-bottom: 1px solid var(--line);
+  padding: .85rem 0;
+}
+
+.phone-call-link {
+  display: grid;
+  flex: 1;
+  gap: .15rem;
+}
+
+.phone-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: #172117;
+  color: var(--signal);
+}
+
+.phone-failed,
+.phone-avatar.phone-failed {
+  color: var(--ember);
+}
+
+.phone-pagination,
+.phone-refresh {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.phone-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.phone-back {
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.phone-submit {
+  width: 100%;
+}
