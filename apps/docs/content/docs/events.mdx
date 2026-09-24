@@ -5,17 +5,17 @@ description: Track a dispatch without losing a terminal result.
 
 Poll `GET /api/v1/calls/{id}` or receive signed events at the webhook endpoint configured in the control room.
 
-Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Payment state moves separately through `authorized`, `settling`, `settled`, or `failed`.
+Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Payment state moves separately through `authorized`, `settling`, `settled`, or `failed`. Operator-funded jobs use `not_required` throughout and never settle through x402.
 
 ## Webhook delivery
 
 Each delivery is a `POST` with a JSON body of `{ id, timestamp, type, data }` and three headers:
 
-| Header | Value |
-| --- | --- |
-| `AgentCaller-Event` | The event ID, identical to `id` in the body |
+| Header                  | Value                                                            |
+| ----------------------- | ---------------------------------------------------------------- |
+| `AgentCaller-Event`     | The event ID, identical to `id` in the body                      |
 | `AgentCaller-Timestamp` | ISO-8601 signing timestamp, identical to `timestamp` in the body |
-| `AgentCaller-Signature` | `sha256=<hex>` |
+| `AgentCaller-Signature` | `sha256=<hex>`                                                   |
 
 The signature is `HMAC-SHA256(secret, "{timestamp}.{rawBody}")`, hex-encoded. Your signing secret is
 shown next to the webhook endpoint in the control room, and is unique to your client.
@@ -25,7 +25,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 function verify(rawBody, headers, secret) {
   const timestamp = headers["agentcaller-timestamp"];
-  const expected = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
+  const expected = createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex");
   const received = headers["agentcaller-signature"].replace(/^sha256=/, "");
   return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }
@@ -35,3 +37,23 @@ Verify the signature against the raw request body before parsing it, reject time
 tolerance window, store the event ID for replay protection, and make your handler idempotent.
 Deliveries are retried with exponential backoff, capped at one hour between attempts and ten
 attempts in total. Redirects are not followed, and endpoints must be public HTTPS addresses.
+
+## Connect-me jobs
+
+For `connect_me`, `queued` includes a scheduled retry. While that retry is waiting,
+`outcome.reason` is `busy`, `no_answer`, or `outside_window`. `dialing` starts when
+the business leg is dialed and continues through classification and callback setup.
+`in_progress` means the callback participant has been moved into the business room.
+Polling returns `job`, the current `attempts` (a row changes until it is
+`terminal`), and separate `legs`. `measuredMicros: null` means unknown, not free.
+`outcome.reason` is a `connectReasons` value, including `connected`, `cancelled`,
+`voicemail`, `worker_lost`, `dial_unknown`, `refused`, `attempts_exhausted`,
+`callback_declined`, `callback_timeout`, `callback_hangup`, `uncertain_answer`,
+`expired`, `spend_limit`, and `duration_limit`. Call completion does not imply
+payment settlement.
+
+`POST /api/v1/calls/{id}/cancel` authorizes by tenant, closes the durable job before
+cleanup, and prevents late acceptance from reopening it. The portal offers the
+same cancellation. Cancellation also stops scheduled retries. Deletion is blocked
+until a provider cleanup and payment reconciliation path exists. Recording and
+transcripts are not collected for this task.

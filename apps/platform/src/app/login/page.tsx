@@ -1,25 +1,47 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAuthCallbackUrl } from "@/lib/auth-redirect";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-export default async function LoginPage() {
+import { LoginForm } from "./login-form";
+import { signInWithGithub } from "./actions";
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; message?: string }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) redirect("/app");
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "github",
-    options: { redirectTo: getAuthCallbackUrl() },
-  });
-  if (error || !data.url)
-    return (
-      <main className="grid-noise flex min-h-screen items-center justify-center p-6">
-        <p className="signal-border bg-[#0d1117] p-6 text-sm">
-          GitHub sign-in is not configured. Set the Supabase GitHub provider and
-          try again.
+  const { error, message } = await searchParams;
+  return (
+    <main className="phone-app phone-login">
+      <section className="phone-panel">
+        <p className="phone-eyebrow">AgentCaller</p>
+        <h1>Your calling assistant</h1>
+        <p className="phone-muted">Sign in with your operator account.</p>
+        {message === "password_updated" && (
+          <p role="status">Password updated. Sign in with your new password.</p>
+        )}
+        <LoginForm />
+        <p className="phone-muted">
+          <Link href="/forgot-password">Forgot your password?</Link>
         </p>
-      </main>
-    );
-  redirect(data.url);
+        <details>
+          <summary>Other sign-in options</summary>
+          <form action={signInWithGithub}>
+            <button className="phone-secondary">Continue with GitHub</button>
+          </form>
+        </details>
+        {error && (
+          <p role="alert">
+            {error === "oauth"
+              ? "GitHub sign-in is unavailable. Use your email and password."
+              : "The authentication link is invalid or has expired. Request a new password reset link."}
+          </p>
+        )}
+        <p className="phone-muted">Accounts are created by the operator.</p>
+      </section>
+    </main>
+  );
 }

@@ -16,8 +16,9 @@ Spanish, with per-call time and spend limits.
 
 An accepted task should be narrow, reversible, and easy to verify. The intended
 MVP supports calls to Spain and the United States and excludes purchases,
-payment-card handling, regulated services, emergency calls, and automatic
-redialing.
+payment-card handling, regulated services, emergency calls, and unrestricted
+automatic redialing. The `connect_me` exception below permits bounded retries
+only for confirmed busy/no-answer outcomes.
 
 The target lifecycle is:
 
@@ -31,6 +32,41 @@ The target lifecycle is:
 
 The current implementation reaches parts of this flow, but not the complete
 contract.
+
+### Bounded connection task
+
+`connect_me` connects a Spanish or Italian geographic business number to a
+Spanish mobile, with independently configured business and callback languages.
+Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
+press-1 handoff are implemented and tested offline. Operators can use the
+[operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
+without x402. It requires an enabled server-managed operator profile, an explicit
+funding header, exact destination allowlists and a per-job spend cap
+(`CONNECT_OPERATOR_MAX_USD`, default $5).
+**Paid connect-me requests remain blocked** by the unsupported payment scheme.
+Operator jobs record their authorization and `paymentState: not_required`; they
+do not create a payment receipt or settle through x402.
+
+The platform reserves the worst-case quoted cost of both legs before each
+attempt and does not release that hold. Admission rejects a cap that cannot
+fund every `maxAttempts` reserve. Only confirmed busy/no-answer can schedule
+another attempt. Unknown
+dial outcomes, refusal, voicemail, uncertain classification and failed handoff
+stop the job. Local observation of SIP answer/disconnection drives leg usage;
+missing cost stays null. Reservations are deliberately not refunded between
+attempts. They bound quoted usage, not an unverified carrier invoice.
+
+The business and mobile remain in separate LiveKit rooms until callback DTMF 1
+and a durable acceptance check. Both AI sessions are silenced before the mobile
+moves into the business room. The worker remains alive to supervise cleanup.
+Recording is disabled. LiveKit AMD plus conversational signals are fallible;
+Spanish/Italian accuracy and all real PSTN behavior remain unverified.
+
+See [dispatch setup and controlled test procedure](apps/docs/content/docs/dispatch.mdx)
+and the [decision record](.agents/notes/implemented/telephony/2026-09-18-bounded-connect-me.md).
+The existing API exposes job details and cancellation; the portal shows outcomes
+and a cancel action. Job deletion is blocked pending provider cleanup and payment
+reconciliation.
 
 ## Repository map
 
@@ -74,20 +110,20 @@ secrets, and webhook retry lease are also useful foundations.
 
 ## Feasibility
 
-Verdict as of 2026-08-18: the product is technically feasible, but the current
-repository is a prototype rather than a working MVP.
+The product is technically feasible, but the current repository is a prototype
+rather than a working MVP.
 
-| Area                    | Assessment                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                       |
-| Voice path              | Blocked; the session starts before answer and cannot reliably classify no-answer, voicemail, or connected duration |
-| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                |
-| Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                              |
-| Hangup                  | Blocked; prompt instructions do not close the PSTN leg after success, refusal, or policy rejection                 |
-| Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented               |
-| Deployment              | Blocked; the voice-agent build emits no `dist`, while its Docker image requires `dist/main.js`                     |
-| Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies            |
-| Verification            | Narrow; 43 assertions cover contracts and platform helpers, with no voice, provider, database, or end-to-end tests |
+| Area                    | Assessment                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                           |
+| Voice path              | Worker owns dialing and waits for SIP answer; connect-me detection and handoff require live verification               |
+| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                    |
+| Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
+| Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
+| Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
+| Deployment              | Worker build emits bundled `dist/main.js`; deployment and provider limits require live verification                    |
+| Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
+| Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
 The most important provider mismatches are documented upstream:
 
@@ -150,6 +186,59 @@ cp apps/platform/.env.example apps/platform/.env.local
 cp apps/voice-agent/.env.example apps/voice-agent/.env
 ```
 
+The platform dashboard and email/password login require a database URL, a
+Supabase URL, and a Supabase publishable key. The canonical names are
+`DATABASE_URL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`. The Vercel
+Supabase integration names `POSTGRES_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are accepted as fallbacks. Set
+`NEXT_PUBLIC_APP_URL` for a production or non-Vercel deployment. The remaining
+blocks in `apps/platform/.env.example` are validated when their API, scheduler,
+telephony, payment, or recording path runs. Do not add placeholder provider
+credentials to make the dashboard load.
+
+`DATABASE_URL` must point to the PostgreSQL database where the
+`supabase/migrations` files were applied. When Supabase Auth and Supabase
+PostgreSQL share a project, confirm that the project reference in the database
+connection matches `SUPABASE_URL`. For Vercel, copy the **Transaction pooler**
+URI from the Supabase Connect panel, replace its password placeholder, and set
+it for the matching Vercel environment. A database URL left by another storage
+integration will authenticate the user and then fail when the portal queries
+`client_profiles`.
+
+The platform uses one short-lived `postgres.js` connection per Vercel instance,
+with prepared statements disabled so the Supabase transaction pooler can
+multiplex it. `sslmode=require` encrypts that connection without a CA bundle.
+Connections that request `verify-ca` or `verify-full` keep certificate
+verification enabled and must provide the appropriate CA configuration.
+
+Connect the Supabase resource to every Vercel environment that runs the
+platform. Feature branches use Vercel's **Preview** environment even when they
+act as staging. Integration variables scoped only to **Production** are absent
+from preview functions. Redeploy after changing the resource connection scope.
+
+Password recovery uses `NEXT_PUBLIC_APP_URL` or Vercel's stable deployment
+origin and returns through `/auth/callback`. In Supabase **Authentication → URL
+Configuration**, set the Site URL to the stable deployment and allow these
+redirect URLs:
+
+```text
+http://localhost:3000/auth/callback*
+https://agentcaller-git-feat-bounded-connect-me-gianpaj.vercel.app/auth/callback*
+```
+
+The trailing `*` permits the allowlisted callback's recovery query string. Add
+the callback pattern for each stable deployment. For changing Vercel preview
+hosts, Supabase also supports a preview wildcard such as
+`https://*-gianpaj.vercel.app/**`. Keep the narrow callback pattern for
+production. The password-reset email template must use
+`{{ .ConfirmationURL }}` or otherwise honor `{{ .RedirectTo }}` so the
+application-provided callback is preserved.
+
+`NEXT_PUBLIC_APP_URL` is optional for Vercel previews. The platform uses
+Vercel's stable `VERCEL_BRANCH_URL`, which requires **Automatically expose
+System Environment Variables** in the Vercel project settings. Each push gets a
+new immutable deployment URL, but its branch URL remains stable.
+
 Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase
 environment before running the platform.
@@ -162,6 +251,10 @@ pnpm --filter @agentcaller/docs dev
 pnpm --filter @agentcaller/voice-agent dev
 ```
 
+The voice worker dev command loads `apps/voice-agent/.env`. Values already set
+in the environment stay in place. The production start command does not read
+that file.
+
 ## Validation
 
 Run the workspace checks from the repository root:
@@ -169,12 +262,13 @@ Run the workspace checks from the repository root:
 ```bash
 pnpm typecheck
 pnpm test
+pnpm test:connect-db # isolated disposable PostgreSQL; requires Docker
 pnpm format:check
 pnpm build
 ```
 
-The 2026-08-18 review found existing formatting drift and the voice-agent emit
-failure described above. When changing a scoped package, run its checks directly
+The 2026-08-18 review records baseline failures. The worker build emits its
+entrypoint; repository-wide formatting drift remains. When changing a scoped package, run its checks directly
 as well:
 
 ```bash

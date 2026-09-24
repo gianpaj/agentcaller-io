@@ -1,6 +1,6 @@
 ---
 title: Dispatch a call
-description: Create a typed, paid call request.
+description: Create a typed call request with paid or operator funding.
 ---
 
 `POST https://agentcaller.io/api/v1/calls`
@@ -47,3 +47,215 @@ not enabled for your client returns `422`. Ask an operator to enable a voice bef
 
 `clientReference` is an optional free-text field, echoed back on the call resource and in list
 responses. Use it to tie a call to your own records.
+
+## Bounded business-to-mobile connection
+
+Paid `connect_me` requests return `503`: the existing `batch-settlement`
+integration cannot authorize variable capture across retries and expiry, and its
+one-hour timeout cannot fund a multi-day job. Operator-funded testing below uses
+explicit administrative authorization and charges the platform's provider
+accounts directly. It does not manufacture a payment receipt. Other task types
+keep their existing payment requirements.
+
+The request uses the existing endpoint, tenant credentials and idempotency key:
+
+```json
+{
+  "destination": "+34911234567",
+  "destinationCountry": "ES",
+  "language": "es",
+  "maxDurationSeconds": 900,
+  "maxAmountUsd": 10,
+  "task": {
+    "type": "connect_me",
+    "callbackNumber": "+34612345678",
+    "callbackLanguage": "it",
+    "purpose": "Speak to the post office about collecting a parcel",
+    "callingWindow": {
+      "timezone": "Europe/Madrid",
+      "weekdays": [1, 2, 3, 4, 5],
+      "start": "09:00",
+      "end": "17:00"
+    },
+    "expiresAt": "2026-09-19T15:00:00.000Z",
+    "maxAttempts": 6,
+    "retryDelaySeconds": 300,
+    "ringingSeconds": 40,
+    "waitingSeconds": 120,
+    "handoffSeconds": 90,
+    "callbackRingingSeconds": 40,
+    "acceptanceSeconds": 15,
+    "conversationSeconds": 600,
+    "maxIvrDigits": 0
+  }
+}
+```
+
+These are syntax examples, not authorized destinations. Supply actual business
+hours and a future expiry within seven days. Weekdays use Monday=1 through
+Sunday=7; windows are same-day local times in an explicit IANA timezone.
+`language` is `es` or `it`; `callbackLanguage` is independently `es`, `it` or `en`.
+The initial destination policy accepts geographic landlines, not mobiles,
+premium-rate or short-code services. Prefix validation does not verify that a
+number belongs to a business. The callback must be a Spanish mobile.
+
+Only confirmed SIP busy/no-answer retries, at least five minutes apart, within
+hours, expiry, attempt and spend limits. A terminal attempt never reopens.
+Refusal, voicemail, unclear IVR, uncertain detection and failed callback stop the
+job. IVR navigation defaults to zero digits; an explicitly positive limit allows
+at most five clearly identified menu choices. No voicemail message is left.
+
+The spend cap must cover `maxAttempts` times both legs at their maximum
+durations, using pinned rate snapshots that include waiting and conversation.
+Reservations are not released between attempts. Expiry or the attempt count can
+still stop a job early.
+Configure conservative all-in rate cards that cover the exact destination
+classes, provider surcharges and inference. Current country-level rates cannot
+prove an actual Telnyx invoice ceiling. Missing connection/end observations leave
+measured cost null; worker loss never becomes zero usage. Connect jobs cannot use
+the legacy single-leg settlement helper.
+
+### Setup
+
+Apply migrations in order and deploy the platform and bundled voice worker.
+Configure the worker's `.env.example` values server-side. Use an authenticated
+LiveKit outbound trunk targeting Telnyx's documented European signaling endpoint
+[`sip.telnyx.eu`](https://sip.telnyx.com/), with SIP credentials and authorized
+caller IDs. Trunks are provisioned separately, never per attempt. Both legs use
+E.164 destinations. Configure `CONNECT_CALLER_ID_ES`, `CONNECT_CALLER_ID_IT`, and
+`CONNECT_CALLBACK_CALLER_ID` separately; none may equal either destination.
+
+Telnyx lists Spain and Italy for
+[Local Calling](https://support.telnyx.com/en/articles/6622229-pstn-replacement-local-calling-with-telnyx).
+Coverage does not establish account readiness. Associate the SIP connection with
+an [outbound profile](https://support.telnyx.com/en/articles/4320411-more-about-outbound-voice-profiles)
+permitting both countries, including Spain for the mobile leg; additional account
+verification may be required. The dated holaBrisa US/Canada snapshot is not a
+current account check. Its inbound integration does not implement this workflow.
+
+Same-country routing needs a Telnyx caller-ID number with Local Calling enabled;
+check the specific number's capability. Otherwise use authorized international
+caller IDs under the [Telnyx caller-ID policy](https://support.telnyx.com/en/articles/3546251-caller-id-number-policy),
+including valid EEA P-Asserted-Identity requirements. Verify SIP connection
+header/override behavior with Telnyx. Never spoof the mobile or business number.
+The callback mobile is a destination and needs no purchase or port to Telnyx.
+
+Schedule authenticated `POST /api/internal/connect/drain` every 30 seconds with
+`Authorization: Bearer $CRON_SECRET` using a scheduler that supports POST. PostgreSQL
+locks and unique indexes serialize ticks and worker claims. Dispatch timeouts
+are not retried; a 90-second stale lease stops the attempt. Workers heartbeat every
+10 seconds and fail closed when the platform cannot confirm permission.
+The endpoint reports `paidJobsBlocked` for x402; enabled operator jobs can dispatch.
+
+The worker uses the pinned SDK's `waitUntilAnswered`, `ringingTimeout` and
+`maxCallDuration` on each SIP leg. These are **LiveKit SIP service limits**, not
+Telnyx carrier-enforced guarantees. The upstream SIP service starts its duration
+budget during dialing, so ringing can reduce remaining conversation time.
+Application phase timers and repeated room deletion provide additional cleanup.
+The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/sip/outbound.go)
+provides the duration timeout independently of the voice worker.
+Unknown/cancelled attempts remain eligible for repeated cleanup until operator
+reconciliation; absence from a room is not proof that an in-flight dial failed.
+Monitor scheduler failures and its `cleanup.failedRooms` count; reconcile provider call records before deleting
+these jobs. No API idempotency key is documented for this dial method; persisted
+intent prevents redial rather than pretending participant identity is idempotency.
+
+AMD runs through LiveKit's agent SDK, followed by an explicit conversational
+agreement to wait. Telnyx Voice API AMD is not used. Detection is probabilistic,
+especially for short greetings, hold music and multilingual menus. Human,
+voicemail and uncertain scenarios need controlled tests in both languages.
+Callback acceptance is DTMF 1 from the callback SIP participant only; speech and
+SIP answer cannot accept. The private-room join follows
+[LiveKit's warm transfer workflow](https://docs.livekit.io/telephony/features/transfers/warm/)
+and requires working `moveParticipant` support in the deployed LiveKit project.
+
+### Operator-funded testing
+
+The platform pays Telnyx, LiveKit and inference charges. `not_required` means no
+customer x402 settlement, not a free call. All destination, window, duration,
+retry and spend controls still apply. This mode supports only `connect_me`.
+
+1. Apply every migration in timestamp order. Commit
+   `20260918200000_operator_payment_state.sql` before applying the following
+   funding migration; PostgreSQL must commit an enum value before using it.
+2. Enable the existing client profile associated with your verified Supabase UID
+   as an operator using the database owner's connection:
+
+   ```sql
+   UPDATE client_profiles
+   SET is_operator = true
+   WHERE supabase_user_id = '<your verified Supabase auth UUID>';
+   ```
+
+   Check that exactly your intended profile was updated. `is_operator` is
+   server-managed; browser metadata and request headers cannot grant it.
+   Use an AgentCaller API key belonging to that profile. API keys use the existing
+   manual provisioning path: prefix `ac_`, and `api_keys.hash` is the SHA-256 hex
+   digest of `API_KEY_PEPPER + ':' + rawKey`. Do not put raw keys in the database.
+
+3. Set these **platform** environment variables, using exact owned test numbers:
+
+   ```dotenv
+   CONNECT_OPERATOR_CALLS_ENABLED=true
+   CONNECT_OPERATOR_DESTINATIONS=+34<owned-business-test-number>,+34<your-mobile>
+   CONNECT_OPERATOR_MAX_USD=5
+   ```
+
+   The allowlist is comma-separated E.164 numbers and must include both legs.
+   The default switch is `false`; the default per-job cap is USD 5. Omit
+   `CDP_API_KEY`, `X402_PAY_TO` and `X402_USDC_ASSET` for an operator-only deployment.
+   Keep the other platform/worker configuration described above, plus active
+   rate cards for the business country and Spanish callback. Never invent rates.
+
+4. Deploy the platform and voice worker. After authorizing a controlled test,
+   save the request example above as `connect-test.json`, replacing destinations,
+   expiry and hours. Start with `maxAttempts: 1` and a cap no greater than the
+   deployment's cap. Submit it from your own terminal:
+
+   ```bash
+   curl --fail-with-body "$PLATFORM_URL/api/v1/calls" \
+     -H "Authorization: Bearer $AGENTCALLER_API_KEY" \
+     -H 'Idempotency-Key: owned-number-test-001' \
+     -H 'X-AgentCaller-Funding: operator' \
+     -H 'Content-Type: application/json' \
+     --data-binary @connect-test.json
+   ```
+
+   A `202` response durably queues the job. Reuse the same idempotency key only
+   for retries of that submission. No `PAYMENT-SIGNATURE` is needed.
+
+5. The scheduled drain triggers dialing when the explicit calling window permits
+   it. To run one scheduler tick manually **after authorizing the test**:
+
+   ```bash
+   curl --fail-with-body -X POST "$PLATFORM_URL/api/internal/connect/drain" \
+     -H "Authorization: Bearer $CRON_SECRET"
+   ```
+
+   Keep the 30-second scheduler running for retries and crash cleanup. Poll
+   `GET /api/v1/calls/{id}` and cancel with `POST /api/v1/calls/{id}/cancel`, using
+   the same API key. `fundingSource`, `operatorAuthorizedBy` and the creation
+   timestamp identify the recorded authorization; there is no x402 settlement row.
+
+Worker permissions re-check the operator role, enabled profile, allowlists and
+cap. Revoking the role or disabling the mode stops new dispatch and causes an
+active worker to stop on its next heartbeat. Cancellation is the immediate
+per-job stop action. Paid users cannot opt into this mode simply by sending the
+funding header. Complete the controlled scenarios below before a post-office call.
+
+### Controlled live validation
+
+For operator-funded testing, x402 is not required. Verify rate coverage, scheduler, worker image,
+account verification, outbound permissions, caller IDs and provider duration
+behavior before calling. Recording must also be disabled in the Telnyx
+outbound profile; application `record: false` cannot override provider recording.
+
+The operator must obtain explicit authorization and exact owned test destinations,
+Spanish callback mobile, caller IDs, business/callback languages, test window,
+expiry and spend cap. First run a single attempt between owned numbers. Verify
+that the business cannot hear callback prompts or DTMF, voicemail cannot accept,
+press 2 stops, press 1 joins, the AI stays silent, and either hangup clears both
+legs. Then test busy/no-answer, voicemail, Spanish/Italian menus and uncertainty,
+cancellation during each phase, worker termination, dial API timeout, and
+provider-enforced duration limits. Compare both leg timings/costs with provider
+records. Only after these pass should the owner authorize a post-office call.

@@ -1,16 +1,23 @@
-import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getServerEnv } from "./env";
+import { getR2Env } from "./env";
 
 let client: S3Client | undefined;
 
 function r2Client() {
   if (!client) {
-    const env = getServerEnv();
+    const env = getR2Env();
     client = new S3Client({
       region: "auto",
       endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: { accessKeyId: env.R2_ACCESS_KEY_ID, secretAccessKey: env.R2_SECRET_ACCESS_KEY },
+      credentials: {
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      },
     });
   }
   return client;
@@ -26,11 +33,17 @@ export function isRecordingKeyForCall(key: string, callId: string) {
 }
 
 export async function signedRecordingUrl(key: string) {
-  const env = getServerEnv();
-  return getSignedUrl(r2Client(), new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: key }), { expiresIn: 300 });
+  const env = getR2Env();
+  return getSignedUrl(
+    r2Client(),
+    new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: key }),
+    { expiresIn: 300 },
+  );
 }
 
 export async function deleteRecording(key: string) {
-  const env = getServerEnv();
-  await r2Client().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: key }));
+  const env = getR2Env();
+  await r2Client().send(
+    new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: key }),
+  );
 }
