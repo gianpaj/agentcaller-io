@@ -36,7 +36,7 @@ export default async function HistoryPage({
         </Link>
       </div>
       <LiveProgress
-        active={!cursor.success || visible.some((c) => !c.endedAt)}
+        active={visible.some((call) => !call.endedAt)}
       />
       {!visible.length ? (
         <section className="phone-empty">
