@@ -5,6 +5,10 @@ RUN corepack enable && pnpm install --frozen-lockfile && pnpm --filter @agentcal
 
 FROM node:22-slim
 WORKDIR /app
+# Slim images omit the system trust store. The native client fails Room.connect without it.
+RUN apt-get update -qq \
+  && apt-get install --no-install-recommends -y ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 # Copy only what the agent runs. Taking the whole build stage would carry the build context —
 # including any local .env and the git history — into a published layer.
 COPY --from=build /app/node_modules ./node_modules

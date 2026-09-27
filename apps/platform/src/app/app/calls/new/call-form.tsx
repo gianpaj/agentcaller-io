@@ -55,7 +55,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-w-0 gap-2 text-sm font-medium text-(--ink)">
+    <div className="grid min-w-0 content-start gap-2 text-sm font-medium text-(--ink)">
       <label htmlFor={name}>{label}</label>
       {children}
       {help && (
