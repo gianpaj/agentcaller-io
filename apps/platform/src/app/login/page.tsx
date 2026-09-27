@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LoginForm } from "./login-form";
 import { signInWithGithub } from "./actions";
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -15,32 +16,61 @@ export default async function LoginPage({
   if (user) redirect("/app");
   const { error, message } = await searchParams;
   return (
-    <main className="phone-app phone-login">
-      <section className="phone-panel">
-        <p className="phone-eyebrow">AgentCaller</p>
-        <h1>Your calling assistant</h1>
-        <p className="phone-muted">Sign in with your operator account.</p>
+    <main className="relative z-1 grid min-h-svh place-items-center bg-(--void) px-5 py-10 font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) sm:py-12 [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-4 [&_:focus-visible]:outline-(--signal)">
+      <section
+        className="flex w-full max-w-md flex-col gap-6 rounded-xl border border-(--line) bg-(--panel) p-6 sm:p-8"
+        aria-labelledby="login-title"
+      >
+        <p className="text-sm font-semibold text-(--signal)">AgentCaller</p>
+        <header className="space-y-2">
+          <h1
+            id="login-title"
+            className="text-[1.75rem] leading-tight font-semibold tracking-tight sm:text-3xl"
+          >
+            Your calling assistant
+          </h1>
+          <p className="text-base leading-relaxed text-(--muted)">
+            Sign in with your operator account.
+          </p>
+        </header>
         {message === "password_updated" && (
-          <p role="status">Password updated. Sign in with your new password.</p>
+          <p
+            role="status"
+            className="rounded-md border border-(--signal) p-4 text-sm leading-relaxed"
+          >
+            Password updated. Sign in with your new password.
+          </p>
         )}
-        <LoginForm />
-        <p className="phone-muted">
-          <Link href="/forgot-password">Forgot your password?</Link>
-        </p>
-        <details>
-          <summary>Other sign-in options</summary>
-          <form action={signInWithGithub}>
-            <button className="phone-secondary">Continue with GitHub</button>
-          </form>
-        </details>
         {error && (
-          <p role="alert">
+          <p
+            role="alert"
+            className="rounded-md border border-(--ember) p-4 text-sm leading-relaxed text-(--ember)"
+          >
             {error === "oauth"
               ? "GitHub sign-in is unavailable. Use your email and password."
               : "The authentication link is invalid or has expired. Request a new password reset link."}
           </p>
         )}
-        <p className="phone-muted">Accounts are created by the operator.</p>
+        <LoginForm />
+        <Link
+          href="/forgot-password"
+          className="inline-flex min-h-11 items-center self-start text-sm underline underline-offset-4 hover:text-(--signal)"
+        >
+          Forgot your password?
+        </Link>
+        <details className="border-t border-(--line) pt-6">
+          <summary className="min-h-11 cursor-pointer py-2.5 text-sm leading-6 hover:text-(--signal)">
+            Other sign-in options
+          </summary>
+          <form action={signInWithGithub} className="mt-3">
+            <button className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center rounded-md border border-(--muted) px-4 py-3 text-base font-semibold hover:border-(--ink) hover:bg-(--void)">
+              Continue with GitHub
+            </button>
+          </form>
+        </details>
+        <p className="text-sm leading-relaxed text-(--muted)">
+          Accounts are created by the operator.
+        </p>
       </section>
     </main>
   );
