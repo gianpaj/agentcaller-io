@@ -5,18 +5,38 @@ import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/auth";
 import { requireClientProfile } from "@/lib/portal";
 import { portalCallInput } from "@/lib/portal-call-input";
+import { portalCallError, type CallFormState } from "@/lib/portal-call-errors";
 import { submitCall } from "@/lib/submit-call";
-export async function startCall(_previous: { error: string }, form: FormData) {
+export async function startCall(
+  _previous: CallFormState,
+  form: FormData,
+): Promise<CallFormState> {
   let id: string;
   try {
     const profile = await requireClientProfile();
     if (!profile.enabled || !profile.isOperator)
-      return { error: "An enabled operator account is required." };
-    const key = z.string().uuid().parse(form.get("idempotencyKey"));
-    const redialOf = form.get("redialOf")
-      ? z.string().uuid().parse(form.get("redialOf"))
-      : undefined;
-    const input = portalCallInput(form);
+      return {
+        error: "An enabled operator account is required.",
+        fieldErrors: {},
+      };
+    let input: ReturnType<typeof portalCallInput>;
+    let identifiers: { idempotencyKey: string; redialOf?: string };
+    try {
+      identifiers = z
+        .object({
+          idempotencyKey: z.string().uuid(),
+          redialOf: z.string().uuid().optional(),
+        })
+        .parse({
+          idempotencyKey: form.get("idempotencyKey"),
+          redialOf: form.get("redialOf") || undefined,
+        });
+      input = portalCallInput(form);
+    } catch (error) {
+      if (error instanceof ZodError) return portalCallError(error);
+      throw error;
+    }
+    const { idempotencyKey: key, redialOf } = identifiers;
     const response = await submitCall(
       new Request("https://portal.internal/calls", {
         method: "POST",
@@ -33,21 +53,19 @@ export async function startCall(_previous: { error: string }, form: FormData) {
     if (!response.ok)
       return {
         error:
-          result.error ??
-          "Call could not be accepted. Try again with the same form.",
+          typeof result.error === "string" && result.error
+            ? result.error
+            : "Call could not be accepted. Try again with the same form.",
+        fieldErrors: {},
       };
     id = result.data.id;
   } catch (error) {
-    if (error instanceof ZodError)
-      return {
-        error: error.issues
-          .map((i) => `${i.path.join(".")}: ${i.message}`)
-          .join("; "),
-      };
-    if (error instanceof ApiError) return { error: error.message };
+    if (error instanceof ApiError)
+      return { error: error.message, fieldErrors: {} };
     return {
       error:
         "Could not confirm submission. Check Recents, then retry this same form to avoid a duplicate call.",
+      fieldErrors: {},
     };
   }
   revalidatePath("/app");

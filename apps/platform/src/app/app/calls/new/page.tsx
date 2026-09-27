@@ -18,10 +18,17 @@ export default async function NewCallPage({
     const blocked = redialBlock(call);
     if (blocked)
       return (
-        <section className="phone-panel">
-          <h1>Redial unavailable</h1>
-          <p>{blocked}</p>
-          <Link href={`/app/calls/${call.id}`}>View call</Link>
+        <section className="grid w-full min-w-0 gap-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 sm:p-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
+            Redial unavailable
+          </h1>
+          <p className="text-base leading-7 text-[var(--muted)]">{blocked}</p>
+          <Link
+            className="inline-flex min-h-12 w-fit items-center rounded-md border border-[var(--muted)] px-4 py-3 text-base font-medium text-[var(--ink)] hover:border-[var(--signal)] hover:text-[var(--signal)]"
+            href={`/app/calls/${call.id}`}
+          >
+            View call
+          </Link>
         </section>
       );
     const parsed = createCallSchema.safeParse({
@@ -34,14 +41,21 @@ export default async function NewCallPage({
   }
   return (
     <>
-      <div className="phone-title">
-        <div>
-          <p className="phone-eyebrow">Connect me</p>
-          <h1>{redial ? "Call again" : "New call"}</h1>
+      <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="min-w-0 space-y-2">
+          <p className="text-sm font-medium text-[var(--signal)]">Connect me</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
+            {redial ? "Call again" : "New call"}
+          </h1>
         </div>
-        <Link href="/app">Cancel</Link>
+        <Link
+          className="inline-flex min-h-11 shrink-0 items-center px-3 py-2 text-base text-[var(--muted)] underline underline-offset-4 hover:text-[var(--ink)]"
+          href="/app"
+        >
+          Cancel
+        </Link>
       </div>
-      <p className="phone-muted">
+      <p className="mb-6 text-base leading-7 text-[var(--muted)] sm:mb-8">
         The assistant reaches the business, then connects you on your mobile.
       </p>
       <CallForm
