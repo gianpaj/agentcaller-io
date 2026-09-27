@@ -41,24 +41,61 @@ export async function reportEvent(callId: string, event: CallEvent) {
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-agentcaller-agent-secret": AGENT_CALLBACK_SECRET },
+        headers: {
+          "Content-Type": "application/json",
+          "x-agentcaller-agent-secret": AGENT_CALLBACK_SECRET,
+        },
         body: JSON.stringify(event),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       if (response.ok) return true;
       // The platform rejected the event itself; retrying will not change the verdict.
       if (response.status >= 400 && response.status < 500) {
-        console.error(`Call event ${event.type} rejected for ${callId}: ${response.status}`);
+        console.error(
+          `Call event ${event.type} rejected for ${callId}: ${response.status}`,
+        );
         return false;
       }
       throw new Error(`Platform responded ${response.status}`);
     } catch (error) {
       if (attempt === MAX_ATTEMPTS) {
-        console.error(`Call event ${event.type} failed for ${callId} after ${attempt} attempts`, error);
+        console.error(
+          `Call event ${event.type} failed for ${callId} after ${attempt} attempts`,
+          error,
+        );
         return false;
       }
       await wait(2 ** attempt * 250);
     }
   }
   return false;
+}
+
+export async function connectRequest(
+  callId: string,
+  event: import("@agentcaller/contracts").ConnectEvent,
+): Promise<unknown> {
+  const { PLATFORM_URL, AGENT_CALLBACK_SECRET } = env();
+  // Reuse the exact event ID across transport retries. A dial command itself is never retried.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(
+        `${PLATFORM_URL.replace(/\/$/, "")}/api/internal/calls/${callId}/connect`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-agentcaller-agent-secret": AGENT_CALLBACK_SECRET,
+          },
+          body: JSON.stringify(event),
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+      if (response.ok) return await response.json();
+      if (response.status < 500) return { allowed: false };
+    } catch {
+      /* Fail closed when the control plane cannot confirm permission. */
+    }
+  }
+  return { allowed: false };
 }

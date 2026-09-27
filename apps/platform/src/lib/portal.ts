@@ -13,16 +13,23 @@ import { generateWebhookSecret } from "@/lib/webhooks";
  */
 export async function loadClientProfile() {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { user: null, profile: null };
 
-  const [profile] = await database().select().from(clientProfiles).where(eq(clientProfiles.supabaseUserId, user.id)).limit(1);
-  if (!profile) return { user, profile: null };
+  const [profile] = await database()
+    .select()
+    .from(clientProfiles)
+    .where(eq(clientProfiles.supabaseUserId, user.id))
+    .limit(1);
+  if (!profile || !profile.enabled) return { user, profile: null };
 
   // Clients need a secret of their own to verify signatures; a platform-wide secret would let any
   // client forge events for every other client.
   if (!profile.webhookSecret) {
-    const [updated] = await database().update(clientProfiles)
+    const [updated] = await database()
+      .update(clientProfiles)
       .set({ webhookSecret: generateWebhookSecret(), updatedAt: new Date() })
       .where(eq(clientProfiles.id, profile.id))
       .returning();

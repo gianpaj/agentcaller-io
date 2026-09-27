@@ -1,16 +1,109 @@
 import Link from "next/link";
-import { calls } from "@agentcaller/database";
-import { desc, eq } from "drizzle-orm";
-import { Activity, ArrowUpRight, BellRing, Gauge, LogOut, Phone, TerminalSquare } from "lucide-react";
-import { database } from "@/lib/database";
-import { loadClientProfile } from "@/lib/portal";
-import { updateControls } from "./actions";
-
-function stateTone(state: string) { if (state === "completed") return "text-[#c6ff4a]"; if (state === "failed" || state === "cancelled") return "text-[#ff7a45]"; return "text-[#d9e6d2]"; }
-export default async function PortalPage() {
-  const { user, profile } = await loadClientProfile();
-  if (!user) return <main className="grid-noise flex min-h-screen items-center justify-center"><Link className="bg-[#c6ff4a] px-5 py-3 text-xs font-bold text-[#080a0d]" href="/login">SIGN IN WITH GITHUB</Link></main>;
-  if (!profile) return <main className="grid-noise flex min-h-screen items-center justify-center p-6"><div className="signal-border max-w-lg bg-[#0d1117] p-8"><p className="label">ACCESS PENDING</p><h1 className="mt-4 text-3xl font-black tracking-[-.08em]">PROFILE NOT LINKED.</h1><p className="mt-4 text-sm leading-6 text-[#8c9a92]">Your GitHub identity is authenticated, but an operator has not linked it to an AgentCaller client profile.</p></div></main>;
-  const rows = await database().select().from(calls).where(eq(calls.clientId, profile.id)).orderBy(desc(calls.createdAt)).limit(12); const active = rows.filter((call) => ["queued", "dialing", "in_progress"].includes(call.state)).length;
-  return <main className="grid-noise min-h-screen p-4 md:p-7"><div className="mx-auto max-w-7xl"><header className="flex flex-wrap items-center justify-between gap-5 border-b border-[#273129] pb-5"><Link href="/" className="flex items-center gap-2 text-sm font-bold tracking-[-.06em]"><TerminalSquare size={20} className="text-[#c6ff4a]" /> AGENTCALLER.IO</Link><div className="flex items-center gap-4 text-xs text-[#8c9a92]"><span>{user.email}</span><Link href="https://docs.agentcaller.io" className="text-[#c6ff4a]">DOCS ↗</Link><form action="/auth/signout" method="post"><button aria-label="Sign out"><LogOut size={16} /></button></form></div></header><section className="py-10"><p className="label">Developer control room / {profile.name}</p><h1 className="mt-3 text-4xl font-black tracking-[-.08em]">CALL OPERATIONS.</h1></section><section className="grid gap-px border border-[#273129] bg-[#273129] md:grid-cols-3">{[[Phone, "ACTIVE", String(active)], [Activity, "TOTAL CALLS", String(rows.length)], [Gauge, "THROTTLE", `${profile.callsPerMinute}/min`]].map(([Icon, label, value]) => { const CardIcon = Icon as typeof Phone; return <div key={label as string} className="bg-[#0d1117] p-6"><CardIcon size={19} className="text-[#c6ff4a]" /><p className="label mt-8">{label as string}</p><p className="mt-2 text-3xl font-black tracking-[-.08em]">{value as string}</p></div>; })}</section><section className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_.55fr]"><div className="signal-border bg-[#0d1117]"><div className="flex items-center justify-between border-b border-[#273129] p-5"><div><p className="label">Call ledger</p><h2 className="mt-1 text-lg font-bold tracking-tight">LATEST DISPATCHES</h2></div><Link href="https://docs.agentcaller.io" className="text-xs text-[#c6ff4a]">API REFERENCE <ArrowUpRight className="inline" size={13} /></Link></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[#8c9a92]"><tr><th className="px-5 py-4 font-normal">DESTINATION</th><th className="px-5 py-4 font-normal">TASK</th><th className="px-5 py-4 font-normal">STATE</th><th className="px-5 py-4 font-normal">CREATED</th></tr></thead><tbody>{rows.length ? rows.map((call) => <tr key={call.id} className="border-t border-[#273129] text-[#c7d4ca]"><td className="px-5 py-4">{call.destination}</td><td className="px-5 py-4 uppercase">{(call.task as { type?: string }).type ?? "—"}</td><td className={`px-5 py-4 font-bold uppercase ${stateTone(call.state)}`}>{call.state}</td><td className="px-5 py-4 text-[#8c9a92]">{call.createdAt.toLocaleString()}</td></tr>) : <tr><td className="px-5 py-12 text-[#8c9a92]" colSpan={4}>No calls yet. Authenticate an API request and submit a paid dispatch.</td></tr>}</tbody></table></div></div><form action={updateControls} className="signal-border bg-[#0d1117] p-6"><BellRing size={19} className="text-[#c6ff4a]" /><p className="label mt-7">Client controls</p><h2 className="mt-1 text-lg font-bold tracking-tight">WEBHOOK & THROTTLE</h2><label className="label mt-7 block">Webhook endpoint</label><input name="webhookUrl" type="url" defaultValue={profile.webhookUrl ?? ""} placeholder="https://agent.example/events" className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-xs outline-none focus:border-[#c6ff4a]" /><label className="label mt-5 block">Signing secret</label><input readOnly value={profile.webhookSecret ?? ""} className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 font-mono text-[.65rem] text-[#8c9a92] outline-none" /><div className="mt-5 grid grid-cols-2 gap-4"><label className="label">Calls / minute<input name="callsPerMinute" type="number" min="1" max="60" defaultValue={profile.callsPerMinute} className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-sm text-[#ecf5eb] outline-none focus:border-[#c6ff4a]" /></label><label className="label">Active calls<input name="maxConcurrentCalls" type="number" min="1" max="20" defaultValue={profile.maxConcurrentCalls} className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-sm text-[#ecf5eb] outline-none focus:border-[#c6ff4a]" /></label></div><button className="mt-6 w-full bg-[#c6ff4a] px-4 py-3 text-xs font-bold text-[#080a0d] transition hover:bg-[#ecf5eb]">SAVE CONTROLS</button><p className="mt-4 text-[.68rem] leading-5 text-[#8c9a92]">Every dispatch still supplies its own USDC and duration ceiling.</p></form></section></div></main>;
+import { Phone, PhoneOutgoing, Plus, ChevronRight } from "lucide-react";
+import { requireClientProfile } from "@/lib/portal";
+import { historyCursor, listCallHistory } from "@/lib/call-history";
+import {
+  dateLabel,
+  humanize,
+  outcomeReason,
+  redialBlock,
+} from "@/lib/call-display";
+import { LiveProgress } from "./live-progress";
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ at?: string; before?: string }>;
+}) {
+  const profile = await requireClientProfile();
+  const params = await searchParams;
+  const cursor = historyCursor.safeParse({ at: params.at, id: params.before });
+  const rows = await listCallHistory(
+    profile.id,
+    cursor.success ? cursor.data : undefined,
+  );
+  const visible = rows.slice(0, 30),
+    last = visible.at(-1);
+  return (
+    <>
+      <div className="phone-title">
+        <div>
+          <p className="phone-eyebrow">Your calling assistant</p>
+          <h1>Recents</h1>
+        </div>
+        <Link href="/app/calls/new" className="phone-primary">
+          <Plus size={20} />
+          New call
+        </Link>
+      </div>
+      <LiveProgress
+        active={visible.some((call) => !call.endedAt)}
+      />
+      {!visible.length ? (
+        <section className="phone-empty">
+          <Phone size={36} />
+          <h2>No calls yet</h2>
+          <p>
+            Start a call to a business. Every attempt and its outcome will
+            appear here.
+          </p>
+          <Link href="/app/calls/new" className="phone-primary">
+            Make your first call
+          </Link>
+        </section>
+      ) : (
+        <ul className="phone-recents">
+          {visible.map((call) => (
+            <li key={call.id}>
+              <span
+                className={`phone-avatar ${call.state === "failed" ? "phone-failed" : ""}`}
+              >
+                <PhoneOutgoing size={22} />
+              </span>
+              <Link href={`/app/calls/${call.id}`} className="phone-call-link">
+                <strong>{call.clientReference || call.destination}</strong>
+                {call.clientReference && <span>{call.destination}</span>}
+                <span className={call.state === "failed" ? "phone-error" : ""}>
+                  {humanize(call.state)}
+                  {outcomeReason(call.outcome)
+                    ? ` · ${humanize(outcomeReason(call.outcome)!)}`
+                    : ""}
+                </span>
+                <time dateTime={call.createdAt.toISOString()}>
+                  {dateLabel(call.createdAt)}
+                </time>
+              </Link>
+              {!redialBlock(call) ? (
+                <Link
+                  href={`/app/calls/new?redial=${call.id}`}
+                  className="phone-icon"
+                  aria-label={`Redial ${call.destination}`}
+                  title="Review and redial"
+                >
+                  <Phone size={22} />
+                </Link>
+              ) : (
+                <Link
+                  href={`/app/calls/${call.id}`}
+                  className="phone-icon"
+                  aria-label={`View ${call.destination}`}
+                >
+                  <ChevronRight size={22} />
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="phone-pagination">
+        {cursor.success && <Link href="/app">Latest calls</Link>}
+        {rows.length > 30 && last && (
+          <Link
+            href={`/app?at=${encodeURIComponent(last.createdAt.toISOString())}&before=${last.id}`}
+          >
+            Older calls →
+          </Link>
+        )}
+      </div>
+    </>
+  );
 }

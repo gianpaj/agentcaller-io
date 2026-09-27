@@ -9,7 +9,8 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:connect-db": "node scripts/test-connect-db.mjs"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
