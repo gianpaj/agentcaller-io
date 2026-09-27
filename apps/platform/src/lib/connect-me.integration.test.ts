@@ -98,7 +98,6 @@ run("connect ledger with PostgreSQL locks", () => {
     routeState.db = db;
     vi.spyOn(Date, "now").mockReturnValue(now.getTime());
     vi.stubEnv("CONNECT_OPERATOR_CALLS_ENABLED", "true");
-    vi.stubEnv("CONNECT_OPERATOR_DESTINATIONS", "+34911234567,+34612345678");
     vi.stubEnv("CONNECT_OPERATOR_MAX_USD", "10");
     await db.execute(sql`truncate client_profiles, rate_cards cascade`);
     const [client] = await db

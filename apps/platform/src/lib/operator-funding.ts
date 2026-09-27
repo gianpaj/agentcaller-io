@@ -7,16 +7,6 @@ import { database } from "./database";
 
 const config = z.object({
   CONNECT_OPERATOR_CALLS_ENABLED: z.enum(["true", "false"]).default("false"),
-  CONNECT_OPERATOR_DESTINATIONS: z
-    .string()
-    .default("")
-    .transform((s) =>
-      s
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean),
-    )
-    .pipe(z.array(z.string().regex(/^\+[1-9]\d{7,14}$/))),
   CONNECT_OPERATOR_MAX_USD: z.coerce.number().positive().max(500).default(5),
 });
 
@@ -42,15 +32,6 @@ export function authorizeOperatorInput(
     );
   if (input.task.type !== "connect_me")
     throw new ApiError(422, "Operator funding supports connect_me only");
-  const allowed = settings.data.CONNECT_OPERATOR_DESTINATIONS;
-  if (
-    !allowed.includes(input.destination) ||
-    !allowed.includes(input.task.callbackNumber)
-  )
-    throw new ApiError(
-      403,
-      "Both destinations must be explicitly allowlisted for operator calls",
-    );
   if (input.maxAmountUsd > settings.data.CONNECT_OPERATOR_MAX_USD)
     throw new ApiError(422, "Requested spend exceeds the operator job cap");
 }

@@ -193,15 +193,13 @@ retry and spend controls still apply. This mode supports only `connect_me`.
    manual provisioning path: prefix `ac_`, and `api_keys.hash` is the SHA-256 hex
    digest of `API_KEY_PEPPER + ':' + rawKey`. Do not put raw keys in the database.
 
-3. Set these **platform** environment variables, using exact owned test numbers:
+3. Set these **platform** environment variables:
 
    ```dotenv
    CONNECT_OPERATOR_CALLS_ENABLED=true
-   CONNECT_OPERATOR_DESTINATIONS=+34<owned-business-test-number>,+34<your-mobile>
    CONNECT_OPERATOR_MAX_USD=5
    ```
 
-   The allowlist is comma-separated E.164 numbers and must include both legs.
    The default switch is `false`; the default per-job cap is USD 5. Omit
    `CDP_API_KEY`, `X402_PAY_TO` and `X402_USDC_ASSET` for an operator-only deployment.
    Keep the other platform/worker configuration described above, plus active
@@ -237,8 +235,7 @@ retry and spend controls still apply. This mode supports only `connect_me`.
    the same API key. `fundingSource`, `operatorAuthorizedBy` and the creation
    timestamp identify the recorded authorization; there is no x402 settlement row.
 
-Worker permissions re-check the operator role, enabled profile, allowlists and
-cap. Revoking the role or disabling the mode stops new dispatch and causes an
+Worker permissions re-check the operator role, enabled profile, and cap. Revoking the role or disabling the mode stops new dispatch and causes an
 active worker to stop on its next heartbeat. Cancellation is the immediate
 per-job stop action. Paid users cannot opt into this mode simply by sending the
 funding header. Complete the controlled scenarios below before a post-office call.

@@ -41,8 +41,7 @@ Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
 press-1 handoff are implemented and tested offline. Operators can use the
 [operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
 without x402. It requires an enabled server-managed operator profile, an explicit
-funding header, exact destination allowlists and a per-job spend cap
-(`CONNECT_OPERATOR_MAX_USD`, default $5).
+funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5).
 **Paid connect-me requests remain blocked** by the unsupported payment scheme.
 Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
