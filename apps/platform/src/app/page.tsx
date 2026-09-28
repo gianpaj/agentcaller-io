@@ -1,12 +1,81 @@
 import Link from "next/link";
-import { ArrowUpRight, PhoneCall, RadioTower, ShieldCheck, TerminalSquare } from "lucide-react";
+import { Globe2, PhoneCall, ShieldCheck, TerminalSquare } from "lucide-react";
+import { CallDemo } from "./call-demo";
+import styles from "./landing.module.css";
 
-const modules = [
-  [PhoneCall, "REAL PSTN", "Telnyx + LiveKit routes a live business call into an isolated agent room."],
-  [RadioTower, "AGENT LOOP", "xAI hears, reasons, and speaks in English or Spanish with a bounded task."],
-  [ShieldCheck, "PAID & AUDITED", "x402 authorizes a ceiling; AgentCaller settles actual measured usage."],
-] as const;
+const features = [
+  {
+    Icon: PhoneCall,
+    title: "A phone number is enough",
+    copy: "For the table you can’t book online, the stock you need checked, and the question only a person can answer.",
+  },
+  {
+    Icon: Globe2,
+    title: "English or Spanish",
+    copy: "Designed for conversations in either language. Your agent brings the task; AgentCaller handles the call.",
+  },
+  {
+    Icon: ShieldCheck,
+    title: "You set the limits",
+    copy: "Give each call a specific task, a time limit, and a budget. Keep the scope clear before the phone rings.",
+  },
+];
 
 export default function HomePage() {
-  return <main className="grid-noise min-h-screen px-5 py-5 md:px-10 md:py-8"><nav className="mx-auto flex max-w-6xl items-center justify-between border-b border-[#273129] pb-5"><Link href="/" className="flex items-center gap-2 text-sm font-bold tracking-[-.06em]"><TerminalSquare size={20} className="text-[#c6ff4a]" /> AGENTCALLER.IO</Link><div className="flex items-center gap-5 text-xs text-[#8c9a92]"><Link href="https://docs.agentcaller.io">DOCS</Link><Link href="/app" className="text-[#c6ff4a]">CONTROL ROOM ↗</Link></div></nav><section className="mx-auto grid max-w-6xl gap-14 py-20 lg:grid-cols-[1.35fr_.65fr] lg:py-32"><div><p className="label mb-6"><span className="status-dot" /> protocol online / v0.1</p><h1 className="max-w-4xl text-5xl font-black leading-[.88] tracking-[-.09em] md:text-8xl">YOUR AGENT<br /><span className="text-[#c6ff4a]">CALLS THE</span><br />OLD WORLD.</h1><p className="mt-8 max-w-xl text-base leading-7 text-[#b7c2bb]">Dispatch a safe, paid phone task when a business still operates on a number, not an API. Reservations, appointments, availability, and answers—without a human operator.</p><div className="mt-10 flex flex-wrap gap-3"><Link href="https://docs.agentcaller.io" className="bg-[#c6ff4a] px-5 py-3 text-xs font-bold text-[#080a0d] transition hover:bg-[#ecf5eb]">READ THE API <ArrowUpRight className="inline" size={15} /></Link><Link href="/app" className="signal-border px-5 py-3 text-xs font-bold transition">OPEN CONTROL ROOM</Link></div></div><aside className="signal-border self-end bg-[#0d1117e6] p-5 text-xs leading-6 shadow-2xl shadow-black/40"><div className="mb-4 flex justify-between border-b border-[#273129] pb-3"><span className="text-[#c6ff4a]">DISPATCH PREVIEW</span><span className="text-[#8c9a92]">POST /v1/calls</span></div><pre className="overflow-x-auto text-[#c7d4ca]">{`{\n  "destination": "+34915200000",\n  "language": "es",\n  "maxDurationSeconds": 600,\n  "maxAmountUsd": 1.20,\n  "task": { "type": "reservation", ... }\n}`}</pre><p className="mt-4 border-t border-[#273129] pt-3 text-[#8c9a92]">402 → payment authorization → 202 accepted → signed event stream</p></aside></section><section className="mx-auto grid max-w-6xl gap-px overflow-hidden border border-[#273129] bg-[#273129] md:grid-cols-3">{modules.map(([Icon, title, copy]) => <article key={title} className="bg-[#0d1117] p-7"><Icon className="mb-10 text-[#c6ff4a]" size={24} /><h2 className="text-sm font-bold tracking-tight">{title}</h2><p className="mt-3 text-sm leading-6 text-[#8c9a92]">{copy}</p></article>)}</section></main>;
+  return (
+    <main className={styles.landing}>
+      <nav className={styles.nav} aria-label="Main navigation">
+        <Link href="/" className={styles.logo} aria-label="AgentCaller home">
+          <TerminalSquare size={22} aria-hidden="true" />
+          <span>agentcaller.io</span>
+        </Link>
+        <div className={styles.navLinks}>
+          <a href="https://docs.agentcaller.io">Docs</a>
+          <Link href="/app" className={styles.navCta}>
+            Open app
+          </Link>
+        </div>
+      </nav>
+
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <div className={styles.intro}>
+          <p className={styles.availability}>
+            <span aria-hidden="true" />
+            In development
+          </p>
+          <h1 id="hero-title">
+            Your AI agent,
+            <br />
+            on the phone.
+          </h1>
+          <p className={styles.description}>
+            Book a table. Check availability. Get an answer. Give your agent a
+            way in when a business only has a phone number.
+          </p>
+          <div className={styles.actions}>
+            <a href="https://docs.agentcaller.io" className={styles.primaryCta}>
+              Explore the API
+            </a>
+            <Link href="/app" className={styles.secondaryCta}>
+              Open app
+            </Link>
+          </div>
+          <p className={styles.heroNote}>
+            A task in. A conversation. An answer back.
+          </p>
+        </div>
+        <CallDemo />
+      </section>
+
+      <section className={styles.features} aria-label="What AgentCaller is for">
+        {features.map(({ Icon, title, copy }) => (
+          <article key={title}>
+            <Icon size={21} aria-hidden="true" />
+            <h2>{title}</h2>
+            <p>{copy}</p>
+          </article>
+        ))}
+      </section>
+    </main>
+  );
 }
