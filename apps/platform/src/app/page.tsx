@@ -1,20 +1,8 @@
-import type { CreateCallInput } from "@agentcaller/contracts";
-import { ArrowDown, ArrowUpRight, Code2, PhoneCall } from "lucide-react";
+import { ArrowUpRight, PhoneCall } from "lucide-react";
 import Link from "next/link";
+import { CallDemo } from "./call-demo";
 
 const docsUrl = "https://docs.agentcaller.io";
-
-const exampleRequest = {
-  destination: "+12125550123",
-  destinationCountry: "US",
-  language: "en",
-  maxDurationSeconds: 180,
-  maxAmountUsd: 1.2,
-  task: {
-    type: "information",
-    questions: ["What time does the kitchen close?"],
-  },
-} satisfies CreateCallInput;
 
 const capabilities = [
   {
@@ -36,7 +24,10 @@ const capabilities = [
 
 export default function HomePage() {
   return (
-    <div className="relative z-1 min-h-screen bg-(--void) px-[clamp(1.25rem,4vw,4rem)] font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) [&_a:focus-visible]:rounded-xs [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-5 [&_a:focus-visible]:outline-(--signal)">
+    <div
+      style={{ "--demo-muted": "#a0aca5" } as React.CSSProperties}
+      className="relative z-1 min-h-screen bg-(--void) px-[clamp(1.25rem,4vw,4rem)] font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) [&_a:focus-visible]:rounded-xs [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-5 [&_a:focus-visible]:outline-(--signal)"
+    >
       <a
         className="absolute top-4 left-4 z-2 translate-y-[-200%] bg-(--signal) px-4 py-3 text-(--void) focus:translate-y-0"
         href="#main-content"
@@ -129,45 +120,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <figure className="min-w-0 overflow-hidden rounded-[14px] border border-(--line) bg-(--panel) max-[900px]:w-full max-[900px]:max-w-xl">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-(--line) px-6 py-5 text-sm max-[480px]:p-4">
-              <span className="inline-flex items-center gap-[0.6rem] font-semibold">
-                <Code2 size={18} aria-hidden="true" />
-                Your agent
-              </span>
-              <span className="text-(--muted)">Example request</span>
-            </div>
-            <div className="flex flex-wrap gap-3 px-6 pt-5 font-mono text-[0.8125rem] leading-[1.8] max-[480px]:px-4">
-              <span className="font-semibold text-(--signal)">POST</span>
-              <code>/api/v1/calls</code>
-            </div>
-            <pre className="px-6 pt-4 font-mono text-[0.8125rem] leading-[1.8] wrap-anywhere whitespace-pre-wrap max-[480px]:px-4">
-              <code>{JSON.stringify(exampleRequest, null, 2)}</code>
-            </pre>
-            <div
-              className="flex flex-col items-center gap-1 py-4 text-(--signal)"
-              aria-hidden="true"
-            >
-              <span className="h-3 w-px bg-(--signal)" />
-              <ArrowDown size={18} />
-              <span className="h-3 w-px bg-(--signal)" />
-            </div>
-            <div className="flex items-center gap-4 px-6 max-[480px]:gap-3 max-[480px]:px-4">
-              <span className="grid size-12 shrink-0 place-items-center rounded-full border border-(--signal) text-(--signal)">
-                <PhoneCall size={24} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-base font-semibold">A business phone</p>
-                <p className="mt-1 text-sm leading-normal text-(--muted)">
-                  The other end of your request.
-                </p>
-              </div>
-            </div>
-            <figcaption className="px-6 py-5 text-[0.8125rem] leading-[1.6] text-(--muted) max-[480px]:p-4">
-              Illustrative request with a fictional number. No live call is
-              placed.
-            </figcaption>
-          </figure>
+          <CallDemo />
         </section>
 
         <section
