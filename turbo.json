@@ -4,6 +4,7 @@
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**"] },
     "dev": { "cache": false, "persistent": true },
     "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
+    "lint": { "outputs": [] },
     "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }
   }
 }
