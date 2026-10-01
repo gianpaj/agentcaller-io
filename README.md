@@ -35,8 +35,8 @@ contract.
 
 ### Bounded connection task
 
-`connect_me` connects a Spanish or Italian geographic business number to a
-Spanish mobile, with independently configured business and callback languages.
+`connect_me` connects a Spanish or Italian landline or mobile business number
+to a Spanish mobile, with independently configured business and callback languages.
 Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
 press-1 handoff are implemented and tested offline. Operators can use the
 [operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
@@ -46,12 +46,24 @@ funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5)
 Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
 
+`connect_me` supports **Call now** with `callingWindow: "now"` and
+`maxAttempts: 1`, or a scheduled weekly window with bounded retries. Call now
+ignores local hours and weekdays, never postpones or redials, and is eligible
+only before the explicit `expiresAt`. It does not guarantee immediate worker
+availability. Expiry also ends active sessions; it is not just a dialing deadline.
+
+Call now is the default for new portal calls. The portal generates a fixed expiry
+30 minutes after the first valid submission and retains it across submission
+retries. API callers must supply `expiresAt` themselves. See
+[connection timing](apps/docs/content/docs/dispatch.mdx#connection-timing) for
+admission limits and scheduled redial behavior.
+
 The platform reserves the worst-case quoted cost of both legs before each
 attempt and does not release that hold. Admission rejects a cap that cannot
-fund every `maxAttempts` reserve. Only confirmed busy/no-answer can schedule
-another attempt. Unknown
-dial outcomes, refusal, voicemail, uncertain classification and failed handoff
-stop the job. Local observation of SIP answer/disconnection drives leg usage;
+fund every `maxAttempts` reserve. Only scheduled jobs with confirmed busy/no-answer
+can schedule another attempt. Unknown dial outcomes, refusal, voicemail,
+uncertain classification and failed handoff stop the job. Local observation of
+SIP answer/disconnection drives leg usage;
 missing cost stays null. Reservations are deliberately not refunded between
 attempts. They bound quoted usage, not an unverified carrier invoice.
 

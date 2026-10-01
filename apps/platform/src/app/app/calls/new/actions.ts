@@ -1,5 +1,6 @@
 "use server";
 import { z, ZodError } from "zod";
+import { CALL_NOW_TTL_MS } from "@agentcaller/contracts";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/auth";
@@ -7,6 +8,11 @@ import { requireClientProfile } from "@/lib/portal";
 import { portalCallInput } from "@/lib/portal-call-input";
 import { portalCallError, type CallFormState } from "@/lib/portal-call-errors";
 import { submitCall } from "@/lib/submit-call";
+
+export async function getCallNowDeadline(): Promise<string> {
+  return new Date(Date.now() + CALL_NOW_TTL_MS).toISOString();
+}
+
 export async function startCall(
   _previous: CallFormState,
   form: FormData,

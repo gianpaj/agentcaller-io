@@ -24,7 +24,7 @@ vi.mock("@/lib/auth", () => ({
 
 import { ApiError } from "@/lib/auth";
 import type { CallFormState } from "@/lib/portal-call-errors";
-import { startCall } from "./actions";
+import { getCallNowDeadline, startCall } from "./actions";
 
 const initial: CallFormState = { error: "", fieldErrors: {} };
 const idempotencyKey = "11111111-1111-4111-8111-111111111111";
@@ -73,6 +73,12 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+it("generates the immediate deadline from server time without dispatching", async () => {
+  expect(await getCallNowDeadline()).toBe("2026-07-01T12:30:00.000Z");
+  expect(mocks.profile).not.toHaveBeenCalled();
+  expect(mocks.submit).not.toHaveBeenCalled();
+});
+
 describe("startCall", () => {
   it.each([
     { enabled: false, isOperator: true },
@@ -110,6 +116,53 @@ describe("startCall", () => {
       expect(mocks.submit).not.toHaveBeenCalled();
     },
   );
+
+  it("submits a bounded immediate call without scheduled fields", async () => {
+    const data = form();
+    data.set("scheduleMode", "now");
+    data.set("immediateExpiresAt", "2026-07-01T12:30:00.000Z");
+    for (const name of [
+      "timezone",
+      "weekdays",
+      "start",
+      "end",
+      "expiresAt",
+      "maxAttempts",
+      "retryDelaySeconds",
+    ])
+      data.delete(name);
+    mocks.submit.mockResolvedValue(
+      Response.json({ data: { id: "immediate-call" } }, { status: 202 }),
+    );
+    await expect(startCall(initial, data)).rejects.toThrow("NEXT_REDIRECT");
+    const [request] = mocks.submit.mock.calls[0]!;
+    expect(request.headers.get("idempotency-key")).toBe(idempotencyKey);
+    expect(request.headers.get("x-agentcaller-funding")).toBe("operator");
+    expect(await request.json()).toMatchObject({
+      task: {
+        callingWindow: "now",
+        maxAttempts: 1,
+        expiresAt: "2026-07-01T12:30:00.000Z",
+      },
+    });
+  });
+
+  it("retains the immediate expiry and idempotency key across an uncertain retry", async () => {
+    const data = form();
+    data.set("scheduleMode", "now");
+    data.set("immediateExpiresAt", "2026-07-01T12:30:00.000Z");
+    mocks.submit.mockRejectedValue(new Error("Network failure"));
+    const state = await startCall(initial, data);
+    vi.setSystemTime(new Date("2026-07-01T12:05:00Z"));
+    await startCall(state, data);
+    for (const [request] of mocks.submit.mock.calls) {
+      expect(request.headers.get("idempotency-key")).toBe(idempotencyKey);
+      expect(await request.json()).toMatchObject({
+        task: { expiresAt: "2026-07-01T12:30:00.000Z", maxAttempts: 1 },
+      });
+    }
+    expect(mocks.submit).toHaveBeenCalledTimes(2);
+  });
 
   it("returns profile/API errors without field errors", async () => {
     mocks.profile.mockRejectedValue(new ApiError(403, "Account unavailable."));

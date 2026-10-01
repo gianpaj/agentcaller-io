@@ -50,6 +50,143 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe("portalCallInput immediate calls", () => {
+  function immediate(overrides: Record<string, string> = {}) {
+    const data = form({
+      scheduleMode: "now",
+      immediateExpiresAt: "2026-07-01T12:30:00.000Z",
+      ...overrides,
+    });
+    for (const name of [
+      "timezone",
+      "weekdays",
+      "start",
+      "end",
+      "expiresAt",
+      "maxAttempts",
+      "retryDelaySeconds",
+    ])
+      data.delete(name);
+    return data;
+  }
+
+  it("accepts Call now without any scheduling or retry fields", () => {
+    expect(portalCallInput(immediate()).task).toMatchObject({
+      callingWindow: "now",
+      maxAttempts: 1,
+      retryDelaySeconds: 300,
+      expiresAt: "2026-07-01T12:30:00.000Z",
+    });
+  });
+
+  it("ignores stale scheduled fields and enforces one attempt even for tampered input", () => {
+    const data = form({
+      scheduleMode: "now",
+      immediateExpiresAt: "2026-07-01T12:30:00.000Z",
+      maxAttempts: "6",
+      retryDelaySeconds: "not-a-number",
+      timezone: "invalid",
+      start: "",
+      end: "",
+      expiresAt: "invalid",
+    });
+    expect(portalCallInput(data).task).toMatchObject({
+      callingWindow: "now",
+      maxAttempts: 1,
+      retryDelaySeconds: 300,
+    });
+  });
+
+  it.each([
+    "",
+    "invalid",
+    "2026-07-01T12:00:00.000Z",
+    "2026-07-01T12:30:00.001Z",
+    "2026-07-08T12:00:00.000Z",
+  ])(
+    "rejects missing, expired, or excessive immediate deadline: %s",
+    (immediateExpiresAt) => {
+      expect(
+        errors(immediate({ immediateExpiresAt })).fieldErrors.scheduleMode,
+      ).toMatch(/deadline/);
+    },
+  );
+
+  it("does not extend the deadline when retrying the same input", () => {
+    const data = immediate();
+    const first = portalCallInput(data);
+    vi.setSystemTime(new Date("2026-07-01T12:05:00Z"));
+    expect(portalCallInput(data)).toEqual(first);
+    vi.setSystemTime(new Date("2026-07-01T12:30:00Z"));
+    expect(errors(data).fieldErrors.scheduleMode).toMatch(/expired/);
+  });
+
+  it("keeps destination, callback, duration, and budget validation", () => {
+    const state = errors(
+      immediate({
+        destination: "+34900123456",
+        callbackNumber: "+393331234567",
+        conversationSeconds: "1201",
+        maxAmountUsd: "0",
+      }),
+    );
+    expect(state.fieldErrors).toHaveProperty("destination");
+    expect(state.fieldErrors).toHaveProperty("callbackNumber");
+    expect(state.fieldErrors).toHaveProperty("conversationSeconds");
+    expect(state.fieldErrors).toHaveProperty("maxAmountUsd");
+  });
+
+  it("does not silently treat unknown modes as immediate", () => {
+    expect(
+      errors(form({ scheduleMode: "anything" })).fieldErrors.scheduleMode,
+    ).toMatch(/Choose/);
+  });
+});
+
+describe("mobile business destinations", () => {
+  it.each([
+    ["ES", "+34612345678"],
+    ["IT", "+393331234567"],
+    ["IT", "+39333123456"],
+  ])(
+    "accepts %s mobile destinations in either scheduling mode",
+    (destinationCountry, destination) => {
+      expect(
+        portalCallInput(form({ destinationCountry, destination })).destination,
+      ).toBe(destination);
+      expect(
+        portalCallInput(
+          form({
+            destinationCountry,
+            destination,
+            scheduleMode: "now",
+            immediateExpiresAt: "2026-07-01T12:30:00.000Z",
+          }),
+        ).destination,
+      ).toBe(destination);
+    },
+  );
+
+  it.each([
+    ["ES", "+3461234567", /exactly 9 digits/],
+    ["IT", "+3933312345", /9 or 10 digits/],
+    ["ES", "+393331234567", /country code must match/],
+    ["IT", "+39899123456", /Premium, service, and emergency/],
+  ])(
+    "explains invalid %s destinations without a landline-only error",
+    (destinationCountry, destination, message) => {
+      const state = errors(
+        form({
+          destinationCountry: String(destinationCountry),
+          destination: String(destination),
+        }),
+      );
+      expect(state.fieldErrors.destination).toMatch(message as RegExp);
+      expect(state.fieldErrors.destination).not.toMatch(/geographic/);
+    },
+  );
+});
+
 describe("portalCallInput deadlines", () => {
   it.each([
     [
@@ -276,7 +413,7 @@ describe("portalCallInput contract and readable errors", () => {
   });
 
   it.each([
-    ["destination", "+34612345678"],
+    ["destination", "+34900123456"],
     ["destinationCountry", "FR"],
     ["language", "en"],
     ["clientReference", "x".repeat(121)],

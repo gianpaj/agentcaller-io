@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { createCallSchema, type CreateCallInput } from "@agentcaller/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +29,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),
   unstable_rethrow: vi.fn(),
 }));
-vi.mock("./calls/new/actions", () => ({ startCall: mocks.startCall }));
+vi.mock("./calls/new/actions", () => ({
+  startCall: mocks.startCall,
+  getCallNowDeadline: vi.fn(),
+}));
 vi.mock("@/lib/portal", () => ({
   requireClientProfile: async () => ({ id: "ui-test-client" }),
 }));
@@ -149,12 +153,17 @@ describe("recent calls presentation", () => {
 });
 
 describe("new-call presentation safeguards", () => {
-  function renderForm(enabled: boolean, redialOf?: string) {
+  function renderForm(
+    enabled: boolean,
+    redialOf?: string,
+    initial?: CreateCallInput,
+  ) {
     return renderToStaticMarkup(
       createElement(CallForm, {
         enabled,
         idempotencyKey: "ui-test-key",
         redialOf,
+        initial,
       }),
     );
   }
@@ -172,7 +181,7 @@ describe("new-call presentation safeguards", () => {
 
   it("keeps the full request contract and explicit authorization", () => {
     const markup = renderForm(true);
-    expect(markup).not.toMatch(/<fieldset[^>]*disabled/);
+    expect(markup.match(/<fieldset[^>]*>/)?.[0]).not.toContain("disabled");
     expect(markup).not.toMatch(/<button[^>]*disabled=""/);
     expect(markup).not.toContain('id="calling-disabled"');
 
@@ -214,8 +223,12 @@ describe("new-call presentation safeguards", () => {
     );
     expect(authorization).toBeDefined();
     expect(authorization).not.toContain('checked=""');
-    expect(markup).toContain("I authorize this call");
-    expect(markup).toContain("Start call");
+    expect(markup).toContain("Spanish or Italian landline or mobile number");
+    expect(markup).not.toContain(
+      "Mobile and service numbers are not supported",
+    );
+    expect(markup).toContain("I authorize one call now");
+    expect(markup).toContain("Call now");
     expect(mocks.startCall).not.toHaveBeenCalled();
   });
 
@@ -243,7 +256,63 @@ describe("new-call presentation safeguards", () => {
     expect(markup).not.toMatch(/<details[^>]*open/);
   });
 
-  it("uses explicit schedule choices and a local date-time picker", () => {
+  it("defaults to Call now and disables hidden scheduling and retry fields", () => {
+    const markup = renderForm(true);
+    expect(openingTag(markup, "scheduleMode")).toContain('value="now"');
+    expect(openingTag(markup, "scheduleMode")).toContain('checked=""');
+    expect(
+      markup.match(/<fieldset[^>]*disabled=""[^>]*hidden=""/g),
+    ).toHaveLength(2);
+    expect(markup).toContain("One attempt, as soon as a worker is available.");
+    expect(markup).toContain("No automatic retries.");
+    expect(markup).toContain("30 minutes after submission");
+  });
+
+  it.each(["now", "scheduled"])(
+    "preserves %s redial mode but requires a fresh deadline",
+    (mode) => {
+      const initial = createCallSchema.parse({
+        destination: "+34911234567",
+        destinationCountry: "ES",
+        language: "es",
+        maxDurationSeconds: 810,
+        maxAmountUsd: 5,
+        task: {
+          type: "connect_me",
+          callbackNumber: "+34612345678",
+          callbackLanguage: "en",
+          purpose: "Ask about opening hours",
+          maxAttempts: mode === "now" ? 1 : 2,
+          expiresAt: "2026-07-01T12:00:00.000Z",
+          callingWindow:
+            mode === "now"
+              ? "now"
+              : {
+                  timezone: "Europe/Rome",
+                  weekdays: [2, 4],
+                  start: "10:00",
+                  end: "16:00",
+                },
+        },
+      });
+      const markup = renderForm(true, "previous-call", initial);
+      const modeInputs =
+        markup.match(/<input[^>]*name="scheduleMode"[^>]*>/g) ?? [];
+      expect(modeInputs.find((tag) => tag.includes('checked=""'))).toContain(
+        `value="${mode}"`,
+      );
+      expect(openingTag(markup, "expiresAt")).toContain('value=""');
+      expect(markup).not.toContain("2026-07-01T12:00");
+      if (mode === "scheduled") {
+        expect(markup).not.toMatch(/<fieldset[^>]*disabled/);
+        expect(openingTag(markup, "start")).toContain('value="10:00"');
+        expect(openingTag(markup, "maxAttempts")).toContain('value="2"');
+        expect(markup).toContain("I authorize this call");
+      }
+    },
+  );
+
+  it("keeps schedule controls available for choosing calling hours", () => {
     const markup = renderForm(true);
     expect(markup).toContain("When can we call?");
     expect(markup).toContain("Spain mainland / Balearic Islands");
@@ -266,7 +335,7 @@ describe("new-call presentation safeguards", () => {
     mocks.formState = {
       error: "Review the form.",
       fieldErrors: {
-        destination: "Use a supported business landline.",
+        destination: "Use a supported landline or mobile number.",
         weekdays: "Choose at least one calling day.",
         handoffSeconds: "Allow enough time for the callback.",
       },
@@ -296,7 +365,7 @@ describe("new-call presentation safeguards", () => {
     const markup = renderForm(true);
     expect(markup).toContain(mocks.formState.error);
     expect(markup).toContain("Your entries have been kept.");
-    expect(markup).not.toMatch(/<fieldset[^>]*disabled/);
+    expect(markup.match(/<fieldset[^>]*>/)?.[0]).not.toContain("disabled");
     expect(openingTag(markup, "idempotencyKey")).toContain(
       'value="ui-test-key"',
     );

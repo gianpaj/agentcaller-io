@@ -10,12 +10,12 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
-import type { CreateCallInput } from "@agentcaller/contracts";
+import { CALL_NOW_TTL_MS, type CreateCallInput } from "@agentcaller/contracts";
 import { ZodError } from "zod";
 import { unstable_rethrow } from "next/navigation";
 import { portalCallInput } from "@/lib/portal-call-input";
 import { portalCallError, type CallFormState } from "@/lib/portal-call-errors";
-import { startCall } from "./actions";
+import { getCallNowDeadline, startCall } from "./actions";
 
 const panelClass =
   "grid w-full min-w-0 gap-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 sm:p-6";
@@ -89,6 +89,12 @@ export function CallForm({
   const [state, action, pending] = useActionState(
     async (previous: CallFormState, form: FormData): Promise<CallFormState> => {
       try {
+        if (form.get("scheduleMode") === "now") {
+          // Use server time once, then retain the deadline even if submission
+          // fails in transit. The browser clock is only used for preflight.
+          immediateExpiresAt.current ??= await getCallNowDeadline();
+          form.set("immediateExpiresAt", immediateExpiresAt.current);
+        }
         return await startCall(previous, form);
       } catch (error) {
         unstable_rethrow(error);
@@ -106,18 +112,25 @@ export function CallForm({
   const formRef = useRef<HTMLFormElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const task = initial?.task.type === "connect_me" ? initial.task : undefined;
+  const initialWindow =
+    task?.callingWindow !== "now" ? task?.callingWindow : undefined;
+  const [scheduleMode, setScheduleMode] = useState(
+    initialWindow ? "scheduled" : "now",
+  );
+  const callNow = scheduleMode === "now";
+  const immediateExpiresAt = useRef<string | null>(null);
   const [schedule, setSchedule] = useState({
-    timezone: task?.callingWindow.timezone ?? "",
-    weekdays: task?.callingWindow.weekdays ?? [],
-    start: task?.callingWindow.start ?? "",
-    end: task?.callingWindow.end ?? "",
+    timezone: initialWindow?.timezone ?? "",
+    weekdays: initialWindow?.weekdays ?? [],
+    start: initialWindow?.start ?? "",
+    end: initialWindow?.end ?? "",
     expiresAt: "",
   });
 
   useEffect(() => {
     if (!feedback.error || pending) return;
     const invalid = formRef.current?.querySelector<HTMLElement>(
-      '[aria-invalid="true"]',
+      '[aria-invalid="true"]:not(:disabled)',
     );
     const details = invalid?.closest("details");
     if (details) details.open = true;
@@ -128,6 +141,12 @@ export function CallForm({
     event.preventDefault();
     if (pending || !enabled) return;
     const form = new FormData(event.currentTarget);
+    if (callNow) {
+      form.set(
+        "immediateExpiresAt",
+        new Date(Date.now() + CALL_NOW_TTL_MS).toISOString(),
+      );
+    }
     try {
       portalCallInput(form);
     } catch (error) {
@@ -135,10 +154,10 @@ export function CallForm({
         error instanceof ZodError
           ? portalCallError(error)
           : {
-            error:
-              "Could not validate the call. Your entries are still here. Try again.",
-            fieldErrors: {},
-          },
+              error:
+                "Could not validate the call. Your entries are still here. Try again.",
+              fieldErrors: {},
+            },
       );
       return;
     }
@@ -269,7 +288,7 @@ export function CallForm({
               defaultValue: initial?.destination,
               placeholder: "+34… or +39…",
             },
-            "Use a Spanish or Italian geographic landline with its country code (+34 or +39). Mobile and service numbers are not supported.",
+            "Use a Spanish or Italian landline or mobile number with its country code (+34 or +39), matching the country below. Premium, service, and emergency numbers are not supported.",
           )}
           {select(
             "destinationCountry",
@@ -331,155 +350,221 @@ export function CallForm({
             <h2 id="hours-heading" className={headingClass}>
               When can we call?
             </h2>
+          </div>
+          <div
+            role="radiogroup"
+            aria-labelledby="hours-heading"
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            {[
+              ["now", "Call now"],
+              ["scheduled", "Choose calling hours"],
+            ].map(([value, label]) => (
+              <label
+                key={value}
+                className="flex min-h-12 cursor-pointer items-center gap-3 rounded-md border border-(--muted) px-3 py-3 text-base text-(--ink) has-checked:border-(--signal) has-checked:bg-(--void) has-disabled:cursor-not-allowed"
+              >
+                <input
+                  id={
+                    value === "now" ? "scheduleMode" : "scheduleMode-scheduled"
+                  }
+                  type="radio"
+                  name="scheduleMode"
+                  value={value}
+                  checked={scheduleMode === value}
+                  className="size-5 shrink-0 accent-(--signal)"
+                  aria-invalid={
+                    feedback.fieldErrors.scheduleMode ? true : undefined
+                  }
+                  aria-describedby={
+                    feedback.fieldErrors.scheduleMode
+                      ? "scheduleMode-error"
+                      : undefined
+                  }
+                  onChange={() => {
+                    setScheduleMode(value!);
+                    setLocalError(emptyState);
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          {feedback.fieldErrors.scheduleMode && (
+            <p
+              id="scheduleMode-error"
+              className="text-sm leading-6 text-(--ember)"
+            >
+              {feedback.fieldErrors.scheduleMode}
+            </p>
+          )}
+          {callNow && (
+            <p className={helpClass}>
+              One attempt, as soon as a worker is available. No automatic
+              retries. The request expires 30 minutes after submission,
+              including time waiting and on the call.
+            </p>
+          )}
+          <fieldset
+            disabled={callNow}
+            hidden={callNow}
+            className={callNow ? "hidden" : "grid min-w-0 gap-5"}
+          >
+            <legend className="sr-only">Calling hours</legend>
             <p className={helpClass}>
               Choose hours when the business accepts calls. We wait until this
               window to dial.
             </p>
-          </div>
-          <Field
-            name="timezone"
-            label="Business timezone"
-            help="All times below use this timezone, including the deadline."
-            error={feedback.fieldErrors.timezone}
-          >
-            <select
-              {...control("timezone", "help")}
-              required
-              value={schedule.timezone}
-              onChange={(event) =>
-                setSchedule({ ...schedule, timezone: event.target.value })
-              }
+            <Field
+              name="timezone"
+              label="Business timezone"
+              help="All times below use this timezone, including the deadline."
+              error={feedback.fieldErrors.timezone}
             >
-              <option value="" disabled>
-                Choose the business location
-              </option>
-              {timezones.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
+              <select
+                {...control("timezone", "help")}
+                required
+                value={schedule.timezone}
+                onChange={(event) =>
+                  setSchedule({ ...schedule, timezone: event.target.value })
+                }
+              >
+                <option value="" disabled>
+                  Choose the business location
                 </option>
-              ))}
-              {schedule.timezone &&
-                !timezones.some(([value]) => value === schedule.timezone) && (
-                  <option value={schedule.timezone}>{schedule.timezone}</option>
-                )}
-            </select>
-          </Field>
-          <fieldset className="grid min-w-0 gap-3">
-            <legend className="mb-3 text-sm font-medium text-[var(--ink)]">
-              Calling days
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={shortcutClass}
-                onClick={() =>
-                  setSchedule({ ...schedule, weekdays: [1, 2, 3, 4, 5] })
-                }
-              >
-                Mon–Fri
-              </button>
-              <button
-                type="button"
-                className={shortcutClass}
-                onClick={() =>
-                  setSchedule({ ...schedule, weekdays: [1, 2, 3, 4, 5, 6, 7] })
-                }
-              >
-                Every day
-              </button>
-            </div>
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {days.map((day, index) => (
-                <label
-                  key={day}
-                  className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-[var(--muted)] bg-[var(--void)] px-1 py-3 text-sm font-medium text-[var(--ink)] has-checked:border-[var(--signal)] has-checked:bg-[var(--signal)] has-checked:text-[var(--void)] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[var(--signal)] has-disabled:cursor-not-allowed"
+                {timezones.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+                {schedule.timezone &&
+                  !timezones.some(([value]) => value === schedule.timezone) && (
+                    <option value={schedule.timezone}>
+                      {schedule.timezone}
+                    </option>
+                  )}
+              </select>
+            </Field>
+            <fieldset className="grid min-w-0 gap-3">
+              <legend className="mb-3 text-sm font-medium text-[var(--ink)]">
+                Calling days
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={shortcutClass}
+                  onClick={() =>
+                    setSchedule({ ...schedule, weekdays: [1, 2, 3, 4, 5] })
+                  }
                 >
-                  <input
-                    id={`weekday-${index + 1}`}
-                    className="peer sr-only"
-                    type="checkbox"
-                    name="weekdays"
-                    value={index + 1}
-                    checked={schedule.weekdays.includes(index + 1)}
-                    aria-invalid={
-                      feedback.fieldErrors.weekdays ? true : undefined
-                    }
-                    aria-describedby={
-                      feedback.fieldErrors.weekdays
-                        ? "weekdays-help weekdays-error"
-                        : "weekdays-help"
-                    }
-                    onChange={(event) =>
-                      setSchedule({
-                        ...schedule,
-                        weekdays: event.target.checked
-                          ? [...schedule.weekdays, index + 1].sort(
-                            (a, b) => a - b,
-                          )
-                          : schedule.weekdays.filter(
-                            (day) => day !== index + 1,
-                          ),
-                      })
-                    }
-                  />
-                  <span className="peer-checked:font-bold peer-checked:underline peer-checked:underline-offset-4">
-                    {day}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p id="weekdays-help" className={helpClass}>
-              Select at least one day. Tap a selected day to remove it.
-            </p>
-            {feedback.fieldErrors.weekdays && (
-              <p
-                id="weekdays-error"
-                className="text-sm leading-6 text-[var(--ember)]"
-              >
-                {feedback.fieldErrors.weekdays}
+                  Mon–Fri
+                </button>
+                <button
+                  type="button"
+                  className={shortcutClass}
+                  onClick={() =>
+                    setSchedule({
+                      ...schedule,
+                      weekdays: [1, 2, 3, 4, 5, 6, 7],
+                    })
+                  }
+                >
+                  Every day
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                {days.map((day, index) => (
+                  <label
+                    key={day}
+                    className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-[var(--muted)] bg-[var(--void)] px-1 py-3 text-sm font-medium text-[var(--ink)] has-checked:border-[var(--signal)] has-checked:bg-[var(--signal)] has-checked:text-[var(--void)] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[var(--signal)] has-disabled:cursor-not-allowed"
+                  >
+                    <input
+                      id={`weekday-${index + 1}`}
+                      className="peer sr-only"
+                      type="checkbox"
+                      name="weekdays"
+                      value={index + 1}
+                      checked={schedule.weekdays.includes(index + 1)}
+                      aria-invalid={
+                        feedback.fieldErrors.weekdays ? true : undefined
+                      }
+                      aria-describedby={
+                        feedback.fieldErrors.weekdays
+                          ? "weekdays-help weekdays-error"
+                          : "weekdays-help"
+                      }
+                      onChange={(event) =>
+                        setSchedule({
+                          ...schedule,
+                          weekdays: event.target.checked
+                            ? [...schedule.weekdays, index + 1].sort(
+                                (a, b) => a - b,
+                              )
+                            : schedule.weekdays.filter(
+                                (day) => day !== index + 1,
+                              ),
+                        })
+                      }
+                    />
+                    <span className="peer-checked:font-bold peer-checked:underline peer-checked:underline-offset-4">
+                      {day}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p id="weekdays-help" className={helpClass}>
+                Select at least one day. Tap a selected day to remove it.
               </p>
-            )}
-          </fieldset>
-          <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-            {input("start", "From", {
-              type: "time",
-              required: true,
-              value: schedule.start,
-              onChange: (event) =>
-                setSchedule({ ...schedule, start: event.target.value }),
-            })}
-            {input(
-              "end",
-              "Until",
-              {
+              {feedback.fieldErrors.weekdays && (
+                <p
+                  id="weekdays-error"
+                  className="text-sm leading-6 text-[var(--ember)]"
+                >
+                  {feedback.fieldErrors.weekdays}
+                </p>
+              )}
+            </fieldset>
+            <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+              {input("start", "From", {
                 type: "time",
                 required: true,
-                value: schedule.end,
+                value: schedule.start,
                 onChange: (event) =>
-                  setSchedule({ ...schedule, end: event.target.value }),
-              },
-              "Later than the start, on the same day.",
-            )}
-          </div>
-          <div className="grid gap-5 border-t border-[var(--line)] pt-5">
-            {input(
-              "expiresAt",
-              "Stop trying after",
-              {
-                type: "datetime-local",
-                required: true,
-                value: schedule.expiresAt,
-                onChange: (event) =>
-                  setSchedule({ ...schedule, expiresAt: event.target.value }),
-              },
-              `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline. Redial needs a fresh deadline.`,
-            )}
-            <p role="status" className="text-sm leading-6 text-[var(--ink)]">
-              {scheduleComplete
-                ? `Calling window: ${schedule.weekdays.map((day) => days[day - 1]).join(", ")}, ${schedule.start}–${schedule.end} (${timezoneLabel}).`
-                : "Choose a timezone, days, and hours to set your calling window."}
-            </p>
-          </div>
+                  setSchedule({ ...schedule, start: event.target.value }),
+              })}
+              {input(
+                "end",
+                "Until",
+                {
+                  type: "time",
+                  required: true,
+                  value: schedule.end,
+                  onChange: (event) =>
+                    setSchedule({ ...schedule, end: event.target.value }),
+                },
+                "Later than the start, on the same day.",
+              )}
+            </div>
+            <div className="grid gap-5 border-t border-[var(--line)] pt-5">
+              {input(
+                "expiresAt",
+                "Stop trying after",
+                {
+                  type: "datetime-local",
+                  required: true,
+                  value: schedule.expiresAt,
+                  onChange: (event) =>
+                    setSchedule({ ...schedule, expiresAt: event.target.value }),
+                },
+                `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline. Redial needs a fresh deadline.`,
+              )}
+              <p role="status" className="text-sm leading-6 text-[var(--ink)]">
+                {scheduleComplete
+                  ? `Calling window: ${schedule.weekdays.map((day) => days[day - 1]).join(", ")}, ${schedule.start}–${schedule.end} (${timezoneLabel}).`
+                  : "Choose a timezone, days, and hours to set your calling window."}
+              </p>
+            </div>
+          </fieldset>
         </section>
         <section className={panelClass} aria-labelledby="limits-heading">
           <h2 id="limits-heading" className={headingClass}>
@@ -493,23 +578,33 @@ export function CallForm({
             required: true,
             defaultValue: initial?.maxAmountUsd ?? 5,
           })}
-          {input("maxAttempts", "Maximum attempts", {
-            type: "number",
-            min: "1",
-            max: "6",
-            required: true,
-            defaultValue: task?.maxAttempts ?? 1,
-          })}
-          {input("retryDelaySeconds", "Retry delay (seconds)", {
-            type: "number",
-            min: "300",
-            max: "86400",
-            required: true,
-            defaultValue: task?.retryDelaySeconds ?? 300,
-          })}
+          <fieldset
+            disabled={callNow}
+            hidden={callNow}
+            className={callNow ? "hidden" : "grid min-w-0 gap-5"}
+          >
+            <legend className="sr-only">Retry limits</legend>
+            {input("maxAttempts", "Maximum attempts", {
+              type: "number",
+              min: "1",
+              max: "6",
+              required: true,
+              defaultValue: task?.maxAttempts ?? 1,
+            })}
+            {input("retryDelaySeconds", "Retry delay (seconds)", {
+              type: "number",
+              min: "300",
+              max: "86400",
+              required: true,
+              defaultValue: task?.retryDelaySeconds ?? 300,
+            })}
+            <p className={helpClass}>
+              Only busy or no-answer can retry automatically.
+            </p>
+          </fieldset>
           <p className={helpClass}>
-            Only busy or no-answer can retry automatically. Each new job has its
-            own cap. Operator funding pays provider charges without x402.
+            Each new job has its own cap. Operator funding pays provider charges
+            without x402.
           </p>
           <details className="min-w-0 border-t border-[var(--line)] pt-5">
             <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-[var(--ink)] hover:text-[var(--signal)]">
@@ -545,8 +640,9 @@ export function CallForm({
             required
           />
           <span>
-            I authorize this call with the destinations, hours, and spending
-            limit above.
+            {callNow
+              ? "I authorize one call now to these destinations, within the spending and duration limits above."
+              : "I authorize this call with the destinations, hours, and spending limit above."}
           </span>
         </label>
         <button
@@ -557,7 +653,9 @@ export function CallForm({
             ? "Submitting…"
             : redialOf
               ? "Confirm and redial"
-              : "Start call"}
+              : callNow
+                ? "Call now"
+                : "Start call"}
         </button>
       </fieldset>
     </form>

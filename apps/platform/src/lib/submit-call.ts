@@ -1,5 +1,5 @@
 import { authorizeOperatorInput } from "@/lib/operator-funding";
-import { createCallSchema } from "@agentcaller/contracts";
+import { CALL_NOW_TTL_MS, createCallSchema } from "@agentcaller/contracts";
 import {
   calls,
   callEvents,
@@ -63,6 +63,11 @@ export async function submitCall(
       throw new ApiError(422, "Voice is not enabled for this client");
 
     if (input.task.type === "connect_me") {
+      if (
+        input.task.callingWindow === "now" &&
+        Date.parse(input.task.expiresAt) > Date.now() + CALL_NOW_TTL_MS
+      )
+        throw new ApiError(422, "Call now must expire within 30 minutes");
       if (
         Date.parse(input.task.expiresAt) <= Date.now() ||
         Date.parse(input.task.expiresAt) > Date.now() + 7 * 86400_000
@@ -130,10 +135,10 @@ export async function submitCall(
     const [callbackRate] =
       input.task.type === "connect_me"
         ? await database()
-          .select()
-          .from(rateCards)
-          .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
-          .limit(1)
+            .select()
+            .from(rateCards)
+            .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
+            .limit(1)
         : [];
     if (input.task.type === "connect_me" && !callbackRate)
       throw new ApiError(503, "No Spanish callback rate");
@@ -151,7 +156,7 @@ export async function submitCall(
       input.task.type === "connect_me" &&
       callbackRate &&
       attemptReserve(input.task, rate, callbackRate) * input.task.maxAttempts >
-      maxAmountMicros
+        maxAmountMicros
     )
       throw new ApiError(
         422,
@@ -166,9 +171,9 @@ export async function submitCall(
     const verified = operatorFunded
       ? undefined
       : await verifyPayment(
-        paymentPayload,
-        paymentRequirements(maxAmountMicros),
-      );
+          paymentPayload,
+          paymentRequirements(maxAmountMicros),
+        );
 
     // Persist funding authorization with the job before any dispatch.
     let call: typeof calls.$inferSelect;

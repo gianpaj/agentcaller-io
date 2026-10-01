@@ -1,4 +1,4 @@
-import { createCallSchema } from "@agentcaller/contracts";
+import { CALL_NOW_TTL_MS, createCallSchema } from "@agentcaller/contracts";
 import { z, ZodError } from "zod";
 
 const explicitDeadline = z.string().datetime({ offset: true });
@@ -78,11 +78,34 @@ export function portalCallInput(form: FormData) {
   const number = (name: string) =>
     string(name) === "" ? NaN : Number(string(name));
   const issues: z.core.$ZodIssue[] = [];
-  const expiresAt = parseDeadline(
-    string("expiresAt"),
-    string("timezone"),
-    issues,
-  );
+  const mode = string("scheduleMode") || "scheduled";
+  const callNow = mode === "now";
+  if (mode !== "now" && mode !== "scheduled")
+    issues.push({
+      code: "custom",
+      path: ["scheduleMode"],
+      message: "Choose when to call.",
+    });
+  let expiresAt: string | undefined;
+  if (callNow) {
+    const deadline = explicitDeadline.safeParse(string("immediateExpiresAt"));
+    const now = Date.now();
+    if (
+      !deadline.success ||
+      Date.parse(deadline.data) <= now ||
+      Date.parse(deadline.data) > now + CALL_NOW_TTL_MS
+    ) {
+      issues.push({
+        code: "custom",
+        path: ["immediateExpiresAt"],
+        message: "The immediate-call deadline is invalid or expired.",
+      });
+    } else {
+      expiresAt = new Date(deadline.data).toISOString();
+    }
+  } else {
+    expiresAt = parseDeadline(string("expiresAt"), string("timezone"), issues);
+  }
   const waitingSeconds = number("waitingSeconds"),
     handoffSeconds = number("handoffSeconds"),
     conversationSeconds = number("conversationSeconds");
@@ -101,14 +124,16 @@ export function portalCallInput(form: FormData) {
       // A valid placeholder lets unrelated contract checks report all errors.
       // It is never returned when deadline or timezone validation fails.
       expiresAt: expiresAt ?? "2000-01-01T00:00:00.000Z",
-      callingWindow: {
-        timezone: string("timezone"),
-        weekdays: form.getAll("weekdays").map(Number),
-        start: string("start"),
-        end: string("end"),
-      },
-      maxAttempts: number("maxAttempts"),
-      retryDelaySeconds: number("retryDelaySeconds"),
+      callingWindow: callNow
+        ? "now"
+        : {
+            timezone: string("timezone"),
+            weekdays: form.getAll("weekdays").map(Number),
+            start: string("start"),
+            end: string("end"),
+          },
+      maxAttempts: callNow ? 1 : number("maxAttempts"),
+      retryDelaySeconds: callNow ? 300 : number("retryDelaySeconds"),
       ringingSeconds: number("ringingSeconds"),
       waitingSeconds,
       handoffSeconds,

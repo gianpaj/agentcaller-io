@@ -1,4 +1,9 @@
 import type { ZodError } from "zod";
+import { businessDestinationErrors } from "@agentcaller/contracts";
+
+const destinationMessages: ReadonlySet<string> = new Set(
+  Object.values(businessDestinationErrors),
+);
 
 export type CallFormState = {
   error: string;
@@ -6,10 +11,12 @@ export type CallFormState = {
 };
 
 const fields: Record<string, readonly [string, string]> = {
-  destination: [
-    "destination",
-    "Enter a Spanish or Italian geographic business number in international format, matching the selected country.",
+  scheduleMode: ["scheduleMode", "Choose Call now or Choose calling hours."],
+  immediateExpiresAt: [
+    "scheduleMode",
+    "This immediate-call request has expired or has an invalid deadline. Check Recents before opening a new call form.",
   ],
+  destination: ["destination", businessDestinationErrors.format],
   destinationCountry: ["destinationCountry", "Choose Spain or Italy."],
   language: [
     "language",
@@ -110,8 +117,22 @@ const deadlineMessages = new Set([
 export function portalCallError(error: ZodError): CallFormState {
   const fieldErrors: Record<string, string> = {};
   let unknown = false;
-  for (const issue of error.issues) {
+  const issues = error.issues.flatMap((issue) =>
+    issue.code === "invalid_union" &&
+    issue.path.join(".") === "task.callingWindow"
+      ? (issue.errors[0] ?? [issue])
+      : [issue],
+  );
+  for (const issue of issues) {
     const path = issue.path.join(".");
+    if (
+      path === "destination" &&
+      issue.code === "custom" &&
+      destinationMessages.has(issue.message)
+    ) {
+      fieldErrors.destination = issue.message;
+      continue;
+    }
     let field = Object.hasOwn(fields, path) ? fields[path] : undefined;
     if (/^task\.callingWindow\.weekdays\.\d+$/.test(path))
       field = fields["task.callingWindow.weekdays"];
