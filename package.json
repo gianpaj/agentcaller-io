@@ -6,10 +6,11 @@
   "license": "MIT",
   "scripts": {
     "dev": "turbo dev",
+    "dev:scheduler": "node scripts/dev-connect-scheduler.mjs",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "test": "turbo test",
+    "test": "node --test scripts/dev-connect-scheduler.test.mjs && turbo test",
     "format:check": "prettier --check .",
     "test:connect-db": "node scripts/test-connect-db.mjs"
   },

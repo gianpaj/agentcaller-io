@@ -203,6 +203,20 @@ are not retried; a 90-second stale lease stops the attempt. Workers heartbeat ev
 10 seconds and fail closed when the platform cannot confirm permission.
 The endpoint reports `paidJobsBlocked` for x402; enabled operator jobs can dispatch.
 
+For local development, root `pnpm dev` starts this scheduler automatically next
+to the platform through Turbo. It reads `CRON_SECRET` (at least 32 characters)
+from `apps/platform/.env.local`, with shell values taking precedence, and targets
+`http://localhost:3000`. Requests never overlap and Ctrl+C stops the scheduler.
+When running the platform with a direct package command, start
+`pnpm dev:scheduler` separately. Production still needs an external scheduler.
+
+Platform dispatch and cleanup failures log the stage, call ID, attempt ID when
+available, and HTTP status or timeout classification. Worker callback failures
+also include the command and transport retry number. Logs omit credentials,
+request/response bodies, task contents, and raw exception messages. A dispatch
+failure never causes an immediate redispatch; lease expiry and cleanup retain
+ownership of an uncertain attempt.
+
 The worker uses the pinned SDK's `waitUntilAnswered`, `ringingTimeout` and
 `maxCallDuration` on each SIP leg. These are **LiveKit SIP service limits**, not
 Telnyx carrier-enforced guarantees. The upstream SIP service starts its duration

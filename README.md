@@ -254,13 +254,31 @@ Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase
 environment before running the platform.
 
-Run each long-lived application in its own terminal:
+Run the local workspace:
+
+```bash
+pnpm dev
+```
+
+Turbo starts the platform, docs, voice worker, and a development connection
+scheduler. Set `CRON_SECRET` (at least 32 characters) in
+`apps/platform/.env.local`. The scheduler reads that file, with shell values
+taking precedence, and sends an authenticated drain request to
+`http://localhost:3000` at startup and every 30 seconds. It waits through
+platform startup, never overlaps requests, and stops with Ctrl+C. Idle ticks
+stay quiet; HTTP failures, timeouts, and failed room cleanup appear in logs.
+
+To run applications separately:
 
 ```bash
 pnpm --filter @agentcaller/platform dev
 pnpm --filter @agentcaller/docs dev
 pnpm --filter @agentcaller/voice-agent dev
+pnpm dev:scheduler
 ```
+
+Direct package dev commands do not start the scheduler. Production deployments
+need their own recurring drain trigger; the development script is local only.
 
 The voice worker dev command loads `apps/voice-agent/.env`. Values already set
 in the environment stay in place. The production start command does not read

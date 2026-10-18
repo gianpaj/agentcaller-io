@@ -58,7 +58,15 @@ export async function connectLiveKit(
       action,
     });
   const claim = claimSchema.safeParse(await request("claim"));
-  if (!claim.success || claim.data.input.task.type !== "connect_me") return;
+  if (!claim.success || claim.data.input.task.type !== "connect_me") {
+    console.error("Connect worker could not claim its attempt", {
+      stage: "claim",
+      callId,
+      attemptId,
+      failure: "claim_rejected_or_invalid",
+    });
+    return;
+  }
   const input = { ...claim.data.input, task: claim.data.input.task };
   const task = input.task;
   const abort = new AbortController();
@@ -284,6 +292,16 @@ export async function connectLiveKit(
           const reason = sipFailure(
             error instanceof SipCallError ? error.sipStatusCode : undefined,
           );
+          console.error("Connect dial failed", {
+            stage: "dial",
+            callId,
+            attemptId,
+            leg,
+            reason,
+            ...(error instanceof SipCallError
+              ? { sipStatusCode: error.sipStatusCode }
+              : {}),
+          });
           throw new CallStopped(
             leg === "callback" && ["busy", "no_answer"].includes(reason)
               ? "callback_timeout"
@@ -452,11 +470,21 @@ export async function connectLiveKit(
           finishConversation = resolve;
         }),
     });
-  } catch {
+  } catch (error) {
+    const details = error && typeof error === "object" ? error : {};
+    const status = "status" in details ? details.status : undefined;
+    const name = "name" in details ? details.name : undefined;
     console.error("Connect worker setup failed", {
       callId,
       attemptId,
       stage: setupStage,
+      ...(typeof status === "number" && status >= 100 && status <= 599
+        ? { status }
+        : {}),
+      failure:
+        name === "TimeoutError" || name === "AbortError"
+          ? "timeout"
+          : "request_failed",
     });
     await cleanup();
     await command("finish", { reason: "configuration_error" });

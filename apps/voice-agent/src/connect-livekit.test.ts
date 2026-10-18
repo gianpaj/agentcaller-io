@@ -313,6 +313,7 @@ it("logs the setup stage when the outbound trunk fails validation", async () => 
     callId: state.callId,
     attemptId: state.attemptId,
     stage: "trunk_lookup",
+    failure: "request_failed",
   });
   expect(state.roomConnections).toBe(0);
   expect(state.dials).toHaveLength(0);
@@ -361,8 +362,17 @@ it("uses separate Italian business caller ID and Spanish callback", async () => 
 });
 
 it("keeps a pre-answer disconnect from hiding the definitive busy outcome", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
   state.sipCode = 486;
   await run();
   expect(state.commands.find((c) => c.action === "finish").reason).toBe("busy");
   expect(state.dials).toHaveLength(1);
+  expect(log).toHaveBeenCalledWith("Connect dial failed", {
+    stage: "dial",
+    callId: state.callId,
+    attemptId: state.attemptId,
+    leg: "business",
+    reason: "busy",
+    sipStatusCode: 486,
+  });
 });
