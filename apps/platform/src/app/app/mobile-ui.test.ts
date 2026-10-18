@@ -16,15 +16,26 @@ const mocks = vi.hoisted(() => ({
     error: string;
     fieldErrors: Record<string, string>;
   },
+  confirmForm: undefined as FormData | undefined,
+  setConfirmForm: vi.fn(),
 }));
 
-vi.mock("react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("react")>()),
-  useActionState: (action: any, initial: unknown) => {
-    mocks.capturedAction = action;
-    return [mocks.formState ?? initial, mocks.startCall, false];
-  },
-}));
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (initial: unknown) => {
+      if (initial === undefined) {
+        return [mocks.confirmForm, mocks.setConfirmForm];
+      }
+      return actual.useState(initial);
+    },
+    useActionState: (action: any, initial: unknown) => {
+      mocks.capturedAction = action;
+      return [mocks.formState ?? initial, mocks.startCall, false];
+    },
+  };
+});
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -59,6 +70,7 @@ function openingTag(markup: string, name: string) {
 beforeEach(() => {
   mocks.pathname = "/app";
   mocks.formState = null;
+  mocks.confirmForm = undefined;
   vi.clearAllMocks();
   mocks.listCallHistory.mockResolvedValue([]);
   mocks.parseCursor.mockReturnValue({ success: false });
@@ -419,5 +431,18 @@ describe("new-call presentation safeguards", () => {
       (child) => child?.type === CallForm,
     );
     expect(formElement?.key).toBe(formElement?.props.idempotencyKey);
+  });
+  it("prompts for confirmation when destination equals callbackNumber", () => {
+    const data = new FormData();
+    data.set("destination", "+34612345678");
+    data.set("callbackNumber", "+34612345678");
+    mocks.confirmForm = data;
+    const markup = renderForm(true);
+    expect(markup).toContain('role="alertdialog"');
+    expect(markup).toContain("Call your own callback number?");
+    expect(markup).toContain("+34612345678");
+    expect(markup).toContain("Change number");
+    expect(markup).toContain("Call anyway");
+    expect(mocks.startCall).not.toHaveBeenCalled();
   });
 });

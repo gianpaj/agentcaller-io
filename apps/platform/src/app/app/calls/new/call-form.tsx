@@ -110,9 +110,11 @@ export function CallForm({
     emptyState,
   );
   const [localError, setLocalError] = useState<CallFormState | null>(null);
+  const [confirmForm, setConfirmForm] = useState<FormData | undefined>(undefined);
   const feedback = localError ?? state;
   const formRef = useRef<HTMLFormElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
   const task = initial?.task.type === "connect_me" ? initial.task : undefined;
   const initialWindow =
     task?.callingWindow !== "now" ? task?.callingWindow : undefined;
@@ -128,6 +130,10 @@ export function CallForm({
     end: initialWindow?.end ?? "",
     expiresAt: "",
   });
+
+  useEffect(() => {
+    if (confirmForm) confirmCancelRef.current?.focus();
+  }, [confirmForm]);
 
   useEffect(() => {
     if (!feedback.error || pending) return;
@@ -149,8 +155,9 @@ export function CallForm({
         new Date(Date.now() + CALL_NOW_TTL_MS).toISOString(),
       );
     }
+    let parsed: CreateCallInput;
     try {
-      portalCallInput(form);
+      parsed = portalCallInput(form);
     } catch (error) {
       setLocalError(
         error instanceof ZodError
@@ -164,6 +171,13 @@ export function CallForm({
       return;
     }
     setLocalError(null);
+    if (
+      parsed.task.type === "connect_me" &&
+      parsed.destination === parsed.task.callbackNumber
+    ) {
+      setConfirmForm(form);
+      return;
+    }
     // Dispatch manually: a form action resets uncontrolled inputs even when
     // the server returns a validation error. Keep the draft until redirect.
     startTransition(() => action(form));
@@ -220,6 +234,7 @@ export function CallForm({
     );
   }
 
+  const confirmDestination = confirmForm?.get("destination");
   const timezoneLabel =
     timezones.find(([value]) => value === schedule.timezone)?.[1] ??
     schedule.timezone;
@@ -239,6 +254,60 @@ export function CallForm({
     >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="redialOf" value={redialOf ?? ""} />
+      {confirmForm && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="same-number-heading"
+          aria-describedby="same-number-description"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmForm(undefined);
+          }}
+          className="fixed inset-0 z-50 grid place-items-center bg-(--void)/80 p-5"
+        >
+          <div className="grid w-full max-w-md gap-4 rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 text-(--ink) sm:p-6">
+            <h2 id="same-number-heading" className={headingClass}>
+              Call your own callback number?
+            </h2>
+            <p id="same-number-description" className={helpClass}>
+              The business phone and your callback mobile are both{" "}
+              <span className="font-semibold text-(--ink)">
+                {typeof confirmDestination === "string"
+                  ? confirmDestination
+                  : ""}
+              </span>
+              . The assistant will dial this handset as the business first and
+              then call it again for the callback.
+            </p>
+            <div className="flex flex-wrap justify-end gap-3 pt-2">
+              <button
+                ref={confirmCancelRef}
+                type="button"
+                className={shortcutClass}
+                onClick={() => {
+                  setConfirmForm(undefined);
+                  formRef.current
+                    ?.querySelector<HTMLElement>('[name="destination"]')
+                    ?.focus();
+                }}
+              >
+                Change number
+              </button>
+              <button
+                type="button"
+                className="min-h-11 cursor-pointer rounded-md border border-transparent bg-(--signal) px-4 py-2 text-sm font-semibold text-(--void) hover:brightness-110"
+                onClick={() => {
+                  const next = confirmForm;
+                  setConfirmForm(undefined);
+                  startTransition(() => action(next));
+                }}
+              >
+                Call anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!enabled && (
         <p
           id="calling-disabled"
