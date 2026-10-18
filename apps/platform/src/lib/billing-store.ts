@@ -18,6 +18,7 @@ export async function lockBillingAccount(
   tx: BillingTX,
   id: string,
   clientId?: string,
+  requireEnabled = true,
 ) {
   const [account] = await tx
     .select()
@@ -34,7 +35,8 @@ export async function lockBillingAccount(
     .select()
     .from(clientProfiles)
     .where(eq(clientProfiles.id, account.clientId));
-  if (!owner?.enabled) throw new ApiError(403, "Account is disabled");
+  if (!owner || (requireEnabled && !owner.enabled))
+    throw new ApiError(403, "Account is disabled");
   return account;
 }
 
@@ -91,7 +93,7 @@ export async function lockCallBillingAccount(tx: BillingTX, callId: string) {
     .from(calls)
     .where(eq(calls.id, callId));
   if (!call?.accountId) return null;
-  return lockBillingAccount(tx, call.accountId);
+  return lockBillingAccount(tx, call.accountId, undefined, false);
 }
 
 export async function billingAudit(

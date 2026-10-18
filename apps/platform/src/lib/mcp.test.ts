@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CLIENT_CAPABILITIES_META_KEY,
   CLIENT_INFO_META_KEY,
@@ -6,6 +6,18 @@ import {
 } from "@modelcontextprotocol/server";
 import type { AgentPrincipal } from "@agentcaller/contracts";
 import { createAgentMcpHandler } from "./mcp";
+
+vi.mock("./billing-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./billing-usage")>();
+  return {
+    ...actual,
+    getBillingStatus: vi.fn(async () => ({
+      status: "disabled",
+      reason: "paid_calling_disabled",
+    })),
+    getBillingUsage: vi.fn(async () => ({ data: [], nextCursor: null })),
+  };
+});
 
 const principal: AgentPrincipal = {
   clientId: "test-account",
@@ -78,16 +90,16 @@ describe("stateless MCP protocol compatibility", () => {
       );
       expect(result.error).toBeUndefined();
       expect(result.result.structuredContent).toMatchObject({
-        status: "unavailable",
-        reason: "billing_not_enabled",
+        status: "disabled",
+        reason: "paid_calling_disabled",
       });
     },
   );
-  it("does not advertise unavailable scheduling or enrollment tools", async () => {
+  it("advertises tools according to the verified operation grant", async () => {
     const { result } = await request("tools/list", {}, "modern");
     expect(
       result.result.tools.map((tool: { name: string }) => tool.name),
-    ).toEqual(["get_billing_status"]);
+    ).toEqual(["get_billing_status", "get_usage"]);
   });
   it("does not retain one request's principal or permissions in another", async () => {
     const { result } = await request("tools/list", {}, "modern", {

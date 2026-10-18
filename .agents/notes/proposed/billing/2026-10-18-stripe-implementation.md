@@ -33,13 +33,28 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 - The v2 server package includes stateless legacy compatibility; no deprecated
   legacy package or Express dependency is needed. Current requests require
   matching protocol, method and tool-name headers and the per-request envelope.
-- Only billing readiness is exposed until the billing application functions exist.
+- Six MCP tools call the billing application functions: setup, readiness, quote,
+  reservation, integration-scoped call status and usage. Linked API keys use
+  `/api/v1/billing/{setup,status,quote,calls,usage}`; unlinked keys cannot spend.
+- Human enrollment exchanges a setup token for an HttpOnly continuation cookie,
+  checks the verified owner, records unchecked-form consent and caps, then opens
+  a card-only Stripe Checkout Session. GET and browser return never activate a
+  grant. Authoritative Session/Intent/card verification activates it once.
+- Checkout create operations have persisted generations, a two-minute lease,
+  stable Stripe keys and a 23-hour retry boundary. Checkout expires after 31
+  minutes so request latency does not violate Stripe's 30-minute minimum.
+- Admission commits the call, job, full-job usage reservation and period counter
+  under the shared account lock. Accepted-key replay precedes mutable quote and
+  schedule checks. Unknown connected usage retains its hold; confirmed terminal
+  jobs without dial intents release their reservation exactly once.
+- Paid calling remains disabled. Worker authorization, human spending controls,
+  event processing and monthly issuance are the remaining integration work.
 - Billing contracts require cents and accepted quote versions, preserve legacy
   dollar inputs and reject mixed money/claimed authority. Domain functions cover
   full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
   merchant overruns, shared exposure, UTC/DST schedules and request fingerprints.
 - Setup tokens are reproducible HMAC values bound to request, generation and
-  expiry; storage needs only a digest. These helpers are not an enrollment API.
+  expiry; storage needs only a digest. Enrollment stores the digest and checks the verified owner.
 - Stripe Node 23.0.0 matches API `2026-09-30.endive`. Its installed Checkout
   creation type requires `allowed_payment_method_types: ["card"]`; the legacy
   `payment_method_types` request field is absent. The plan uses the supported
@@ -64,7 +79,7 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 - Workspace typecheck, tests and build pass across all five packages. Offline
   tests pass: platform 327, contracts 98, worker 41, database 2 and scheduler 6.
-- Disposable PostgreSQL passes 7 onboarding/event-inbox tests and 46 existing
+- Disposable PostgreSQL passes 11 onboarding/enrollment/reservation tests and 46 existing
   connect tests, including upgrades with a historical x402 call. Tests use
   independent connections; OAuth profile ownership and event RLS are enforced.
 - Lint exits successfully with zero findings. The shadcn plugin reports that its

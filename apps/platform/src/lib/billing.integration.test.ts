@@ -1,6 +1,14 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   agentConnections,
   clientProfiles,
@@ -12,6 +20,8 @@ import {
   billingPeriods,
   billingCallUsage,
   billingAuditEvents,
+  billingSetupRequests,
+  rateCards,
 } from "@agentcaller/database";
 import { eq, sql } from "drizzle-orm";
 import { ensureClientProfileForUser } from "./portal";
@@ -22,6 +32,19 @@ import { generateKeyPair, SignJWT } from "jose";
 import type Stripe from "stripe";
 import { receiveStripeEvent } from "./stripe-events";
 import { stripeApiVersion } from "./stripe";
+import {
+  createBillingSetup,
+  resolveBillingSetupToken,
+  approveBillingSetup,
+  beginBillingCheckout,
+  reconcileCheckoutSession,
+} from "./billing-setup";
+import {
+  quoteStripeCall,
+  reserveStripeCall,
+  finalizeStripeUsage,
+} from "./billing-usage";
+import type { AgentPrincipal } from "@agentcaller/contracts";
 
 const url = process.env.BILLING_TEST_DATABASE_URL;
 const run = url ? describe : describe.skip;
@@ -74,11 +97,20 @@ run("agent onboarding with disposable PostgreSQL", () => {
     ).toMatchObject({ fundingSource: "x402", paymentState: "authorized" });
   });
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await Promise.all([first.client.end(), second.client.end()]);
   });
   beforeEach(async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_offline");
+    vi.stubEnv("STRIPE_PRICING_VERSION", "offline-v1");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://agentcaller.example");
+    vi.stubEnv(
+      "BILLING_SETUP_TOKEN_SECRET",
+      "offline-independent-billing-token-secret-123456789",
+    );
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "false");
     await first.db.execute(
-      sql`truncate client_profiles, stripe_events cascade`,
+      sql`truncate client_profiles, stripe_events, rate_cards cascade`,
     );
   });
 
@@ -286,13 +318,11 @@ run("agent onboarding with disposable PostgreSQL", () => {
         .values({ clientId: other.id, creditLimitCents: 1001 }),
     ).rejects.toThrow();
     await expect(
-      first.db
-        .insert(billingAuthorizations)
-        .values({
-          clientId: other.id,
-          connectionId: connection.id,
-          billingAccountId: account!.id,
-        }),
+      first.db.insert(billingAuthorizations).values({
+        clientId: other.id,
+        connectionId: connection.id,
+        billingAccountId: account!.id,
+      }),
     ).rejects.toThrow();
     const [grant] = await first.db
       .insert(billingAuthorizations)
@@ -363,5 +393,281 @@ run("agent onboarding with disposable PostgreSQL", () => {
         .delete(billingAuditEvents)
         .where(eq(billingAuditEvents.id, audit!.id)),
     ).rejects.toThrow();
+  });
+  const now = new Date("2026-10-18T12:00:00Z");
+  async function enrollment() {
+    const uid = randomUUID(),
+      owner = await ensureClientProfileForUser(uid, first.db);
+    const connection = await approveAgentConnection(
+      owner.id,
+      uid,
+      issuer,
+      details(uid),
+      first.db,
+    );
+    const principal: AgentPrincipal = {
+      clientId: owner.id,
+      connectionId: connection.id,
+      credentialId: connection.oauthClientId,
+      credentialKind: "oauth",
+      operations: [...connection.operations] as AgentPrincipal["operations"],
+    };
+    await first.db
+      .insert(rateCards)
+      .values({
+        country: "ES",
+        version: randomUUID(),
+        currency: "USD",
+        stripePricingVersion: "offline-v1",
+        active: true,
+        connectionFeeMicros: 10000,
+        startedMinuteFeeMicros: 10000,
+      });
+    return { uid, owner, connection, principal };
+  }
+  function fakeStripe() {
+    let session: Stripe.Checkout.Session;
+    const sdk = {
+      customers: {
+        create: vi.fn(async (params: { metadata: Record<string, string> }) => ({
+          id: "cus_offline",
+          livemode: false,
+          ...params,
+        })),
+        update: vi.fn(async () => ({})),
+      },
+      checkout: {
+        sessions: {
+          create: vi.fn(async (params: Stripe.Checkout.SessionCreateParams) => {
+            session = {
+              ...params,
+              id: "cs_offline",
+              livemode: false,
+              status: "open",
+              url: "https://checkout.stripe.com/offline",
+              setup_intent: null,
+            } as unknown as Stripe.Checkout.Session;
+            return session;
+          }),
+          retrieve: vi.fn(async () => session),
+        },
+      },
+    };
+    return {
+      sdk: sdk as unknown as Stripe,
+      calls: sdk,
+      complete() {
+        session = {
+          ...session,
+          status: "complete",
+          setup_intent: {
+            id: "seti_offline",
+            status: "succeeded",
+            usage: "off_session",
+            livemode: false,
+            customer: "cus_offline",
+            metadata: session.metadata,
+            payment_method: {
+              id: "pm_offline",
+              type: "card",
+              livemode: false,
+              customer: "cus_offline",
+              card: {
+                brand: "visa",
+                last4: "0000",
+                exp_month: 12,
+                exp_year: 2030,
+              },
+            },
+          },
+        } as Stripe.Checkout.Session;
+      },
+    };
+  }
+  async function enrolled() {
+    const context = await enrollment(),
+      stripe = fakeStripe();
+    const setup = await createBillingSetup(
+      context.principal,
+      "setup",
+      "enroll",
+      first.db,
+      now,
+    );
+    await approveBillingSetup(
+      setup.setupRequestId,
+      context.uid,
+      "offline@example.test",
+      { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
+      { agreementVersion: "monthly-usage-v1", pricingVersion: "offline-v1" },
+      first.db,
+      now,
+    );
+    await beginBillingCheckout(
+      setup.setupRequestId,
+      context.uid,
+      stripe.sdk,
+      first.db,
+      now,
+    );
+    stripe.complete();
+    await reconcileCheckoutSession("cs_offline", stripe.sdk, first.db, now);
+    return { ...context, stripe, setup };
+  }
+  const callIntent = () => ({
+    destination: "+34911234567",
+    destinationCountry: "ES",
+    language: "es",
+    maxDurationSeconds: 900,
+    maxAmountCents: 1000,
+    task: {
+      type: "connect_me",
+      callbackNumber: "+34612345678",
+      callbackLanguage: "es",
+      purpose: "Opening hours",
+      maxAttempts: 1,
+      callingWindow: "now",
+      expiresAt: "2026-10-18T12:25:00Z",
+    },
+  });
+  it("deduplicates setup links without granting authority on GET", async () => {
+    const { principal, uid } = await enrollment();
+    const [a, b] = await Promise.all([
+      createBillingSetup(principal, "setup", "enroll", first.db, now),
+      createBillingSetup(principal, "setup", "enroll", second.db, now),
+    ]);
+    expect(a).toEqual(b);
+    const token = new URL(a.setupUrl).searchParams.get("request")!;
+    await expect(
+      resolveBillingSetupToken(token, randomUUID(), first.db, now),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(
+      (await resolveBillingSetupToken(token, uid, first.db, now)).status,
+    ).toBe("pending");
+    expect(
+      (await first.db.select().from(billingAccounts))[0]?.collectionConsent,
+    ).toBe(false);
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.status,
+    ).toBe("pending");
+  });
+  it("requires human ownership and verified Stripe completion before activating a grant", async () => {
+    const { principal, uid } = await enrollment(),
+      stripe = fakeStripe();
+    const setup = await createBillingSetup(
+      principal,
+      "setup",
+      "enroll",
+      first.db,
+      now,
+    );
+    const limits = { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
+      versions = {
+        agreementVersion: "monthly-usage-v1",
+        pricingVersion: "offline-v1",
+      };
+    await expect(
+      approveBillingSetup(
+        setup.setupRequestId,
+        randomUUID(),
+        "offline@example.test",
+        limits,
+        versions,
+        first.db,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    await approveBillingSetup(
+      setup.setupRequestId,
+      uid,
+      "offline@example.test",
+      limits,
+      versions,
+      first.db,
+      now,
+    );
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.status,
+    ).toBe("pending");
+    await beginBillingCheckout(
+      setup.setupRequestId,
+      uid,
+      stripe.sdk,
+      first.db,
+      now,
+    );
+    await reconcileCheckoutSession("cs_offline", stripe.sdk, first.db, now);
+    expect(
+      (await first.db.select().from(billingSetupRequests))[0]?.status,
+    ).toBe("processing");
+    stripe.complete();
+    await Promise.all([
+      reconcileCheckoutSession("cs_offline", stripe.sdk, first.db, now),
+      reconcileCheckoutSession("cs_offline", stripe.sdk, second.db, now),
+    ]);
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.status,
+    ).toBe("active");
+    expect((await first.db.select().from(billingAccounts))[0]).toMatchObject({
+      status: "active",
+      paymentMethodId: "pm_offline",
+      cardLast4: "0000",
+    });
+    expect(await first.db.select().from(calls)).toHaveLength(0);
+  });
+  it("keeps paid admission disabled and commits one reservation for concurrent retries", async () => {
+    const { principal } = await enrolled();
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now),
+      input = { ...callIntent(), quoteVersion: quote.quoteVersion };
+    await expect(
+      reserveStripeCall(principal, "call", input, first.db, now),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(await first.db.select().from(calls)).toHaveLength(0);
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const [a, b] = await Promise.all([
+      reserveStripeCall(principal, "call", input, first.db, now),
+      reserveStripeCall(principal, "call", input, second.db, now),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(await first.db.select().from(billingCallUsage)).toHaveLength(1);
+    expect(
+      (await first.db.select().from(billingPeriods))[0]?.reservedCents,
+    ).toBe(quote.maximumCents);
+    await expect(
+      reserveStripeCall(
+        principal,
+        "call",
+        { ...input, maxAmountCents: 999 },
+        first.db,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "false");
+    expect(
+      (
+        await reserveStripeCall(
+          principal,
+          "call",
+          input,
+          first.db,
+          new Date("2026-12-01Z"),
+        )
+      ).id,
+    ).toBe(a.id);
+    await first.db
+      .update(calls)
+      .set({ state: "cancelled", endedAt: now })
+      .where(eq(calls.id, a.id));
+    await Promise.all([
+      finalizeStripeUsage(a.id, first.db, now),
+      finalizeStripeUsage(a.id, second.db, now),
+    ]);
+    expect(
+      (await first.db.select().from(billingPeriods))[0]?.reservedCents,
+    ).toBe(0);
+    expect((await first.db.select().from(billingCallUsage))[0]).toMatchObject({
+      state: "released",
+      finalCents: 0,
+    });
   });
 });

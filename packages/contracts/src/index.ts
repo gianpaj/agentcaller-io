@@ -118,15 +118,17 @@ export const createCallSchema = callInputBase
   .superRefine(validateCallPolicy);
 
 // Preserve the legacy dollar request while card billing uses exact integer cents.
-export const createStripeCallSchema = callInputBase
+export const quoteStripeCallSchema = callInputBase
   .extend({
     task: connectMeTaskSchema,
     maxAmountCents: z.number().int().min(1).max(50_000),
-    quoteVersion: z.string().trim().min(1).max(120),
     scheduledFor: z.iso.datetime({ offset: true }).optional(),
   })
   .strict()
   .superRefine(validateCallPolicy);
+export const createStripeCallSchema = quoteStripeCallSchema.safeExtend({
+  quoteVersion: z.string().trim().min(1).max(120),
+});
 export type CreateStripeCallInput = z.infer<typeof createStripeCallSchema>;
 
 export const callStates = [

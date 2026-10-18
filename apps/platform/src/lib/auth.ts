@@ -1,4 +1,8 @@
-import { apiKeys, clientProfiles } from "@agentcaller/database";
+import {
+  apiKeys,
+  clientProfiles,
+  agentConnections,
+} from "@agentcaller/database";
 import { and, eq, isNull } from "drizzle-orm";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { database } from "./database";
@@ -64,11 +68,29 @@ export async function authenticateApiPrincipal(
   request: Request,
 ): Promise<AgentPrincipal> {
   const { client, key } = await authenticateApiCredential(request);
+  let operations = [...agentOperations];
+  if (key.connectionId) {
+    const [connection] = await database()
+      .select()
+      .from(agentConnections)
+      .where(
+        and(
+          eq(agentConnections.id, key.connectionId),
+          eq(agentConnections.clientId, client.id),
+          eq(agentConnections.status, "active"),
+        ),
+      );
+    if (!connection)
+      throw new ApiError(403, "Linked integration access is revoked");
+    operations = agentOperations.filter((operation) =>
+      connection.operations.includes(operation),
+    );
+  }
   return {
     clientId: client.id,
-    connectionId: null,
+    connectionId: key.connectionId,
     credentialId: key.id,
     credentialKind: "api_key",
-    operations: [...agentOperations],
+    operations,
   };
 }
