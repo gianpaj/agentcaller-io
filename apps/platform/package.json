@@ -10,8 +10,8 @@
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
     "format": "oxfmt --write . && pnpm format:markdown",
-    "format:markdown": "prettier --write \"**/*.{md,mdx}\"",
-    "format:check": "oxfmt --check . && prettier --check \"**/*.{md,mdx}\""
+    "format:markdown": "prettier --no-error-on-unmatched-pattern --write \"**/*.{md,mdx}\"",
+    "format:check": "oxfmt --check . && prettier --no-error-on-unmatched-pattern --check \"**/*.{md,mdx}\""
   },
   "dependencies": {
     "@agentcaller/contracts": "workspace:*",

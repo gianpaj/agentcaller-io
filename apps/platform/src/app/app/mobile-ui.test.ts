@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   startCall: vi.fn(),
   getCallNowDeadline: vi.fn(),
   rethrow: vi.fn(),
-  capturedAction: null as null | ((previous: any, form: FormData) => Promise<any>),
+  capturedAction: null as
+    | null
+    | ((previous: any, form: FormData) => Promise<any>),
   refresh: vi.fn(),
   listCallHistory: vi.fn(),
   parseCursor: vi.fn(),
@@ -303,11 +305,11 @@ describe("new-call presentation safeguards", () => {
             mode === "now"
               ? "now"
               : {
-                timezone: "Europe/Rome",
-                weekdays: [2, 4],
-                start: "10:00",
-                end: "16:00",
-              },
+                  timezone: "Europe/Rome",
+                  weekdays: [2, 4],
+                  start: "10:00",
+                  end: "16:00",
+                },
         },
       });
       const markup = renderForm(true, "previous-call", initial);
@@ -401,7 +403,10 @@ describe("new-call presentation safeguards", () => {
       .mockResolvedValueOnce("2026-07-01T12:50:00.000Z");
     mocks.startCall
       .mockRejectedValueOnce(new Error("Transport lost"))
-      .mockResolvedValueOnce({ error: "Active-call limit reached", fieldErrors: {} })
+      .mockResolvedValueOnce({
+        error: "Active-call limit reached",
+        fieldErrors: {},
+      })
       .mockResolvedValueOnce({ error: "", fieldErrors: {} });
 
     const first = new FormData();

@@ -20,7 +20,13 @@ describe("isPrivateAddress", () => {
     expect(isPrivateAddress(address)).toBe(true);
   });
 
-  it.each(["8.8.8.8", "1.1.1.1", "172.32.0.1", "192.169.0.1", "2606:4700::1111"])("treats %s as public", (address) => {
+  it.each([
+    "8.8.8.8",
+    "1.1.1.1",
+    "172.32.0.1",
+    "192.169.0.1",
+    "2606:4700::1111",
+  ])("treats %s as public", (address) => {
     expect(isPrivateAddress(address)).toBe(false);
   });
 
@@ -31,23 +37,35 @@ describe("isPrivateAddress", () => {
 
 describe("assertPublicWebhookUrl", () => {
   it("rejects non-HTTPS schemes", async () => {
-    await expect(assertPublicWebhookUrl("http://example.com/hook")).rejects.toThrow(/HTTPS/);
+    await expect(
+      assertPublicWebhookUrl("http://example.com/hook"),
+    ).rejects.toThrow(/HTTPS/);
   });
 
   it("rejects embedded credentials", async () => {
-    await expect(assertPublicWebhookUrl("https://user:pass@example.com/hook")).rejects.toThrow(/credentials/);
+    await expect(
+      assertPublicWebhookUrl("https://user:pass@example.com/hook"),
+    ).rejects.toThrow(/credentials/);
   });
 
   it("rejects a literal private address without resolving DNS", async () => {
-    await expect(assertPublicWebhookUrl("https://169.254.169.254/latest/meta-data")).rejects.toThrow(/private address/);
-    await expect(assertPublicWebhookUrl("https://127.0.0.1/hook")).rejects.toThrow(/private address/);
+    await expect(
+      assertPublicWebhookUrl("https://169.254.169.254/latest/meta-data"),
+    ).rejects.toThrow(/private address/);
+    await expect(
+      assertPublicWebhookUrl("https://127.0.0.1/hook"),
+    ).rejects.toThrow(/private address/);
   });
 
   it("rejects a bracketed private IPv6 literal", async () => {
-    await expect(assertPublicWebhookUrl("https://[::1]/hook")).rejects.toThrow(/private address/);
+    await expect(assertPublicWebhookUrl("https://[::1]/hook")).rejects.toThrow(
+      /private address/,
+    );
   });
 
   it("rejects a malformed URL", async () => {
-    await expect(assertPublicWebhookUrl("not a url")).rejects.toThrow(/malformed/);
+    await expect(assertPublicWebhookUrl("not a url")).rejects.toThrow(
+      /malformed/,
+    );
   });
 });

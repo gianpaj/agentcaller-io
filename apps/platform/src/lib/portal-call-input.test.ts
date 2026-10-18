@@ -328,14 +328,9 @@ describe("portalCallInput deadlines", () => {
     "2026-07-01T14:00",
     "0202-10-19T17:00",
     "1899-10-19T17:00",
-  ])(
-    "rejects elapsed deadline %s",
-    (expiresAt) => {
-      expect(errors(form({ expiresAt })).fieldErrors.expiresAt).toMatch(
-        /future/,
-      );
-    },
-  );
+  ])("rejects elapsed deadline %s", (expiresAt) => {
+    expect(errors(form({ expiresAt })).fieldErrors.expiresAt).toMatch(/future/);
+  });
   it.each(["2026-07-08T12:00:00.001Z", "2026-07-08T14:01"])(
     "rejects deadline beyond seven days %s",
     (expiresAt) => {
@@ -351,7 +346,6 @@ describe("portalCallInput deadlines", () => {
   ])("accepts deadline boundary %s", (expiresAt) => {
     expect(() => portalCallInput(form({ expiresAt }))).not.toThrow();
   });
-
 
   it("defers relative deadline rejection during client preflight when requested", () => {
     expect(
@@ -458,7 +452,6 @@ describe("portalCallInput contract and readable errors", () => {
   ])("maps invalid %s to its form field", (field, value) => {
     expect(errors(form({ [field]: value })).fieldErrors[field]).toBeTruthy();
   });
-
 
   it("maps non-numeric weekdays and invalid timezone together to their fields", () => {
     const data = form({ timezone: "Invalid/Zone" });

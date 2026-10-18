@@ -151,11 +151,11 @@ export function portalCallInput(
       callingWindow: callNow
         ? "now"
         : {
-          timezone: string("timezone"),
-          weekdays: form.getAll("weekdays").map(Number),
-          start: string("start"),
-          end: string("end"),
-        },
+            timezone: string("timezone"),
+            weekdays: form.getAll("weekdays").map(Number),
+            start: string("start"),
+            end: string("end"),
+          },
       maxAttempts: callNow ? 1 : number("maxAttempts"),
       retryDelaySeconds: callNow ? 300 : number("retryDelaySeconds"),
       ringingSeconds: number("ringingSeconds"),

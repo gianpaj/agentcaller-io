@@ -112,7 +112,9 @@ export function CallForm({
     emptyState,
   );
   const [localError, setLocalError] = useState<CallFormState | null>(null);
-  const [confirmForm, setConfirmForm] = useState<FormData | undefined>(undefined);
+  const [confirmForm, setConfirmForm] = useState<FormData | undefined>(
+    undefined,
+  );
   const feedback = pending ? emptyState : (localError ?? state);
   const formRef = useRef<HTMLFormElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -168,10 +170,10 @@ export function CallForm({
         error instanceof ZodError
           ? portalCallError(error)
           : {
-            error:
-              "Could not validate the call. Your entries are still here. Try again.",
-            fieldErrors: {},
-          },
+              error:
+                "Could not validate the call. Your entries are still here. Try again.",
+              fieldErrors: {},
+            },
       );
       return;
     }
@@ -581,11 +583,11 @@ export function CallForm({
                           ...schedule,
                           weekdays: event.target.checked
                             ? [...schedule.weekdays, index + 1].sort(
-                              (a, b) => a - b,
-                            )
+                                (a, b) => a - b,
+                              )
                             : schedule.weekdays.filter(
-                              (day) => day !== index + 1,
-                            ),
+                                (day) => day !== index + 1,
+                              ),
                         })
                       }
                     />
