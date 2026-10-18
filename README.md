@@ -132,7 +132,7 @@ rather than a working MVP.
 | Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
 | Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
 | Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
-| Deployment              | Worker build emits bundled `dist/main.js`; deployment and provider limits require live verification                    |
+| Deployment              | Worker deploys to LiveKit Cloud from the repository root; provider limits require live verification                    |
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
 | Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
@@ -265,6 +265,37 @@ pnpm --filter @agentcaller/voice-agent dev
 The voice worker dev command loads `apps/voice-agent/.env`. Values already set
 in the environment stay in place. The production start command does not read
 that file.
+
+## Deploying the voice worker
+
+The voice worker runs as a LiveKit Cloud agent. The root `livekit.toml` names
+the LiveKit project and agent ID, and the root `Dockerfile` builds only the
+worker. Both live at the repository root because the build needs the pnpm
+lockfile and `packages/contracts`. Deploy from the root with the
+[LiveKit CLI](https://docs.livekit.io/reference/developer-tools/livekit-cli/agent/):
+
+```bash
+lk agent deploy --skip-sdk-check
+lk agent status
+```
+
+The CLI uploads the root, excluding files matched by `.gitignore` or
+`.dockerignore`, and LiveKit Cloud builds the image. `--skip-sdk-check` skips a
+preflight that looks for `@livekit/agents` in the root package files; the
+dependency is declared in `apps/voice-agent/package.json`. The flag is hidden
+from `lk agent deploy --help` in CLI 2.18.8. Prebuilt images (`--image`) require
+an Enterprise LiveKit project, so this project builds from source.
+
+Each version is tagged with the current commit. Deploy from a clean, committed
+tree; a dirty tree only gets a tree hash, which is hard to trace back.
+
+Production configuration comes from the agent's LiveKit secrets, not
+`apps/voice-agent/.env`. List their names with `lk agent secrets` and change
+them with `lk agent update-secrets`. The worker registers under
+`LIVEKIT_AGENT_NAME`. The platform's `LIVEKIT_AGENT_EU` and `LIVEKIT_AGENT_US`
+must each match a deployed agent's name, or those calls are never picked up.
+The `LIVEKIT_SIP_TRUNK_*` secrets must name outbound trunks in the same LiveKit
+project; check them with `lk sip outbound list`.
 
 ## Validation
 
