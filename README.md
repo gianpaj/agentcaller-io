@@ -178,7 +178,10 @@ It exposes billing readiness only; saved-card enrollment and paid MCP calling ar
 not available. See the [MCP guide](apps/docs/content/docs/mcp.mdx) for configuration
 and issuer/host release checks. The
 [billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-tracks the remaining saved-card monthly-invoice work.
+tracks the remaining saved-card monthly-invoice work. The
+[billing guide](apps/docs/content/docs/billing.mdx) describes the implemented
+money, Stripe setup validation and signed-event inbox boundaries; enrollment,
+paid admission and collection remain unavailable.
 
 ### Prerequisites
 

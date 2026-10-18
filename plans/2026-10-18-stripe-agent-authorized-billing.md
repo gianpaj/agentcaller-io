@@ -342,7 +342,7 @@ reuse another connection's setup even when the human account is the same.
    `currency: "usd"`, card-only methods, `client_reference_id` pointing to the
    setup request and internal IDs in both Session and SetupIntent metadata.
    Use the pinned SDK's supported card restriction parameter. The checked API
-   supports `payment_method_types: ["card"]`; do not allow delayed bank debit
+   supports `allowed_payment_method_types: ["card"]`; do not allow delayed bank debit
    methods in this MVP. Use a fixed success URL under `/billing/connect/return`
    and cancel URL under `/billing/connect`. No line items or charge amount.
    The returned Stripe URL goes only to the authenticated browser.

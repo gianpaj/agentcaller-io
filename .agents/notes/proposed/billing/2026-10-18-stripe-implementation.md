@@ -38,6 +38,16 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   merchant overruns, shared exposure, UTC/DST schedules and request fingerprints.
 - Setup tokens are reproducible HMAC values bound to request, generation and
   expiry; storage needs only a digest. These helpers are not an enrollment API.
+- Stripe Node 23.0.0 matches API `2026-09-30.endive`. Its installed Checkout
+  creation type requires `allowed_payment_method_types: ["card"]`; the legacy
+  `payment_method_types` request field is absent. The plan uses the supported
+  filter. Setup verification checks both metadata generations, Customer, mode,
+  currency, environment, succeeded off-session intent and attached-card ownership.
+- Signed webhook ingestion persists only event routing, deduplicated by mode/ID.
+  It accepts events while admission is off. Events remain pending until the
+  account/setup/invoice processors exist; no provider resources are registered.
+- Draft invoice parameters hold automatic collection off, exclude pending items
+  and select a verified card. No invoice is created or collected in this increment.
 
 ## Open release checks
 

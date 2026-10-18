@@ -1,0 +1,58 @@
+---
+title: Saved-card billing
+description: Implementation status and saved-card monthly-invoice boundaries
+---
+
+Saved-card monthly billing is under implementation and is unavailable for calls.
+Existing x402 and operator funding keep their separate behavior and restrictions.
+The planned customer flow starts with [OAuth MCP onboarding](/docs/mcp), then
+separate human spending consent and hosted Stripe card setup without payment.
+Actual confirmed usage belongs to one monthly invoice; Stripe owns collection,
+payment retries, emails and hosted authentication recovery. No subscription is used.
+
+## Implemented foundation
+
+- Shared cents-only card inputs and separate human limit schemas.
+- Full-job quote, connected-usage and shared unpaid-exposure calculations.
+- UTC month attribution, resolved scheduling instants and canonical request hashes.
+- Reproducible, expiring setup-token helpers with digest-only storage.
+- Pinned Stripe Node 23.0.0 / API `2026-09-30.endive`, lazy server configuration,
+  card-only hosted setup parameters and strict returned-object validation.
+- Held monthly draft-invoice parameters with an explicit saved card and exclusion
+  of unrelated pending invoice items.
+- Raw signed-event ingestion at `POST /api/stripe/webhook`, with a server-only
+  PostgreSQL inbox. Duplicate event IDs are acknowledged without duplicate rows.
+
+The webhook stores event ID/type, object ID, API version and processing metadata.
+It does not store raw payment payloads. Signature tolerance stays enabled;
+wrong environment, wrong API version, oversized bodies and invalid signatures
+are rejected. A storage failure returns an error so Stripe can retry delivery.
+
+Events remain pending: account enrollment, grant activation, reconciliation and
+invoice processors are not implemented. Setup links are not yet issued, saved
+cards cannot authorize calls, and no automatic collection is scheduled.
+
+## Configuration and release checks
+
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `BILLING_SETUP_TOKEN_SECRET` are
+server-only. Use independent secrets in isolated test environments. Keep
+`STRIPE_BILLING_ENABLED=false`; the flag alone cannot enable the unfinished path.
+Webhook ingestion stays available when new admission is disabled.
+
+The SDK's Checkout creation field is `allowed_payment_method_types: ["card"]`.
+Setup parameters have no amount, line items, subscription or PaymentIntent data.
+Final card activation must retrieve and validate the authoritative Session,
+SetupIntent and PaymentMethod, then apply current human consent and generation
+checks in a database transaction. A browser return is not proof of activation.
+
+The confirmed unpaid-exposure cap is **USD 10 per account**, shared across
+months and integrations and including reserved calls. It is separate from the
+human's monthly allowance. Confirmed business answer is billable even if handoff
+fails; unknown timing remains unresolved. Rates, rounding and tax treatment
+require approval before paid service. The calculation helpers are tested with
+synthetic tariffs, not an approved customer price.
+
+Release still requires durable accounts/grants, atomic admission/reservations,
+provider metering and cleanup, period close, invoice issuance/reconciliation,
+human controls, Stripe test-mode acceptance and a verified MCP host/issuer flow.
+Link Agent Wallet remains a future option subject to invoice-compatibility checks.

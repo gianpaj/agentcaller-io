@@ -5,6 +5,8 @@ import {
   agentConnections,
   clientProfiles,
   createDatabase,
+  calls,
+  stripeEvents,
 } from "@agentcaller/database";
 import { eq, sql } from "drizzle-orm";
 import { ensureClientProfileForUser } from "./portal";
@@ -12,6 +14,9 @@ import { approveAgentConnection, revokeAgentConnection } from "./oauth-consent";
 import { authenticateMcpPrincipal } from "./mcp-auth";
 import { getMcpConfig } from "./mcp-config";
 import { generateKeyPair, SignJWT } from "jose";
+import type Stripe from "stripe";
+import { receiveStripeEvent } from "./stripe-events";
+import { stripeApiVersion } from "./stripe";
 
 const url = process.env.BILLING_TEST_DATABASE_URL;
 const run = url ? describe : describe.skip;
@@ -41,16 +46,46 @@ run("agent onboarding with disposable PostgreSQL", () => {
       "create or replace function auth.jwt() returns jsonb language sql as $$select nullif(current_setting('request.jwt.claims', true), '')::jsonb$$;",
     );
     const root = new URL("../../../../supabase/migrations/", import.meta.url);
+    let legacyCallId: string | undefined;
     for (const migration of readdirSync(root)
       .filter((file) => file.endsWith(".sql"))
-      .sort())
+      .sort()) {
+      if (!legacyCallId && migration.startsWith("20261018")) {
+        const [legacy] = await first.db
+          .insert(clientProfiles)
+          .values({ name: "Historical API-only client" })
+          .returning();
+        const [call] = await first.db
+          .insert(calls)
+          .values({
+            clientId: legacy!.id,
+            idempotencyKey: "historical-x402-call",
+            destination: "+34911234567",
+            destinationCountry: "ES",
+            language: "es",
+            task: { type: "information", questions: ["Opening hours?"] },
+            maxDurationSeconds: 60,
+            maxAmountMicros: 10000,
+            rateCardVersion: "historical-test-v1",
+          })
+          .returning();
+        legacyCallId = call!.id;
+      }
       await first.client.unsafe(readFileSync(new URL(migration, root), "utf8"));
+    }
+    expect(
+      (
+        await first.db.select().from(calls).where(eq(calls.id, legacyCallId!))
+      )[0],
+    ).toMatchObject({ fundingSource: "x402", paymentState: "authorized" });
   });
   afterAll(async () => {
     await Promise.all([first.client.end(), second.client.end()]);
   });
   beforeEach(async () => {
-    await first.db.execute(sql`truncate client_profiles cascade`);
+    await first.db.execute(
+      sql`truncate client_profiles, stripe_events cascade`,
+    );
   });
 
   it("creates exactly one non-operator profile for concurrent first logins", async () => {
@@ -65,12 +100,10 @@ run("agent onboarding with disposable PostgreSQL", () => {
     expect(await first.db.select().from(clientProfiles)).toHaveLength(1);
   });
   it("does not claim legacy accounts or revive disabled users", async () => {
-    await first.db
-      .insert(clientProfiles)
-      .values({
-        name: "Existing API-only account",
-        githubUserId: "display-name",
-      });
+    await first.db.insert(clientProfiles).values({
+      name: "Existing API-only account",
+      githubUserId: "display-name",
+    });
     const uid = randomUUID();
     const profile = await ensureClientProfileForUser(uid, first.db);
     expect(await first.db.select().from(clientProfiles)).toHaveLength(2);
@@ -120,15 +153,13 @@ run("agent onboarding with disposable PostgreSQL", () => {
       ),
     ).rejects.toMatchObject({ status: 403 });
     await expect(
-      first.db
-        .insert(agentConnections)
-        .values({
-          clientId: owner.id,
-          subject: other.supabaseUserId!,
-          issuer,
-          oauthClientId: randomUUID(),
-          name: "Invalid owner",
-        }),
+      first.db.insert(agentConnections).values({
+        clientId: owner.id,
+        subject: other.supabaseUserId!,
+        issuer,
+        oauthClientId: randomUUID(),
+        name: "Invalid owner",
+      }),
     ).rejects.toThrow();
   });
   it("revokes only the owner's connection and cannot revive it through repeated consent", async () => {
@@ -183,8 +214,19 @@ run("agent onboarding with disposable PostgreSQL", () => {
     const uid = randomUUID();
     const owner = await ensureClientProfileForUser(uid, first.db);
     await approveAgentConnection(owner.id, uid, issuer, details(uid), first.db);
+    await receiveStripeEvent(
+      {
+        id: "evt_rlstest",
+        type: "checkout.session.completed",
+        api_version: stripeApiVersion,
+        livemode: false,
+        data: { object: { id: "cs_rlstest" } },
+      } as unknown as Stripe.Event,
+      first.db,
+    );
+    expect(await first.db.select().from(stripeEvents)).toHaveLength(1);
     await first.client.unsafe(
-      "create role billing_test_reader; grant usage on schema public, auth to billing_test_reader; grant select on client_profiles, agent_connections to billing_test_reader",
+      "create role billing_test_reader; grant usage on schema public, auth to billing_test_reader; grant select on client_profiles, agent_connections, stripe_events to billing_test_reader",
     );
     await first.db.transaction(async (tx) => {
       await tx.execute(sql`set local role billing_test_reader`);
@@ -193,10 +235,40 @@ run("agent onboarding with disposable PostgreSQL", () => {
       );
       expect(await tx.select().from(clientProfiles)).toHaveLength(0);
       expect(await tx.select().from(agentConnections)).toHaveLength(0);
+      expect(await tx.select().from(stripeEvents)).toHaveLength(0);
       await tx.execute(
         sql`select set_config('request.jwt.claims', ${JSON.stringify({ sub: uid })}, true)`,
       );
       expect(await tx.select().from(clientProfiles)).toHaveLength(1);
     });
+  });
+  it("deduplicates event routing without storing payment payloads", async () => {
+    const event = {
+      id: "evt_offline",
+      type: "checkout.session.completed",
+      api_version: stripeApiVersion,
+      livemode: false,
+      data: {
+        object: {
+          id: "cs_offline",
+          metadata: { private_field: "do-not-store" },
+        },
+      },
+    } as unknown as Stripe.Event;
+    await Promise.all([
+      receiveStripeEvent(event, first.db),
+      receiveStripeEvent(event, second.db),
+    ]);
+    const rows = await first.db.select().from(stripeEvents);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventId: event.id,
+      objectId: "cs_offline",
+      status: "pending",
+      apiVersion: stripeApiVersion,
+    });
+    expect(JSON.stringify(rows)).not.toContain("private_field");
+    await receiveStripeEvent({ ...event, livemode: true }, first.db);
+    expect(await first.db.select().from(stripeEvents)).toHaveLength(2);
   });
 });

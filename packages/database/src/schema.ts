@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -117,6 +118,42 @@ export const agentConnections = pgTable(
       table.clientId,
       table.status,
     ),
+  ],
+).enableRLS();
+
+export const stripeEvents = pgTable(
+  "stripe_events",
+  {
+    livemode: boolean("livemode").notNull(),
+    eventId: text("event_id").notNull(),
+    type: text("type").notNull(),
+    objectId: text("object_id").notNull(),
+    apiVersion: text("api_version").notNull(),
+    status: text("status").notNull().default("pending"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseUntil: timestamp("lease_until", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    primaryKey({
+      name: "stripe_events_environment_event_key",
+      columns: [table.livemode, table.eventId],
+    }),
+    check(
+      "stripe_events_status_check",
+      sql`${table.status} in ('pending','processing','processed','failed')`,
+    ),
+    check("stripe_events_attempts_check", sql`${table.attempts} >= 0`),
+    index("stripe_events_pending_index")
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} in ('pending','failed')`),
   ],
 ).enableRLS();
 
