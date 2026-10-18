@@ -317,6 +317,54 @@ run("connect ledger with PostgreSQL locks", () => {
         expect(await db.select().from(callLegs)).toHaveLength(0);
       },
     );
+    it("accepts leg ended observations at expiry before finish", async () => {
+      const beforeExpiry = new Date(expiresAt.getTime() - 60_000);
+      const { attempt, event } = await start(beforeExpiry);
+      await connectCommand(
+        callId,
+        event("dial", { leg: "business" }),
+        db,
+        beforeExpiry,
+      );
+      await connectCommand(
+        callId,
+        event("connected", {
+          leg: "business",
+          at: beforeExpiry.toISOString(),
+        }),
+        db,
+        beforeExpiry,
+      );
+      expect(
+        await connectCommand(
+          callId,
+          event("ended", { leg: "business", at: expiresAt.toISOString() }),
+          db,
+          expiresAt,
+        ),
+      ).toEqual({ allowed: true });
+      expect(
+        await connectCommand(
+          callId,
+          event("finish", { reason: "expired" }),
+          db,
+          expiresAt,
+        ),
+      ).toEqual({ allowed: true });
+      expect(
+        await db
+          .select()
+          .from(callLegs)
+          .where(eq(callLegs.attemptId, attempt.id)),
+      ).toMatchObject([
+        {
+          kind: "business",
+          state: "ended",
+          endedAt: expiresAt,
+          measuredMicros: 2000,
+        },
+      ]);
+    });
   });
   it.each(["busy", "no_answer"] as const)(
     "schedules %s as a new immutable attempt",

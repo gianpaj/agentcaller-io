@@ -97,12 +97,13 @@ export async function connectCommand(
     if (!job) throw new ApiError(409, "Missing job");
     // Even a replayed permission must not authorize work after cancellation or worker loss.
     const expired = now.getTime() >= Date.parse(task.expiresAt);
-    // Finish stays open after expiry so the worker can hang up with the real reason.
+    // Ended observations and finish stay open after expiry so the worker can
+    // record disconnection usage and hang up with the real reason.
     if (
       call.endedAt ||
       attempt.endedAt ||
       now.getTime() - attempt.heartbeatAt.getTime() > 90_000 ||
-      (expired && event.action !== "finish")
+      (expired && event.action !== "finish" && event.action !== "ended")
     )
       return { allowed: false };
     if (
