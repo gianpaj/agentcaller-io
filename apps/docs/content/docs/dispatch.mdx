@@ -212,9 +212,10 @@ The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/si
 provides the duration timeout independently of the voice worker.
 Unknown/cancelled attempts remain eligible for repeated cleanup until operator
 reconciliation; absence from a room is not proof that an in-flight dial failed.
-The website permits a fresh manual submission after cancellation only when the
-call is terminal and none of its attempts has a recorded dial leg. A recorded
-leg preserves the reconciliation block even after room cleanup.
+The website permits a fresh manual submission after cancellation or a
+configuration failure only when the call is terminal and none of its attempts
+has a recorded dial leg. A recorded leg preserves the reconciliation block even
+after room cleanup.
 Monitor scheduler failures and its `cleanup.failedRooms` count; reconcile provider call records before deleting
 these jobs. No API idempotency key is documented for this dial method; persisted
 intent prevents redial rather than pretending participant identity is idempotency.

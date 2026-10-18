@@ -73,6 +73,11 @@ export async function connectLiveKit(
   const pending: Promise<unknown>[] = [];
   const config = configSchema.safeParse(process.env);
   if (!config.success) {
+    console.error("Connect worker configuration is invalid", {
+      callId,
+      attemptId,
+      fields: config.error.issues.map((issue) => issue.path.join(".")),
+    });
     await request("finish", { reason: "configuration_error" });
     return;
   }
@@ -92,7 +97,12 @@ export async function connectLiveKit(
     business: claim.data.businessRoom,
     callback: claim.data.callbackRoom,
   };
-  if (ctx.room.name !== rooms.business) {
+  // The RTC room name is unavailable until connect; the assigned job has it.
+  if (ctx.job.room?.name !== rooms.business) {
+    console.error("Connect worker room does not match its authorized attempt", {
+      callId,
+      attemptId,
+    });
     await request("finish", { reason: "configuration_error" });
     return;
   }
@@ -185,6 +195,7 @@ export async function connectLiveKit(
     return s;
   };
   let businessSession: voice.AgentSession;
+  let setupStage = "trunk_lookup";
   try {
     const trunks = await sip.listSipOutboundTrunk({
       trunkIds: [env.LIVEKIT_SIP_TRUNK_EU],
@@ -192,9 +203,11 @@ export async function connectLiveKit(
     const trunk = trunks.find((t) => t.sipTrunkId === env.LIVEKIT_SIP_TRUNK_EU);
     if (!trunk || trunk.address !== "sip.telnyx.eu" || !trunk.authUsername)
       throw new CallStopped("configuration_error");
+    setupStage = "room_connect";
     await ctx.connect();
     watch(ctx.room);
     watch(callbackRoom);
+    setupStage = "call_flow";
     await runConnectFlow(input, {
       signal: abort.signal,
       command,
@@ -440,6 +453,11 @@ export async function connectLiveKit(
         }),
     });
   } catch {
+    console.error("Connect worker setup failed", {
+      callId,
+      attemptId,
+      stage: setupStage,
+    });
     await cleanup();
     await command("finish", { reason: "configuration_error" });
   } finally {

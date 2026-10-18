@@ -247,7 +247,12 @@ export async function submitCall(
               previous.some((c) => {
                 const reason = outcomeReason(c.outcome);
                 // Dial permission commits a leg before the worker can contact SIP.
-                if (reason === "cancelled" && c.endedAt && !c.hasDialIntent)
+                if (
+                  (reason === "cancelled" ||
+                    reason === "configuration_error") &&
+                  c.endedAt &&
+                  !c.hasDialIntent
+                )
                   return false;
                 return [
                   "dial_unknown",

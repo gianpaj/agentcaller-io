@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   input: {} as any,
   cancel: false,
   sipCode: 0,
+  roomConnections: 0,
+  trunkAddress: "sip.telnyx.eu",
 }));
 vi.mock("@livekit/rtc-node", async () => {
   const { EventEmitter } = await import("node:events");
@@ -128,7 +130,7 @@ vi.mock("livekit-server-sdk", () => {
         return [
           {
             sipTrunkId: "test",
-            address: "sip.telnyx.eu",
+            address: state.trunkAddress,
             authUsername: "offline",
           },
         ];
@@ -191,6 +193,8 @@ beforeEach(() => {
     outcome: "human",
     cancel: false,
     sipCode: 0,
+    roomConnections: 0,
+    trunkAddress: "sip.telnyx.eu",
   });
   for (const [key, value] of Object.entries({
     LIVEKIT_URL: "wss://offline.invalid",
@@ -226,21 +230,27 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
-async function run(seconds = 1) {
+async function run(seconds = 1, assignedRoom = "business-test") {
   const room = new Room();
-  Object.assign(room, { name: "business-test" });
+  Object.assign(room, { name: undefined });
   const ctx = {
     room,
-    connect: async () => {},
+    job: { room: { name: assignedRoom } },
+    connect: async () => {
+      state.roomConnections++;
+      Object.assign(room, { name: assignedRoom });
+    },
     addShutdownCallback: () => {},
   } as unknown as JobContext;
   const result = connectLiveKit(ctx, state.callId, state.attemptId);
   await vi.advanceTimersByTimeAsync(seconds * 1000);
   await result;
 }
-it("dials into separate rooms and joins only after callback DTMF, with all AI output disabled", async () => {
+it("connects an unnamed room before dialing and joins only after callback DTMF", async () => {
   await run();
+  expect(state.roomConnections).toBe(1);
   expect(state.dials.map((d) => d[2])).toEqual([
     "business-test",
     "callback-test",
@@ -265,6 +275,47 @@ it("dials into separate rooms and joins only after callback DTMF, with all AI ou
   expect(state.deleted).toEqual(
     expect.arrayContaining(["business-test", "callback-test"]),
   );
+});
+it("logs a mismatched dispatched room and stops before connecting or dialing", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  await run(1, "another-room");
+  expect(log).toHaveBeenCalledWith(
+    "Connect worker room does not match its authorized attempt",
+    { callId: state.callId, attemptId: state.attemptId },
+  );
+  expect(state.roomConnections).toBe(0);
+  expect(state.dials).toHaveLength(0);
+  expect(state.commands.at(-1)).toMatchObject({
+    action: "finish",
+    reason: "configuration_error",
+  });
+});
+it("logs invalid configuration field names without environment values", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.stubEnv("LIVEKIT_SIP_TRUNK_EU", undefined);
+  vi.stubEnv("LIVEKIT_API_SECRET", "unlogged-secret-marker");
+  await run();
+  expect(log).toHaveBeenCalledWith("Connect worker configuration is invalid", {
+    callId: state.callId,
+    attemptId: state.attemptId,
+    fields: ["LIVEKIT_SIP_TRUNK_EU"],
+  });
+  expect(JSON.stringify(log.mock.calls)).not.toContain(
+    "unlogged-secret-marker",
+  );
+  expect(state.dials).toHaveLength(0);
+});
+it("logs the setup stage when the outbound trunk fails validation", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  state.trunkAddress = "wrong.invalid";
+  await run();
+  expect(log).toHaveBeenCalledWith("Connect worker setup failed", {
+    callId: state.callId,
+    attemptId: state.attemptId,
+    stage: "trunk_lookup",
+  });
+  expect(state.roomConnections).toBe(0);
+  expect(state.dials).toHaveLength(0);
 });
 it("does not accept callback voicemail or DTMF from another participant", async () => {
   state.digit = "";

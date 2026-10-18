@@ -572,14 +572,17 @@ run("connect ledger with PostgreSQL locks", () => {
       await claimConnectAttempt(callId, db, new Date("2026-09-20T10:00:00Z")),
     ).toBeNull();
   });
-  describe("website submission after cancellation", () => {
+  describe("website submission after stopping a job", () => {
     it.each([
-      ["queued", 202],
-      ["dispatched", 202],
-      ["claimed", 202],
-      ["dial intent", 409],
-      ["cleaned dial intent", 409],
-    ] as const)("handles a cancelled %s job", async (phase, status) => {
+      ["cancelled", "queued", 202],
+      ["cancelled", "dispatched", 202],
+      ["cancelled", "claimed", 202],
+      ["cancelled", "dial intent", 409],
+      ["cancelled", "cleaned dial intent", 409],
+      ["configuration_error", "claimed", 202],
+      ["configuration_error", "dial intent", 409],
+      ["configuration_error", "cleaned dial intent", 409],
+    ] as const)("handles %s after %s", async (reason, phase, status) => {
       const [admin] = await db
         .update(clientProfiles)
         .set({ isOperator: true })
@@ -591,17 +594,20 @@ run("connect ledger with PostgreSQL locks", () => {
         active: true,
         ...rate,
       });
+      let fail: (() => Promise<unknown>) | undefined;
       if (phase === "dispatched") {
         await claimConnectAttempt(callId, db, now);
       } else if (phase !== "queued") {
         const { send } = await start();
+        fail = () => send("finish", { reason: "configuration_error" });
         if (phase !== "claimed") {
           expect(await send("dial", { leg: "business" })).toEqual({
             allowed: true,
           });
         }
       }
-      await cancelConnect(callId, clientId, db);
+      if (reason === "cancelled") await cancelConnect(callId, clientId, db);
+      else expect(await fail!()).toEqual({ allowed: true });
       if (phase === "cleaned dial intent") {
         await db
           .update(callAttempts)
@@ -629,8 +635,8 @@ run("connect ledger with PostgreSQL locks", () => {
         .from(calls)
         .where(eq(calls.id, callId));
       expect(original).toMatchObject({
-        state: "cancelled",
-        outcome: { reason: "cancelled" },
+        state: reason === "cancelled" ? "cancelled" : "failed",
+        outcome: { reason },
       });
       expect(original!.endedAt).not.toBeNull();
     });
