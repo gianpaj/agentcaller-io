@@ -20,6 +20,11 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 ## Progress
 
+- Enrollment, reservation and invoice persistence uses server-only tables with
+  account/tenant composite keys, checked money and states, immutable finalized
+  usage/closed totals, append-only audit facts and a USD 10 maximum credit cap.
+  Legacy tariffs require explicit USD/pricing approval; no rates are backfilled.
+
 - Isolated worktree created; original uncommitted planning files preserved.
 - Dependencies installed with the pinned package manager and frozen lockfile.
 - OAuth/MCP foundation: resource metadata, strict asymmetric JWT validation,

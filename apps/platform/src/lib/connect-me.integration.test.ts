@@ -81,6 +81,8 @@ run("connect ledger with PostgreSQL locks", () => {
       "20260924120000_connect_room_cleanup.sql",
       "20261018110000_agent_connections.sql",
       "20261018111000_stripe_event_inbox.sql",
+      "20261018120000_stripe_payment_states.sql",
+      "20261018120100_stripe_postpaid_billing.sql",
     ])
       await client.unsafe(
         readFileSync(

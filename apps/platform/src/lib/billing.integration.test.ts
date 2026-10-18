@@ -7,6 +7,11 @@ import {
   createDatabase,
   calls,
   stripeEvents,
+  billingAccounts,
+  billingAuthorizations,
+  billingPeriods,
+  billingCallUsage,
+  billingAuditEvents,
 } from "@agentcaller/database";
 import { eq, sql } from "drizzle-orm";
 import { ensureClientProfileForUser } from "./portal";
@@ -55,20 +60,9 @@ run("agent onboarding with disposable PostgreSQL", () => {
           .insert(clientProfiles)
           .values({ name: "Historical API-only client" })
           .returning();
-        const [call] = await first.db
-          .insert(calls)
-          .values({
-            clientId: legacy!.id,
-            idempotencyKey: "historical-x402-call",
-            destination: "+34911234567",
-            destinationCountry: "ES",
-            language: "es",
-            task: { type: "information", questions: ["Opening hours?"] },
-            maxDurationSeconds: 60,
-            maxAmountMicros: 10000,
-            rateCardVersion: "historical-test-v1",
-          })
-          .returning();
+        const [call] = await first.client<{ id: string }[]>`insert into calls
+          (client_id, idempotency_key, destination, destination_country, language, task, max_duration_seconds, max_amount_micros, rate_card_version)
+          values (${legacy!.id}, 'historical-x402-call', '+34911234567', 'ES', 'es', '{"type":"information","questions":["Opening hours?"]}', 60, 10000, 'historical-test-v1') returning id`;
         legacyCallId = call!.id;
       }
       await first.client.unsafe(readFileSync(new URL(migration, root), "utf8"));
@@ -270,5 +264,104 @@ run("agent onboarding with disposable PostgreSQL", () => {
     expect(JSON.stringify(rows)).not.toContain("private_field");
     await receiveStripeEvent({ ...event, livemode: true }, first.db);
     expect(await first.db.select().from(stripeEvents)).toHaveLength(2);
+  });
+  it("enforces billing ownership, credit caps and immutable financial facts", async () => {
+    const uid = randomUUID();
+    const owner = await ensureClientProfileForUser(uid, first.db);
+    const other = await ensureClientProfileForUser(randomUUID(), first.db);
+    const connection = await approveAgentConnection(
+      owner.id,
+      uid,
+      issuer,
+      details(uid),
+      first.db,
+    );
+    const [account] = await first.db
+      .insert(billingAccounts)
+      .values({ clientId: owner.id })
+      .returning();
+    await expect(
+      first.db
+        .insert(billingAccounts)
+        .values({ clientId: other.id, creditLimitCents: 1001 }),
+    ).rejects.toThrow();
+    await expect(
+      first.db
+        .insert(billingAuthorizations)
+        .values({
+          clientId: other.id,
+          connectionId: connection.id,
+          billingAccountId: account!.id,
+        }),
+    ).rejects.toThrow();
+    const [grant] = await first.db
+      .insert(billingAuthorizations)
+      .values({
+        clientId: owner.id,
+        connectionId: connection.id,
+        billingAccountId: account!.id,
+      })
+      .returning();
+    const [period] = await first.db
+      .insert(billingPeriods)
+      .values({
+        clientId: owner.id,
+        billingAccountId: account!.id,
+        startsAt: new Date("2026-10-01Z"),
+        endsAt: new Date("2026-11-01Z"),
+        limitCents: 1000,
+      })
+      .returning();
+    const rate = {
+      currency: "USD" as const,
+      pricingVersion: "test-v1",
+      connectionFeeMicros: 1000,
+      startedMinuteFeeMicros: 1000,
+    };
+    const [usage] = await first.db
+      .insert(billingCallUsage)
+      .values({
+        clientId: owner.id,
+        billingAccountId: account!.id,
+        authorizationId: grant!.id,
+        connectionId: connection.id,
+        periodId: period!.id,
+        callReference: randomUUID(),
+        credentialId: connection.oauthClientId,
+        connectionVersion: 1,
+        authorizationVersion: 1,
+        requestFingerprint: "synthetic",
+        pricingVersion: "test-v1",
+        businessRate: rate,
+        callbackRate: rate,
+        reservedCents: 10,
+        state: "finalized",
+        finalCents: 1,
+        finalizedAt: new Date(),
+      })
+      .returning();
+    await expect(
+      first.db
+        .update(billingCallUsage)
+        .set({ finalCents: 2 })
+        .where(eq(billingCallUsage.id, usage!.id)),
+    ).rejects.toThrow();
+    const [audit] = await first.db
+      .insert(billingAuditEvents)
+      .values({
+        billingAccountId: account!.id,
+        clientId: owner.id,
+        operationKey: randomUUID(),
+        actorType: "system",
+        actorId: "offline-test",
+        kind: "test",
+        detail: {},
+      })
+      .returning();
+    await expect(
+      first.db
+        .delete(billingAuditEvents)
+        .where(eq(billingAuditEvents.id, audit!.id)),
+    ).rejects.toThrow();
   });
 });
