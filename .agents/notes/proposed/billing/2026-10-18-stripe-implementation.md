@@ -30,8 +30,6 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   legacy package or Express dependency is needed. Current requests require
   matching protocol, method and tool-name headers and the per-request envelope.
 - Only billing readiness is exposed until the billing application functions exist.
-- Platform typecheck and 273 offline tests pass. Disposable PostgreSQL passes
-  6 onboarding/ownership/RLS tests and all 45 existing connect regression tests.
 - Billing contracts require cents and accepted quote versions, preserve legacy
   dollar inputs and reject mixed money/claimed authority. Domain functions cover
   full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
@@ -48,6 +46,28 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   account/setup/invoice processors exist; no provider resources are registered.
 - Draft invoice parameters hold automatic collection off, exclude pending items
   and select a verified card. No invoice is created or collected in this increment.
+- Human portal access rejects OAuth `client_id` and anonymous credentials, even
+  when Supabase verifies their user. A valid delegated token is insufficient for
+  settings, operator calls or human consent. The MCP route supports bearer
+  preflight and exposed challenges only for exact configured browser origins.
+- Empty leg evidence keeps a metering hold. Queued jobs that never acquired a
+  dial intent need an explicit release path, not inference from an empty list.
+
+## Verification
+
+- Workspace typecheck, tests and build pass across all five packages. Offline
+  tests pass: platform 306, contracts 91, worker 40, database 2 and scheduler 6.
+- Disposable PostgreSQL passes 7 onboarding/event-inbox tests and 45 existing
+  connect tests, including upgrades with a historical x402 call. Tests use
+  independent connections; OAuth profile ownership and event RLS are enforced.
+- Lint exits successfully with six existing warnings in untouched files.
+- Repository formatting reports 58 files: 57 are byte-identical to the base;
+  the modified pnpm lockfile also fails formatting on the base. Changed source
+  and documentation pass targeted formatting. No unrelated formatting is applied.
+- Initial docs typecheck requires generated Fumadocs collections; generation
+  resolves it. Both Next.js builds and the worker bundle build succeed.
+- No provider setup, Stripe API transaction, remote migration, deployment, live
+  call or target-host OAuth acceptance test has been performed.
 
 ## Open release checks
 

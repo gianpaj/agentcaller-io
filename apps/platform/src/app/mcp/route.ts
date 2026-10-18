@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function handle(request: Request) {
-  const headers = {
+  const headers: Record<string, string> = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",
   };
@@ -31,6 +31,36 @@ async function handle(request: Request) {
       { error: "Untrusted MCP origin" },
       { status: 403, headers },
     );
+  const origin = request.headers.get("origin");
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Expose-Headers"] =
+      "WWW-Authenticate, MCP-Protocol-Version";
+    headers.Vary = "Origin";
+  }
+  if (request.method === "OPTIONS") {
+    const requested =
+      request.headers.get("access-control-request-headers") ?? "";
+    if (
+      requested
+        .split(",")
+        .filter(Boolean)
+        .some(
+          (name) =>
+            !/^(authorization|content-type|mcp-[a-z0-9-]+)$/i.test(name.trim()),
+        )
+    )
+      return new Response(null, { status: 403, headers });
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...headers,
+        "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": requested,
+        Vary: "Origin, Access-Control-Request-Headers",
+      },
+    });
+  }
   try {
     const principal = await authenticateMcpPrincipal(request, config);
     if (request.method !== "POST")
@@ -76,3 +106,4 @@ async function handle(request: Request) {
 export const POST = handle;
 export const GET = handle;
 export const DELETE = handle;
+export const OPTIONS = handle;

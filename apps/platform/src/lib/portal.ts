@@ -59,6 +59,15 @@ export async function loadClientProfile() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { user: null, profile: null };
+  const { data: claimsData, error: claimsError } =
+    await supabase.auth.getClaims();
+  if (
+    claimsError ||
+    claimsData?.claims.sub !== user.id ||
+    claimsData.claims.client_id ||
+    user.is_anonymous
+  )
+    return { user, profile: null };
 
   const [profile] = await database()
     .select()

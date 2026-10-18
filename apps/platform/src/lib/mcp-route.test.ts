@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ authenticate: vi.fn() }));
 vi.mock("./mcp-auth", () => ({ authenticateMcpPrincipal: state.authenticate }));
 import { ApiError } from "./auth";
-import { POST, GET } from "../app/mcp/route";
+import { POST, GET, OPTIONS } from "../app/mcp/route";
 import { GET as metadata } from "../app/.well-known/oauth-protected-resource/mcp/route";
 
 afterEach(() => {
@@ -16,6 +16,47 @@ function configure() {
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-publishable");
 }
 describe("MCP HTTP boundary", () => {
+  it("supports exact-origin browser discovery and bearer preflight without granting tool access", async () => {
+    configure();
+    vi.stubEnv("MCP_ALLOWED_ORIGINS", "https://host.example");
+    const headers = {
+      origin: "https://host.example",
+      "access-control-request-headers":
+        "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Name",
+    };
+    const response = await OPTIONS(
+      new Request("https://agentcaller.example/mcp", {
+        method: "OPTIONS",
+        headers,
+      }),
+    );
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://host.example",
+    );
+    expect(state.authenticate).not.toHaveBeenCalled();
+    state.authenticate.mockRejectedValue(new ApiError(401, "OAuth required"));
+    const challenge = await POST(
+      new Request("https://agentcaller.example/mcp", {
+        method: "POST",
+        headers: { origin: headers.origin },
+      }),
+    );
+    expect(challenge.status).toBe(401);
+    expect(challenge.headers.get("access-control-expose-headers")).toContain(
+      "WWW-Authenticate",
+    );
+    expect(
+      (
+        await OPTIONS(
+          new Request("https://agentcaller.example/mcp", {
+            method: "OPTIONS",
+            headers: { ...headers, "access-control-request-headers": "Cookie" },
+          }),
+        )
+      ).status,
+    ).toBe(403);
+  });
   it("stays disabled without feature configuration", async () => {
     vi.stubEnv("MCP_ENABLED", "false");
     expect(
