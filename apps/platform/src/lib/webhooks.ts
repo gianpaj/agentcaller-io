@@ -1,4 +1,8 @@
-import { calls, clientProfiles, webhookDeliveries } from "@agentcaller/database";
+import {
+  calls,
+  clientProfiles,
+  webhookDeliveries,
+} from "@agentcaller/database";
 import { eq, inArray, sql } from "drizzle-orm";
 import { createHmac, randomBytes } from "node:crypto";
 import { database } from "./database";
@@ -16,12 +20,24 @@ export function generateWebhookSecret() {
   return randomBytes(32).toString("hex");
 }
 
-export async function queueWebhook(callId: string, eventType: string, payload: Record<string, unknown>) {
-  await database().insert(webhookDeliveries).values({ callId, eventType, payload });
+export async function queueWebhook(
+  callId: string,
+  eventType: string,
+  payload: Record<string, unknown>,
+) {
+  await database()
+    .insert(webhookDeliveries)
+    .values({ callId, eventType, payload });
 }
 
-export function webhookSignature(secret: string, timestamp: string, body: string) {
-  return createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
+export function webhookSignature(
+  secret: string,
+  timestamp: string,
+  body: string,
+) {
+  return createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
 }
 
 type ClaimedDelivery = {
@@ -58,15 +74,23 @@ async function claimBatch() {
 
 async function markDelivered(id: string, attempt: number) {
   const now = new Date();
-  await database().update(webhookDeliveries)
-    .set({ attempt, deliveredAt: now, nextAttemptAt: null, updatedAt: now, lastError: null })
+  await database()
+    .update(webhookDeliveries)
+    .set({
+      attempt,
+      deliveredAt: now,
+      nextAttemptAt: null,
+      updatedAt: now,
+      lastError: null,
+    })
     .where(eq(webhookDeliveries.id, id));
 }
 
 async function markFailed(id: string, attempt: number, error: unknown) {
   const now = new Date();
   const delayMinutes = Math.min(2 ** attempt, 60);
-  await database().update(webhookDeliveries)
+  await database()
+    .update(webhookDeliveries)
     .set({
       attempt,
       nextAttemptAt: new Date(now.getTime() + delayMinutes * 60_000),
@@ -83,11 +107,20 @@ async function endpointsForBatch(batch: ClaimedDelivery[]) {
   const callIds = [...new Set(batch.map((item) => item.call_id))];
   if (!callIds.length) return new Map<string, Endpoint>();
   const rows = await database()
-    .select({ callId: calls.id, webhookUrl: clientProfiles.webhookUrl, webhookSecret: clientProfiles.webhookSecret })
+    .select({
+      callId: calls.id,
+      webhookUrl: clientProfiles.webhookUrl,
+      webhookSecret: clientProfiles.webhookSecret,
+    })
     .from(calls)
     .innerJoin(clientProfiles, eq(calls.clientId, clientProfiles.id))
     .where(inArray(calls.id, callIds));
-  return new Map(rows.map((row) => [row.callId, { webhookUrl: row.webhookUrl, webhookSecret: row.webhookSecret }]));
+  return new Map(
+    rows.map((row) => [
+      row.callId,
+      { webhookUrl: row.webhookUrl, webhookSecret: row.webhookSecret },
+    ]),
+  );
 }
 
 async function deliver(item: ClaimedDelivery, endpoint: Endpoint | undefined) {
@@ -100,7 +133,12 @@ async function deliver(item: ClaimedDelivery, endpoint: Endpoint | undefined) {
   }
 
   const timestamp = new Date().toISOString();
-  const body = JSON.stringify({ id: item.id, timestamp, type: item.event_type, data: item.payload });
+  const body = JSON.stringify({
+    id: item.id,
+    timestamp,
+    type: item.event_type,
+    data: item.payload,
+  });
   const signature = webhookSignature(endpoint.webhookSecret, timestamp, body);
 
   try {
@@ -131,11 +169,14 @@ export async function deliverPendingWebhooks() {
   const endpoints = await endpointsForBatch(batch);
   let delivered = 0;
   const queue = [...batch];
-  const workers = Array.from({ length: Math.min(DELIVERY_CONCURRENCY, queue.length) }, async () => {
-    for (let item = queue.shift(); item; item = queue.shift()) {
-      if (await deliver(item, endpoints.get(item.call_id))) delivered += 1;
-    }
-  });
+  const workers = Array.from(
+    { length: Math.min(DELIVERY_CONCURRENCY, queue.length) },
+    async () => {
+      for (let item = queue.shift(); item; item = queue.shift()) {
+        if (await deliver(item, endpoints.get(item.call_id))) delivered += 1;
+      }
+    },
+  );
   await Promise.all(workers);
   return { claimed: batch.length, delivered };
 }

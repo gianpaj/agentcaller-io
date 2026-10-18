@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   connectMeTaskSchema,
-  isBusinessDestination,
+  businessDestinationError,
   legLimit,
 } from "./connect-me";
 export * from "./connect-me";
@@ -79,12 +79,15 @@ export const createCallSchema = z
   })
   .superRefine((input, ctx) => {
     if (input.task.type === "connect_me") {
-      if (!isBusinessDestination(input.destination, input.destinationCountry))
+      const destinationError = businessDestinationError(
+        input.destination,
+        input.destinationCountry,
+      );
+      if (destinationError)
         ctx.addIssue({
           code: "custom",
           path: ["destination"],
-          message:
-            "connect_me supports Spanish and Italian geographic business numbers only",
+          message: destinationError,
         });
       if (!["es", "it"].includes(input.language))
         ctx.addIssue({

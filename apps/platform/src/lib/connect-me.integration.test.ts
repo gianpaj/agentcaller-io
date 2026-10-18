@@ -35,6 +35,7 @@ vi.mock("./auth", async (original) => ({
 import { POST } from "../app/api/v1/calls/route";
 import { authorizeOperatorCall } from "./operator-funding";
 import { attemptReserve } from "./connect-policy";
+import { submitCall } from "./submit-call";
 
 // This suite owns a disposable database, never DATABASE_URL or a Supabase project.
 const url = process.env.CONNECT_TEST_DATABASE_URL;
@@ -129,8 +130,8 @@ run("connect ledger with PostgreSQL locks", () => {
       status: "authorized",
     });
   });
-  async function start() {
-    const attempt = (await claimConnectAttempt(callId, db, now))!;
+  async function start(at = now) {
+    const attempt = (await claimConnectAttempt(callId, db, at))!;
     const workerId = randomUUID();
     const event = (
       action: ConnectEvent["action"],
@@ -142,14 +143,16 @@ run("connect ledger with PostgreSQL locks", () => {
       action,
       ...rest,
     });
-    await connectCommand(callId, event("claim"), db, now);
+    expect(await connectCommand(callId, event("claim"), db, at)).toMatchObject({
+      allowed: true,
+    });
     return {
       attempt,
       event,
       send: (
         action: ConnectEvent["action"],
         rest: Partial<ConnectEvent> = {},
-      ) => connectCommand(callId, event(action, rest), db, now),
+      ) => connectCommand(callId, event(action, rest), db, at),
     };
   }
   it("concurrent ticks create exactly one attempt and reserve once", async () => {
@@ -181,6 +184,187 @@ run("connect ledger with PostgreSQL locks", () => {
         .from(callLegs)
         .where(eq(callLegs.attemptId, attempt.id)),
     ).toHaveLength(1);
+  });
+  describe('callingWindow: "now"', () => {
+    const at = new Date("2026-09-19T00:00:00+02:00");
+    const expiresAt = new Date(at.getTime() + 30 * 60_000);
+    beforeEach(async () => {
+      const immediate = createCallSchema.parse({
+        ...input,
+        task: {
+          ...input.task,
+          callingWindow: "now",
+          maxAttempts: 1,
+          expiresAt: expiresAt.toISOString(),
+        },
+      });
+      await db
+        .update(calls)
+        .set({ task: immediate.task })
+        .where(eq(calls.id, callId));
+      await db
+        .update(connectJobs)
+        .set({ nextAttemptAt: at })
+        .where(eq(connectJobs.callId, callId));
+    });
+    it("claims and permits a business dial at Saturday midnight", async () => {
+      const { attempt, send } = await start(at);
+      expect(attempt.ordinal).toBe(1);
+      expect(await send("dial", { leg: "business" })).toEqual({
+        allowed: true,
+      });
+      expect(await db.select().from(callLegs)).toMatchObject([
+        { attemptId: attempt.id, kind: "business", state: "intent" },
+      ]);
+      expect((await db.select().from(calls))[0]).toMatchObject({
+        state: "dialing",
+        endedAt: null,
+      });
+    });
+    it.each(["busy", "no_answer"] as const)(
+      "finishes %s without scheduling or claiming a retry",
+      async (reason) => {
+        const { attempt, send } = await start(at);
+        expect(await send("dial", { leg: "business" })).toEqual({
+          allowed: true,
+        });
+        expect(await send("finish", { reason })).toEqual({ allowed: true });
+        const [call] = await db.select().from(calls);
+        expect(call).toMatchObject({
+          state: "failed",
+          endedAt: at,
+          outcome: { reason: "attempts_exhausted" },
+        });
+        expect(call!.outcome).not.toHaveProperty("nextAttemptAt");
+        expect(
+          await claimConnectAttempt(
+            callId,
+            db,
+            new Date(at.getTime() + 300_000),
+          ),
+        ).toBeNull();
+        expect(await send("dial", { leg: "business" })).toEqual({
+          allowed: false,
+        });
+        expect(await db.select().from(callAttempts)).toMatchObject([
+          {
+            id: attempt.id,
+            ordinal: 1,
+            state: "terminal",
+            reason,
+            endedAt: at,
+          },
+        ]);
+        expect((await db.select().from(connectJobs))[0]).toMatchObject({
+          attemptCount: 1,
+          nextAttemptAt: at,
+        });
+        expect(await db.select().from(callLegs)).toHaveLength(1);
+      },
+    );
+    it.each([0, 1])(
+      "creates no attempt or dial intent %i ms after expiry",
+      async (offset) => {
+        const expired = new Date(expiresAt.getTime() + offset);
+        expect(await claimConnectAttempt(callId, db, expired)).toBeNull();
+        expect((await db.select().from(calls))[0]).toMatchObject({
+          state: "failed",
+          endedAt: expired,
+          outcome: { reason: "expired" },
+        });
+        expect((await db.select().from(connectJobs))[0]).toMatchObject({
+          attemptCount: 0,
+          reservedMicros: 0,
+        });
+        expect(await db.select().from(callAttempts)).toHaveLength(0);
+        expect(await db.select().from(callLegs)).toHaveLength(0);
+      },
+    );
+    it.each(["claim", "dial"] as const)(
+      "denies worker %s at expiry for an existing attempt",
+      async (action) => {
+        const beforeExpiry = new Date(expiresAt.getTime() - 60_000);
+        const attempt = (await claimConnectAttempt(callId, db, beforeExpiry))!;
+        const workerId = randomUUID();
+        if (action === "dial")
+          expect(
+            await connectCommand(
+              callId,
+              {
+                eventId: randomUUID(),
+                attemptId: attempt.id,
+                workerId,
+                action: "claim",
+              },
+              db,
+              beforeExpiry,
+            ),
+          ).toMatchObject({ allowed: true });
+        expect(
+          await connectCommand(
+            callId,
+            {
+              eventId: randomUUID(),
+              attemptId: attempt.id,
+              workerId,
+              action,
+              ...(action === "dial" ? { leg: "business" as const } : {}),
+            },
+            db,
+            expiresAt,
+          ),
+        ).toEqual({ allowed: false });
+        expect(await db.select().from(callLegs)).toHaveLength(0);
+      },
+    );
+    it("accepts leg ended observations at expiry before finish", async () => {
+      const beforeExpiry = new Date(expiresAt.getTime() - 60_000);
+      const { attempt, event } = await start(beforeExpiry);
+      await connectCommand(
+        callId,
+        event("dial", { leg: "business" }),
+        db,
+        beforeExpiry,
+      );
+      await connectCommand(
+        callId,
+        event("connected", {
+          leg: "business",
+          at: beforeExpiry.toISOString(),
+        }),
+        db,
+        beforeExpiry,
+      );
+      expect(
+        await connectCommand(
+          callId,
+          event("ended", { leg: "business", at: expiresAt.toISOString() }),
+          db,
+          expiresAt,
+        ),
+      ).toEqual({ allowed: true });
+      expect(
+        await connectCommand(
+          callId,
+          event("finish", { reason: "expired" }),
+          db,
+          expiresAt,
+        ),
+      ).toEqual({ allowed: true });
+      expect(
+        await db
+          .select()
+          .from(callLegs)
+          .where(eq(callLegs.attemptId, attempt.id)),
+      ).toMatchObject([
+        {
+          kind: "business",
+          state: "ended",
+          endedAt: expiresAt,
+          measuredMicros: 2000,
+        },
+      ]);
+    });
   });
   it.each(["busy", "no_answer"] as const)(
     "schedules %s as a new immutable attempt",
@@ -435,6 +619,75 @@ run("connect ledger with PostgreSQL locks", () => {
     expect(
       await claimConnectAttempt(callId, db, new Date("2026-09-20T10:00:00Z")),
     ).toBeNull();
+  });
+  describe("website submission after stopping a job", () => {
+    it.each([
+      ["cancelled", "queued", 202],
+      ["cancelled", "dispatched", 202],
+      ["cancelled", "claimed", 202],
+      ["cancelled", "dial intent", 409],
+      ["cancelled", "cleaned dial intent", 409],
+      ["configuration_error", "claimed", 202],
+      ["configuration_error", "dial intent", 409],
+      ["configuration_error", "cleaned dial intent", 409],
+    ] as const)("handles %s after %s", async (reason, phase, status) => {
+      const [admin] = await db
+        .update(clientProfiles)
+        .set({ isOperator: true })
+        .where(eq(clientProfiles.id, clientId))
+        .returning();
+      await db.insert(rateCards).values({
+        version: randomUUID(),
+        country: "ES",
+        active: true,
+        ...rate,
+      });
+      let fail: (() => Promise<unknown>) | undefined;
+      if (phase === "dispatched") {
+        await claimConnectAttempt(callId, db, now);
+      } else if (phase !== "queued") {
+        const { send } = await start();
+        fail = () => send("finish", { reason: "configuration_error" });
+        if (phase !== "claimed") {
+          expect(await send("dial", { leg: "business" })).toEqual({
+            allowed: true,
+          });
+        }
+      }
+      if (reason === "cancelled") await cancelConnect(callId, clientId, db);
+      else expect(await fail!()).toEqual({ allowed: true });
+      if (phase === "cleaned dial intent") {
+        await db
+          .update(callAttempts)
+          .set({ roomsCleanedAt: now })
+          .where(eq(callAttempts.callId, callId));
+      }
+      const response = await submitCall(
+        new Request("https://offline.invalid/api/v1/calls", {
+          method: "POST",
+          headers: {
+            "idempotency-key": randomUUID(),
+            "x-agentcaller-funding": "operator",
+          },
+          body: JSON.stringify(input),
+        }),
+        admin!,
+        {},
+      );
+      expect(response.status).toBe(status);
+      expect(await db.select().from(calls)).toHaveLength(
+        status === 202 ? 2 : 1,
+      );
+      const [original] = await db
+        .select()
+        .from(calls)
+        .where(eq(calls.id, callId));
+      expect(original).toMatchObject({
+        state: reason === "cancelled" ? "cancelled" : "failed",
+        outcome: { reason },
+      });
+      expect(original!.endedAt).not.toBeNull();
+    });
   });
   it("accepts concurrent operator submissions once without a payment receipt", async () => {
     const [admin] = await db

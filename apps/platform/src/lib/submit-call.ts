@@ -1,5 +1,5 @@
 import { authorizeOperatorInput } from "@/lib/operator-funding";
-import { createCallSchema } from "@agentcaller/contracts";
+import { CALL_NOW_TTL_MS, createCallSchema } from "@agentcaller/contracts";
 import {
   calls,
   callEvents,
@@ -8,8 +8,10 @@ import {
   webhookDeliveries,
   connectJobs,
   clientProfiles,
+  callAttempts,
+  callLegs,
 } from "@agentcaller/database";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, exists, gte, isNull } from "drizzle-orm";
 import { ApiError } from "@/lib/auth";
 import { database } from "@/lib/database";
 import { dispatchCall } from "@/lib/livekit";
@@ -64,9 +66,11 @@ export async function submitCall(
 
     if (input.task.type === "connect_me") {
       if (
-        Date.parse(input.task.expiresAt) <= Date.now() ||
-        Date.parse(input.task.expiresAt) > Date.now() + 7 * 86400_000
+        input.task.callingWindow === "now" &&
+        Date.parse(input.task.expiresAt) > Date.now() + CALL_NOW_TTL_MS
       )
+        throw new ApiError(422, "Call now must expire within 30 minutes");
+      if (Date.parse(input.task.expiresAt) > Date.now() + 7 * 86400_000)
         throw new ApiError(422, "Expiry must be in the next seven days");
     }
 
@@ -117,6 +121,11 @@ export async function submitCall(
     ]);
 
     if (existing) return Response.json({ data: existing }, { status: 202 });
+    if (
+      input.task.type === "connect_me" &&
+      Date.parse(input.task.expiresAt) <= Date.now()
+    )
+      throw new ApiError(422, "Expiry must be in the next seven days");
     if (recent.length >= client.callsPerMinute)
       throw new ApiError(429, "Calls-per-minute limit reached");
     if (active.length >= client.maxConcurrentCalls)
@@ -130,10 +139,10 @@ export async function submitCall(
     const [callbackRate] =
       input.task.type === "connect_me"
         ? await database()
-          .select()
-          .from(rateCards)
-          .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
-          .limit(1)
+            .select()
+            .from(rateCards)
+            .where(and(eq(rateCards.country, "ES"), eq(rateCards.active, true)))
+            .limit(1)
         : [];
     if (input.task.type === "connect_me" && !callbackRate)
       throw new ApiError(503, "No Spanish callback rate");
@@ -151,7 +160,7 @@ export async function submitCall(
       input.task.type === "connect_me" &&
       callbackRate &&
       attemptReserve(input.task, rate, callbackRate) * input.task.maxAttempts >
-      maxAmountMicros
+        maxAmountMicros
     )
       throw new ApiError(
         422,
@@ -166,9 +175,9 @@ export async function submitCall(
     const verified = operatorFunded
       ? undefined
       : await verifyPayment(
-        paymentPayload,
-        paymentRequirements(maxAmountMicros),
-      );
+          paymentPayload,
+          paymentRequirements(maxAmountMicros),
+        );
 
     // Persist funding authorization with the job before any dispatch.
     let call: typeof calls.$inferSelect;
@@ -215,7 +224,20 @@ export async function submitCall(
             }
             // An unknown provider result is not evidence that the previous call ended.
             const previous = await tx
-              .select({ outcome: calls.outcome })
+              .select({
+                outcome: calls.outcome,
+                endedAt: calls.endedAt,
+                hasDialIntent: exists(
+                  tx
+                    .select({ id: callLegs.id })
+                    .from(callLegs)
+                    .innerJoin(
+                      callAttempts,
+                      eq(callAttempts.id, callLegs.attemptId),
+                    )
+                    .where(eq(callAttempts.callId, calls.id)),
+                ),
+              })
               .from(calls)
               .where(
                 and(
@@ -224,14 +246,23 @@ export async function submitCall(
                 ),
               );
             if (
-              previous.some((c) =>
-                [
+              previous.some((c) => {
+                const reason = outcomeReason(c.outcome);
+                // Dial permission commits a leg before the worker can contact SIP.
+                if (
+                  (reason === "cancelled" ||
+                    reason === "configuration_error") &&
+                  c.endedAt &&
+                  !c.hasDialIntent
+                )
+                  return false;
+                return [
                   "dial_unknown",
                   "worker_lost",
                   "cancelled",
                   "configuration_error",
-                ].includes(outcomeReason(c.outcome) ?? ""),
-              )
+                ].includes(reason ?? "");
+              })
             )
               throw new ApiError(
                 409,

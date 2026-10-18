@@ -57,7 +57,8 @@ explicit administrative authorization and charges the platform's provider
 accounts directly. It does not manufacture a payment receipt. Other task types
 keep their existing payment requirements.
 
-The request uses the existing endpoint, tenant credentials and idempotency key:
+The request uses the existing endpoint, tenant credentials and idempotency key.
+This example uses a scheduled weekly window:
 
 ```json
 {
@@ -91,16 +92,67 @@ The request uses the existing endpoint, tenant credentials and idempotency key:
 }
 ```
 
-These are syntax examples, not authorized destinations. Supply actual business
-hours and a future expiry within seven days. Weekdays use Monday=1 through
-Sunday=7; windows are same-day local times in an explicit IANA timezone.
-`language` is `es` or `it`; `callbackLanguage` is independently `es`, `it` or `en`.
-The initial destination policy accepts geographic landlines, not mobiles,
-premium-rate or short-code services. Prefix validation does not verify that a
-number belongs to a business. The callback must be a Spanish mobile.
+### Connection timing
 
-Only confirmed SIP busy/no-answer retries, at least five minutes apart, within
-hours, expiry, attempt and spend limits. A terminal attempt never reopens.
+For **Call now**, use this task in the same request:
+
+```json
+{
+  "type": "connect_me",
+  "callbackNumber": "+34612345678",
+  "callbackLanguage": "it",
+  "purpose": "Speak to the post office about collecting a parcel",
+  "callingWindow": "now",
+  "maxAttempts": 1,
+  "expiresAt": "2026-09-28T12:30:00.000Z"
+}
+```
+
+These are syntax examples, not authorized destinations or live deadlines.
+`callingWindow` is required: supply either the literal `"now"` or the weekly
+object. Call now requires an explicit `maxAttempts: 1`; omitting it or setting
+it above one is invalid. It ignores timezone, weekdays and local hours, including
+midnight, weekends and daylight-saving transitions. It never postpones to another
+window or retries a busy/no-answer outcome.
+
+Call now means eligible for dispatch before `expiresAt`, not guaranteed instant
+worker availability. The scheduler and an available worker still have to pick up
+the job. Expiry also ends active sessions in both modes; it is not just the last
+time dialing may start. All funding, destination, duration and spend controls
+still apply.
+
+API callers must supply an explicit future `expiresAt`. For Call now, the
+platform's `submitCall` admission check limits that deadline to at most 30 minutes
+ahead. The shared schema validates its timestamp format; admission enforces the
+relative deadline.
+
+The portal defaults new calls to Call now. After client validation, it requests
+an expiry 30 minutes ahead from the server so device clock skew cannot invalidate
+the request. It retains that same timestamp across
+submission retries rather than extending the job's lifetime. The portal parser
+also enforces the 30-minute maximum.
+
+Scheduled calls use the weekly object shown above. Supply actual business hours
+and a future expiry within seven days. Weekdays use Monday=1 through Sunday=7;
+windows are same-day local times in an explicit IANA timezone. Scheduled jobs
+retain the defaults of six attempts and a 300-second retry delay. Redialing a
+scheduled job in the portal retains its saved scheduled values and requires a
+fresh deadline rather than switching it to Call now.
+
+`language` is `es` or `it`; `callbackLanguage` is independently `es`, `it` or `en`.
+The destination policy accepts geographic landlines and supported mobile ranges
+in Spain and Italy. Spanish mobile destinations use nine national digits in the
+6, 71–74, or 78 ranges. Italian mobile destinations use nine or ten national
+digits in the 32–39 ranges, or ten in the 31 and 43 ranges. These mobile patterns
+follow [libphonenumber metadata](https://github.com/google/libphonenumber/blob/master/resources/PhoneNumberMetadata.xml).
+Premium-rate, service, emergency and short-code destinations remain excluded.
+The country code must match `destinationCountry`; prefix validation does not
+verify ownership, business use, reachability, or consent. The callback remains
+restricted to the existing Spanish mobile ranges (6 and 71–74).
+
+Only scheduled jobs with confirmed SIP busy/no-answer retry, at least five
+minutes apart, within hours, expiry, attempt and spend limits. A terminal attempt
+never reopens.
 Refusal, voicemail, unclear IVR, uncertain detection and failed callback stop the
 job. IVR navigation defaults to zero digits; an explicitly positive limit allows
 at most five clearly identified menu choices. No voicemail message is left.
@@ -110,14 +162,19 @@ durations, using pinned rate snapshots that include waiting and conversation.
 Reservations are not released between attempts. Expiry or the attempt count can
 still stop a job early.
 Configure conservative all-in rate cards that cover the exact destination
-classes, provider surcharges and inference. Current country-level rates cannot
+classes, including mobile termination, provider surcharges and inference.
+Before a live mobile-destination test, verify the rate card, outbound routing,
+caller ID, recipient consent and disclosure requirements for that country. Current country-level rates cannot
 prove an actual Telnyx invoice ceiling. Missing connection/end observations leave
 measured cost null; worker loss never becomes zero usage. Connect jobs cannot use
 the legacy single-leg settlement helper.
 
 ### Setup
 
-Apply migrations in order and deploy the platform and bundled voice worker.
+Apply migrations in order and deploy the bundled voice worker before the
+platform when shared contracts change. Both deployments must use contracts that
+accept `callingWindow: "now"` and the supported mobile destination ranges before
+submitting those calls; an older worker cannot parse those tasks.
 Configure the worker's `.env.example` values server-side. Use an authenticated
 LiveKit outbound trunk targeting Telnyx's documented European signaling endpoint
 [`sip.telnyx.eu`](https://sip.telnyx.com/), with SIP credentials and authorized
@@ -147,6 +204,20 @@ are not retried; a 90-second stale lease stops the attempt. Workers heartbeat ev
 10 seconds and fail closed when the platform cannot confirm permission.
 The endpoint reports `paidJobsBlocked` for x402; enabled operator jobs can dispatch.
 
+For local development, root `pnpm dev` starts this scheduler automatically next
+to the platform through Turbo. It reads `CRON_SECRET` (at least 32 characters)
+from `apps/platform/.env.local`, with shell values taking precedence, and targets
+`http://localhost:3000`. Requests never overlap and Ctrl+C stops the scheduler.
+When running the platform with a direct package command, start
+`pnpm dev:scheduler` separately. Production still needs an external scheduler.
+
+Platform dispatch and cleanup failures log the stage, call ID, attempt ID when
+available, and HTTP status or timeout classification. Worker callback failures
+also include the command and transport retry number. Logs omit credentials,
+request/response bodies, task contents, and raw exception messages. A dispatch
+failure never causes an immediate redispatch; lease expiry and cleanup retain
+ownership of an uncertain attempt.
+
 The worker uses the pinned SDK's `waitUntilAnswered`, `ringingTimeout` and
 `maxCallDuration` on each SIP leg. These are **LiveKit SIP service limits**, not
 Telnyx carrier-enforced guarantees. The upstream SIP service starts its duration
@@ -156,6 +227,10 @@ The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/si
 provides the duration timeout independently of the voice worker.
 Unknown/cancelled attempts remain eligible for repeated cleanup until operator
 reconciliation; absence from a room is not proof that an in-flight dial failed.
+The website permits a fresh manual submission after cancellation or a
+configuration failure only when the call is terminal and none of its attempts
+has a recorded dial leg. A recorded leg preserves the reconciliation block even
+after room cleanup.
 Monitor scheduler failures and its `cleanup.failedRooms` count; reconcile provider call records before deleting
 these jobs. No API idempotency key is documented for this dial method; persisted
 intent prevents redial rather than pretending participant identity is idempotency.
@@ -203,12 +278,23 @@ retry and spend controls still apply. This mode supports only `connect_me`.
    The default switch is `false`; the default per-job cap is USD 5. Omit
    `CDP_API_KEY`, `X402_PAY_TO` and `X402_USDC_ASSET` for an operator-only deployment.
    Keep the other platform/worker configuration described above, plus active
-   rate cards for the business country and Spanish callback. Never invent rates.
+   rate cards for the business country and Spanish callback.
+
+   Migration `20261018160000_personal_test_rate_card.sql` supplies an ES internal
+   test quote when no active ES rate exists: USD 0 per connection and USD 0.10 per
+   started minute on each leg. It preserves existing active rates and does not
+   reactivate a retired version. With the default phase durations, one attempt
+   reserves USD 2.50; use `maxAttempts: 1` with the default USD 5 cap.
+   This quote is for personal testing and does not establish actual provider
+   costs. Replace it with verified all-in rates before accepting paid calls or
+   relying on it to cover provider charges. Italian destinations need a separate
+   active IT rate card.
 
 4. Deploy the platform and voice worker. After authorizing a controlled test,
    save the request example above as `connect-test.json`, replacing destinations,
-   expiry and hours. Start with `maxAttempts: 1` and a cap no greater than the
-   deployment's cap. Submit it from your own terminal:
+   expiry and scheduled hours (or use `callingWindow: "now"`). Start with
+   `maxAttempts: 1` and a cap no greater than the deployment's cap. Submit it from
+   your own terminal:
 
    ```bash
    curl --fail-with-body "$PLATFORM_URL/api/v1/calls" \
@@ -222,8 +308,9 @@ retry and spend controls still apply. This mode supports only `connect_me`.
    A `202` response durably queues the job. Reuse the same idempotency key only
    for retries of that submission. No `PAYMENT-SIGNATURE` is needed.
 
-5. The scheduled drain triggers dialing when the explicit calling window permits
-   it. To run one scheduler tick manually **after authorizing the test**:
+5. The scheduled drain triggers dialing when the calling window permits it,
+   including Call now before expiry. To run one scheduler tick manually
+   **after authorizing the test**:
 
    ```bash
    curl --fail-with-body -X POST "$PLATFORM_URL/api/internal/connect/drain" \

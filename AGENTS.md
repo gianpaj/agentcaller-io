@@ -132,6 +132,7 @@ Run the full checks when the change warrants them:
 
 ```bash
 pnpm typecheck
+pnpm lint
 pnpm test
 pnpm format:check
 pnpm build
@@ -146,6 +147,20 @@ pnpm --filter @agentcaller/voice-agent typecheck
 pnpm --filter @agentcaller/voice-agent test
 pnpm --filter @agentcaller/contracts test
 ```
+
+After modifying any `.tsx` file in `apps/platform` or `apps/docs`, run that
+package's lint script and fix every finding before finishing:
+
+```bash
+pnpm --filter @agentcaller/platform lint
+pnpm --filter @agentcaller/docs lint
+```
+
+The lint script runs Oxlint with the
+[`@shadcn/lint`](https://github.com/shadcn-ui/lint) design-system plugin,
+configured in each app's `.oxlintrc.json`. Its errors name the theme token or
+component variant to use instead. Follow that guidance rather than disabling
+the rule.
 
 The repository has known pre-existing formatting and voice-agent build failures.
 Report them accurately. Do not hide them, broaden a scoped task to fix them, or

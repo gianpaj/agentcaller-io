@@ -35,8 +35,8 @@ contract.
 
 ### Bounded connection task
 
-`connect_me` connects a Spanish or Italian geographic business number to a
-Spanish mobile, with independently configured business and callback languages.
+`connect_me` connects a Spanish or Italian landline or mobile business number
+to a Spanish mobile, with independently configured business and callback languages.
 Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
 press-1 handoff are implemented and tested offline. Operators can use the
 [operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
@@ -46,12 +46,24 @@ funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5)
 Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
 
+`connect_me` supports **Call now** with `callingWindow: "now"` and
+`maxAttempts: 1`, or a scheduled weekly window with bounded retries. Call now
+ignores local hours and weekdays, never postpones or redials, and is eligible
+only before the explicit `expiresAt`. It does not guarantee immediate worker
+availability. Expiry also ends active sessions; it is not just a dialing deadline.
+
+Call now is the default for new portal calls. The portal generates a fixed expiry
+30 minutes after the first valid submission and retains it across submission
+retries. API callers must supply `expiresAt` themselves. See
+[connection timing](apps/docs/content/docs/dispatch.mdx#connection-timing) for
+admission limits and scheduled redial behavior.
+
 The platform reserves the worst-case quoted cost of both legs before each
 attempt and does not release that hold. Admission rejects a cap that cannot
-fund every `maxAttempts` reserve. Only confirmed busy/no-answer can schedule
-another attempt. Unknown
-dial outcomes, refusal, voicemail, uncertain classification and failed handoff
-stop the job. Local observation of SIP answer/disconnection drives leg usage;
+fund every `maxAttempts` reserve. Only scheduled jobs with confirmed busy/no-answer
+can schedule another attempt. Unknown dial outcomes, refusal, voicemail,
+uncertain classification and failed handoff stop the job. Local observation of
+SIP answer/disconnection drives leg usage;
 missing cost stays null. Reservations are deliberately not refunded between
 attempts. They bound quoted usage, not an unverified carrier invoice.
 
@@ -120,7 +132,7 @@ rather than a working MVP.
 | Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
 | Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
 | Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
-| Deployment              | Worker build emits bundled `dist/main.js`; deployment and provider limits require live verification                    |
+| Deployment              | Worker deploys to LiveKit Cloud from the repository root; provider limits require live verification                    |
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
 | Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
@@ -242,17 +254,69 @@ Never commit populated environment files. Apply the SQL files under
 `supabase/migrations` in timestamp order through the project's Supabase
 environment before running the platform.
 
-Run each long-lived application in its own terminal:
+Run the local workspace:
+
+```bash
+pnpm dev
+```
+
+Turbo starts the platform, docs, voice worker, and a development connection
+scheduler. Set `CRON_SECRET` (at least 32 characters) in
+`apps/platform/.env.local`. The scheduler reads that file, with shell values
+taking precedence, and sends an authenticated drain request to
+`http://localhost:3000` at startup and every 30 seconds. It waits through
+platform startup, never overlaps requests, and stops with Ctrl+C. Idle ticks
+stay quiet; HTTP failures, timeouts, and failed room cleanup appear in logs.
+
+To run applications separately:
 
 ```bash
 pnpm --filter @agentcaller/platform dev
 pnpm --filter @agentcaller/docs dev
 pnpm --filter @agentcaller/voice-agent dev
+pnpm dev:scheduler
 ```
+
+Direct package dev commands do not start the scheduler. Production deployments
+need their own recurring drain trigger; the development script is local only.
 
 The voice worker dev command loads `apps/voice-agent/.env`. Values already set
 in the environment stay in place. The production start command does not read
 that file.
+
+## Deploying the voice worker
+
+The voice worker runs as a LiveKit Cloud agent. The root `livekit.toml` names
+the LiveKit project and agent ID, and the root `Dockerfile` builds only the
+worker. Both live at the repository root because the build needs the pnpm
+lockfile and `packages/contracts`. Deploy from the root with the
+[LiveKit CLI](https://docs.livekit.io/reference/developer-tools/livekit-cli/agent/):
+
+```bash
+lk agent deploy --skip-sdk-check
+lk agent status
+```
+
+The CLI uploads the root, excluding files matched by `.gitignore` or
+`.dockerignore`, and LiveKit Cloud builds the image. `--skip-sdk-check` skips a
+preflight that looks for `@livekit/agents` in the root package files; the
+dependency is declared in `apps/voice-agent/package.json`. The flag is hidden
+from `lk agent deploy --help` in CLI 2.18.8. Prebuilt images (`--image`) require
+an Enterprise LiveKit project, so this project builds from source.
+
+Each version is tagged with the current commit. Deploy from a clean, committed
+tree; a dirty tree only gets a tree hash, which is hard to trace back. When
+`packages/contracts` changes, deploy the worker before the platform so the
+active worker can parse newly admitted `connect_me` payloads (`callingWindow:
+"now"` and mobile business destinations).
+
+Production configuration comes from the agent's LiveKit secrets, not
+`apps/voice-agent/.env`. List their names with `lk agent secrets` and change
+them with `lk agent update-secrets`. The worker registers under
+`LIVEKIT_AGENT_NAME`. The platform's `LIVEKIT_AGENT_EU` and `LIVEKIT_AGENT_US`
+must each match a deployed agent's name, or those calls are never picked up.
+The `LIVEKIT_SIP_TRUNK_*` secrets must name outbound trunks in the same LiveKit
+project; check them with `lk sip outbound list`.
 
 ## Validation
 

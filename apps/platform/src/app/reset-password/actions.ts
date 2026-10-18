@@ -10,8 +10,11 @@ export async function updatePassword(
   _previous: ResetPasswordState,
   form: FormData,
 ): Promise<ResetPasswordState> {
-  const password = String(form.get("password") ?? "");
-  const confirmation = String(form.get("confirmation") ?? "");
+  const rawPassword = form.get("password");
+  const rawConfirmation = form.get("confirmation");
+  const password = typeof rawPassword === "string" ? rawPassword : "";
+  const confirmation =
+    typeof rawConfirmation === "string" ? rawConfirmation : "";
   const validationError = validateNewPassword(password, confirmation);
   if (validationError) return { error: validationError };
 

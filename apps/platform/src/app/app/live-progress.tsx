@@ -1,6 +1,9 @@
 "use client";
+
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+
 export function LiveProgress({ active }: { active: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -26,8 +29,11 @@ export function LiveProgress({ active }: { active: boolean }) {
     };
   }, [active, pending, router]);
   return (
-    <div className="phone-refresh">
-      <span role="status">
+    <div className="my-6 flex items-center justify-between gap-3">
+      <span
+        role="status"
+        className="min-w-0 text-sm leading-relaxed text-(--muted)"
+      >
         {offline
           ? "Offline — progress may be out of date"
           : active
@@ -35,10 +41,11 @@ export function LiveProgress({ active }: { active: boolean }) {
             : "Call history"}
       </span>
       <button
-        className="phone-secondary"
+        className="inline-flex min-h-12 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-(--muted) px-3 py-2 text-sm font-medium hover:bg-(--panel) disabled:cursor-wait disabled:opacity-60"
         disabled={pending}
         onClick={() => startTransition(() => router.refresh())}
       >
+        <RefreshCw size={16} aria-hidden="true" />
         {pending ? "Refreshing…" : "Refresh"}
       </button>
     </div>

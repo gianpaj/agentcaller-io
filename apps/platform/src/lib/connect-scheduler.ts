@@ -4,6 +4,7 @@ import { and, eq, gt, isNotNull, isNull, or, inArray, asc } from "drizzle-orm";
 import { database } from "./database";
 import { stopCall, dispatchConnectAttempt } from "./livekit";
 import { claimConnectAttempt, dueConnectJobs } from "./connect-me";
+import { logConnectFailure } from "./connect-log";
 
 const UNCERTAIN_CLEANUP = [
   "dial_unknown",
@@ -44,6 +45,14 @@ export async function cleanupConnectRooms(callId?: string) {
       stopCall(attempt.callbackRoom),
     ]);
     const failed = cleanup.filter((result) => result.status === "rejected");
+    cleanup.forEach((result, index) => {
+      if (result.status === "rejected")
+        logConnectFailure(
+          index === 0 ? "cleanup_business" : "cleanup_callback",
+          result.reason,
+          { callId: attempt.callId, attemptId: attempt.id },
+        );
+    });
     failedRooms += failed.length;
     if (failed.length === 0)
       await database()
@@ -59,19 +68,27 @@ export async function drainConnectJobs(dispatch = dispatchConnectAttempt) {
     let permitted = true;
     try {
       await authorizeOperatorCall(callId);
-    } catch {
+    } catch (error) {
+      logConnectFailure("authorize", error, { callId });
       permitted = false;
     }
-    const attempt = await claimConnectAttempt(
-      callId,
-      database(),
-      new Date(),
-      permitted,
-    );
+    let attempt;
+    try {
+      attempt = await claimConnectAttempt(
+        callId,
+        database(),
+        new Date(),
+        permitted,
+      );
+    } catch (error) {
+      logConnectFailure("claim_attempt", error, { callId });
+      throw error;
+    }
     if (!attempt) continue;
     try {
       await dispatch(callId, attempt.id, attempt.businessRoom);
-    } catch {
+    } catch (error) {
+      logConnectFailure("dispatch", error, { callId, attemptId: attempt.id });
       // Never dispatch twice after a timeout. Lease expiry terminates the attempt and cleans rooms.
       // A late worker must claim the durable attempt before it can dial.
     }

@@ -3,7 +3,19 @@
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**"] },
     "dev": { "cache": false, "persistent": true },
+    "@agentcaller/platform#dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["CRON_SECRET"],
+      "with": ["//#dev:scheduler"]
+    },
+    "//#dev:scheduler": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["CRON_SECRET"]
+    },
     "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
+    "lint": { "dependsOn": ["^build"], "outputs": [] },
     "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }
   }
 }

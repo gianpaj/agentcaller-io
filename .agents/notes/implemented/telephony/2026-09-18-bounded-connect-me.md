@@ -33,8 +33,10 @@ and attribution patterns, not an outbound workflow or current account evidence.
 - Use LiveKit SIP duration limits and scheduler cleanup. They are not verified
   Telnyx carrier guarantees. Repeat cleanup for ambiguous and cancelled attempts;
   do not infer failure from an empty room or resend a dial command.
-- Geographic business destinations and Spanish mobile callbacks only. Recording
-  is disabled. Independent authorized caller IDs prevent destination spoofing.
+- Spanish and Italian geographic or supported mobile business destinations;
+  callbacks remain Spanish mobile only. The [mobile destination decision](2026-09-28-mobile-business-destinations.md)
+  defines the expanded scope. Recording is disabled. Independent authorized
+  caller IDs prevent destination spoofing.
 - Bundle workspace TypeScript into the worker entrypoint; native SDK dependencies
   remain external. Avoid a second call-control system or cross-repository imports.
 

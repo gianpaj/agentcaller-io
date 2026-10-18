@@ -4,8 +4,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAuthCallbackUrl } from "@/lib/auth-redirect";
 
 export async function signIn(_previous: { error: string }, form: FormData) {
-  const email = String(form.get("email") ?? "").trim();
-  const password = String(form.get("password") ?? "");
+  const rawEmail = form.get("email");
+  const rawPassword = form.get("password");
+  const email = (typeof rawEmail === "string" ? rawEmail : "").trim();
+  const password = typeof rawPassword === "string" ? rawPassword : "";
   if (!email || email.length > 254 || !password || password.length > 1024)
     return { error: "Enter your email and password." };
   const supabase = await createSupabaseServerClient();

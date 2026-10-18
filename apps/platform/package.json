@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
+    "format": "oxfmt --write . && pnpm format:markdown",
+    "format:markdown": "prettier --no-error-on-unmatched-pattern --write \"**/*.{md,mdx}\"",
+    "format:check": "oxfmt --check . && prettier --no-error-on-unmatched-pattern --check \"**/*.{md,mdx}\""
   },
   "dependencies": {
     "@agentcaller/contracts": "workspace:*",
@@ -25,12 +30,16 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@shadcn/lint": "^0.2.0",
     "@tailwindcss/postcss": "^4.1.14",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "7.0.2003",
     "tailwindcss": "^4.1.14",
-    "typescript": "^6.0.3",
+    "typescript": "7.0.2",
     "vitest": "^4.1.11"
   }
 }

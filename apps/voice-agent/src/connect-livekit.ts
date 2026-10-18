@@ -57,8 +57,20 @@ export async function connectLiveKit(
       attemptId,
       action,
     });
-  const claim = claimSchema.safeParse(await request("claim"));
-  if (!claim.success || claim.data.input.task.type !== "connect_me") return;
+  const rawClaim = await request("claim");
+  const claim = claimSchema.safeParse(rawClaim);
+  if (!claim.success || claim.data.input.task.type !== "connect_me") {
+    console.error("Connect worker could not claim its attempt", {
+      stage: "claim",
+      callId,
+      attemptId,
+      failure: "claim_rejected_or_invalid",
+    });
+    if ((rawClaim as { allowed?: unknown } | null)?.allowed === true) {
+      await request("finish", { reason: "configuration_error" });
+    }
+    return;
+  }
   const input = { ...claim.data.input, task: claim.data.input.task };
   const task = input.task;
   const abort = new AbortController();
@@ -73,6 +85,11 @@ export async function connectLiveKit(
   const pending: Promise<unknown>[] = [];
   const config = configSchema.safeParse(process.env);
   if (!config.success) {
+    console.error("Connect worker configuration is invalid", {
+      callId,
+      attemptId,
+      fields: config.error.issues.map((issue) => issue.path.join(".")),
+    });
     await request("finish", { reason: "configuration_error" });
     return;
   }
@@ -92,7 +109,12 @@ export async function connectLiveKit(
     business: claim.data.businessRoom,
     callback: claim.data.callbackRoom,
   };
-  if (ctx.room.name !== rooms.business) {
+  // The RTC room name is unavailable until connect; the assigned job has it.
+  if (ctx.job.room?.name !== rooms.business) {
+    console.error("Connect worker room does not match its authorized attempt", {
+      callId,
+      attemptId,
+    });
     await request("finish", { reason: "configuration_error" });
     return;
   }
@@ -185,6 +207,7 @@ export async function connectLiveKit(
     return s;
   };
   let businessSession: voice.AgentSession;
+  let setupStage = "trunk_lookup";
   try {
     const trunks = await sip.listSipOutboundTrunk({
       trunkIds: [env.LIVEKIT_SIP_TRUNK_EU],
@@ -192,9 +215,11 @@ export async function connectLiveKit(
     const trunk = trunks.find((t) => t.sipTrunkId === env.LIVEKIT_SIP_TRUNK_EU);
     if (!trunk || trunk.address !== "sip.telnyx.eu" || !trunk.authUsername)
       throw new CallStopped("configuration_error");
+    setupStage = "room_connect";
     await ctx.connect();
     watch(ctx.room);
     watch(callbackRoom);
+    setupStage = "call_flow";
     await runConnectFlow(input, {
       signal: abort.signal,
       command,
@@ -271,6 +296,16 @@ export async function connectLiveKit(
           const reason = sipFailure(
             error instanceof SipCallError ? error.sipStatusCode : undefined,
           );
+          console.error("Connect dial failed", {
+            stage: "dial",
+            callId,
+            attemptId,
+            leg,
+            reason,
+            ...(error instanceof SipCallError
+              ? { sipStatusCode: error.sipStatusCode }
+              : {}),
+          });
           throw new CallStopped(
             leg === "callback" && ["busy", "no_answer"].includes(reason)
               ? "callback_timeout"
@@ -439,7 +474,22 @@ export async function connectLiveKit(
           finishConversation = resolve;
         }),
     });
-  } catch {
+  } catch (error) {
+    const details = error && typeof error === "object" ? error : {};
+    const status = "status" in details ? details.status : undefined;
+    const name = "name" in details ? details.name : undefined;
+    console.error("Connect worker setup failed", {
+      callId,
+      attemptId,
+      stage: setupStage,
+      ...(typeof status === "number" && status >= 100 && status <= 599
+        ? { status }
+        : {}),
+      failure:
+        name === "TimeoutError" || name === "AbortError"
+          ? "timeout"
+          : "request_failed",
+    });
     await cleanup();
     await command("finish", { reason: "configuration_error" });
   } finally {
