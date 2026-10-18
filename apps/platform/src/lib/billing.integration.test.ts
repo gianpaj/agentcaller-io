@@ -20,6 +20,8 @@ import {
   billingPeriods,
   billingCallUsage,
   billingAuditEvents,
+  callAttempts,
+  callLegs,
   billingSetupRequests,
   rateCards,
 } from "@agentcaller/database";
@@ -44,6 +46,8 @@ import {
   reserveStripeCall,
   finalizeStripeUsage,
 } from "./billing-usage";
+import { revokeBillingAccess, updateBillingLimits } from "./billing-controls";
+import { claimConnectAttempt, connectCommand } from "./connect-me";
 import type { AgentPrincipal } from "@agentcaller/contracts";
 
 const url = process.env.BILLING_TEST_DATABASE_URL;
@@ -412,17 +416,15 @@ run("agent onboarding with disposable PostgreSQL", () => {
       credentialKind: "oauth",
       operations: [...connection.operations] as AgentPrincipal["operations"],
     };
-    await first.db
-      .insert(rateCards)
-      .values({
-        country: "ES",
-        version: randomUUID(),
-        currency: "USD",
-        stripePricingVersion: "offline-v1",
-        active: true,
-        connectionFeeMicros: 10000,
-        startedMinuteFeeMicros: 10000,
-      });
+    await first.db.insert(rateCards).values({
+      country: "ES",
+      version: randomUUID(),
+      currency: "USD",
+      stripePricingVersion: "offline-v1",
+      active: true,
+      connectionFeeMicros: 10000,
+      startedMinuteFeeMicros: 10000,
+    });
     return { uid, owner, connection, principal };
   }
   function fakeStripe() {
@@ -669,5 +671,140 @@ run("agent onboarding with disposable PostgreSQL", () => {
       state: "released",
       finalCents: 0,
     });
+  });
+  it("serializes competing reservations against the shared monthly allowance", async () => {
+    const { principal, owner, uid } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    await updateBillingLimits(
+      owner.id,
+      uid,
+      {
+        monthlyLimitCents: quote.maximumCents + 1,
+        perCallLimitCents: quote.maximumCents,
+      },
+      undefined,
+      first.db,
+      now,
+    );
+    const input = { ...callIntent(), quoteVersion: quote.quoteVersion };
+    const results = await Promise.allSettled([
+      reserveStripeCall(principal, "one", input, first.db, now),
+      reserveStripeCall(principal, "two", input, second.db, now),
+    ]);
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      (await first.db.select().from(billingPeriods))[0]?.reservedCents,
+    ).toBe(quote.maximumCents);
+    await expect(
+      updateBillingLimits(
+        owner.id,
+        uid,
+        { monthlyLimitCents: 1, perCallLimitCents: 1 },
+        undefined,
+        first.db,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+  it("blocks worker permissions after revocation and retains late accounting observations", async () => {
+    const { principal, owner, connection } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    const call = await reserveStripeCall(
+      principal,
+      "call",
+      { ...callIntent(), quoteVersion: quote.quoteVersion },
+      first.db,
+      now,
+    );
+    const attempt = await claimConnectAttempt(call.id, first.db, now);
+    expect(attempt).toBeTruthy();
+    const workerId = randomUUID();
+    const command = (
+      action: "claim" | "dial" | "connected" | "ended",
+      at?: string,
+    ) =>
+      connectCommand(
+        call.id,
+        {
+          action,
+          eventId: randomUUID(),
+          attemptId: attempt!.id,
+          workerId,
+          leg: "business",
+          ...(at ? { at, sipCallId: "offline-sip" } : {}),
+        },
+        first.db,
+        new Date(now.getTime() + 60_000),
+      );
+    expect(await command("claim")).toMatchObject({ allowed: true });
+    expect(await command("dial")).toMatchObject({ allowed: true });
+    await first.db
+      .update(callLegs)
+      .set({ createdAt: now })
+      .where(eq(callLegs.attemptId, attempt!.id));
+    await revokeBillingAccess(owner.id, connection.id, false, second.db, now);
+    expect(await command("dial")).toMatchObject({ allowed: false });
+    await first.db
+      .update(callAttempts)
+      .set({ roomsCleanedAt: now })
+      .where(eq(callAttempts.id, attempt!.id));
+    expect(await finalizeStripeUsage(call.id, first.db, now)).toMatchObject({
+      state: "metering_pending",
+    });
+    expect(await command("connected", now.toISOString())).toMatchObject({
+      allowed: true,
+    });
+    expect(
+      await command("ended", new Date(now.getTime() + 60_000).toISOString()),
+    ).toMatchObject({ allowed: true });
+    await Promise.all([
+      finalizeStripeUsage(call.id, first.db, now),
+      finalizeStripeUsage(call.id, second.db, now),
+    ]);
+    expect((await first.db.select().from(calls))[0]?.state).toBe("cancelled");
+    expect((await first.db.select().from(billingCallUsage))[0]).toMatchObject({
+      state: "finalized",
+      finalCents: 2,
+    });
+  });
+  it("cannot activate a revoked grant from a delayed successful Checkout", async () => {
+    const { principal, uid, owner, connection } = await enrollment(),
+      stripe = fakeStripe();
+    const setup = await createBillingSetup(
+      principal,
+      "setup",
+      "enroll",
+      first.db,
+      now,
+    );
+    await approveBillingSetup(
+      setup.setupRequestId,
+      uid,
+      "offline@example.test",
+      { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
+      { agreementVersion: "monthly-usage-v1", pricingVersion: "offline-v1" },
+      first.db,
+      now,
+    );
+    await beginBillingCheckout(
+      setup.setupRequestId,
+      uid,
+      stripe.sdk,
+      first.db,
+      now,
+    );
+    await revokeBillingAccess(owner.id, connection.id, true, second.db, now);
+    stripe.complete();
+    await reconcileCheckoutSession("cs_offline", stripe.sdk, first.db, now);
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.status,
+    ).toBe("revoked");
+    expect(
+      (await first.db.select().from(billingAccounts))[0]?.paymentMethodId,
+    ).toBeNull();
   });
 });

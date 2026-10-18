@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   database: vi.fn(),
 }));
-vi.mock("./operator-funding", () => ({
-  authorizeOperatorCall: mocks.authorize,
+vi.mock("./billing-authority", () => ({
+  authorizeConnectFunding: mocks.authorize,
 }));
 vi.mock("./connect-me", () => ({
   claimConnectAttempt: mocks.claim,

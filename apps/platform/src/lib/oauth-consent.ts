@@ -129,16 +129,6 @@ export async function revokeAgentConnection(
   db = database(),
   now = new Date(),
 ) {
-  const [connection] = await db
-    .update(agentConnections)
-    .set({ status: "revoked", revokedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(agentConnections.clientId, clientId),
-        eq(agentConnections.id, z.uuid().parse(connectionId)),
-        eq(agentConnections.status, "active"),
-      ),
-    )
-    .returning();
-  return connection ?? null;
+  const { revokeBillingAccess } = await import("./billing-controls");
+  return revokeBillingAccess(clientId, connectionId, true, db, now);
 }

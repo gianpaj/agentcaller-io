@@ -47,8 +47,16 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   under the shared account lock. Accepted-key replay precedes mutable quote and
   schedule checks. Unknown connected usage retains its hold; confirmed terminal
   jobs without dial intents release their reservation exactly once.
-- Paid calling remains disabled. Worker authorization, human spending controls,
-  event processing and monthly issuance are the remaining integration work.
+- Worker dispatch, claims and permissions check current account, connection,
+  credential, grant, reservation and UTC period authority. The account lock
+  serializes revocation with dialing permissions. Revocation cancels queued and
+  active calls; cleanup runs through the scheduler. Confirmed late observations
+  may settle held usage without reopening a terminal call.
+- Human control functions reject limit reductions below committed liabilities,
+  revoke spending separately from tool access, withdraw collection consent and
+  explicitly link an owned API key to an owned integration.
+- Paid calling remains disabled. Human control screens, event processing and
+  monthly issuance are the remaining integration work.
 - Billing contracts require cents and accepted quote versions, preserve legacy
   dollar inputs and reject mixed money/claimed authority. Domain functions cover
   full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
@@ -79,7 +87,7 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 - Workspace typecheck, tests and build pass across all five packages. Offline
   tests pass: platform 327, contracts 98, worker 41, database 2 and scheduler 6.
-- Disposable PostgreSQL passes 11 onboarding/enrollment/reservation tests and 46 existing
+- Disposable PostgreSQL passes 14 onboarding/enrollment/reservation tests and 46 existing
   connect tests, including upgrades with a historical x402 call. Tests use
   independent connections; OAuth profile ownership and event RLS are enforced.
 - Lint exits successfully with zero findings. The shadcn plugin reports that its

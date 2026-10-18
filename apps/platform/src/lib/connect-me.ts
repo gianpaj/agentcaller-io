@@ -19,6 +19,8 @@ import {
 import { and, eq, isNull, lte, asc } from "drizzle-orm";
 import { database } from "./database";
 import { ApiError } from "./auth";
+import { lockCallBillingAccount } from "./billing-store";
+import { stripeCallAuthority } from "./billing-authority";
 import { attemptReserve, quotedCost } from "./connect-policy";
 
 type DB = ReturnType<typeof database>;
@@ -66,6 +68,7 @@ export async function connectCommand(
   now = new Date(),
 ) {
   return db.transaction(async (tx) => {
+    await lockCallBillingAccount(tx, callId);
     const [call] = await tx
       .select()
       .from(calls)
@@ -95,15 +98,28 @@ export async function connectCommand(
       .from(connectJobs)
       .where(eq(connectJobs.callId, callId));
     if (!job) throw new ApiError(409, "Missing job");
+    const authority = await stripeCallAuthority(tx, call, now);
+    if (
+      authority &&
+      !authority.allowed &&
+      !["connected", "ended", "finish"].includes(event.action)
+    )
+      return { allowed: false };
     // Even a replayed permission must not authorize work after cancellation or worker loss.
     const expired = now.getTime() >= Date.parse(task.expiresAt);
     // Ended observations and finish stay open after expiry so the worker can
     // record disconnection usage and hang up with the real reason.
+    const observation =
+      call.fundingSource === "stripe_postpaid" &&
+      ["connected", "ended"].includes(event.action);
     if (
-      call.endedAt ||
-      attempt.endedAt ||
-      now.getTime() - attempt.heartbeatAt.getTime() > 90_000 ||
-      (expired && event.action !== "finish" && event.action !== "ended")
+      (!observation && (call.endedAt || attempt.endedAt)) ||
+      (!observation &&
+        now.getTime() - attempt.heartbeatAt.getTime() > 90_000) ||
+      (expired &&
+        !observation &&
+        event.action !== "finish" &&
+        event.action !== "ended")
     )
       return { allowed: false };
     if (
@@ -127,6 +143,18 @@ export async function connectCommand(
     const leg = legs.find((v) => v.kind === event.leg);
     const business = legs.find((v) => v.kind === "business");
     const callback = legs.find((v) => v.kind === "callback");
+    if (observation) {
+      const at = event.at ? new Date(event.at) : null;
+      if (
+        !leg ||
+        !at ||
+        at < leg.createdAt ||
+        at.getTime() > now.getTime() + 5000 ||
+        at > attempt.cleanupUntil ||
+        (event.sipCallId && leg.sipCallId && event.sipCallId !== leg.sipCallId)
+      )
+        return { allowed: false };
+    }
     let allowed = true;
     switch (event.action) {
       case "claim":
@@ -177,12 +205,17 @@ export async function connectCommand(
         }
         break;
       case "connected":
-        allowed = !!leg && leg.state === "intent" && !!event.at;
+        allowed =
+          !!leg &&
+          !leg.connectedAt &&
+          (leg.state === "intent" || observation) &&
+          !!event.at &&
+          (!leg.endedAt || new Date(event.at) <= leg.endedAt);
         if (allowed)
           await tx
             .update(callLegs)
             .set({
-              state: "connected",
+              state: leg!.endedAt ? "ended" : "connected",
               connectedAt: new Date(event.at!),
               sipCallId: event.sipCallId,
             })
@@ -256,11 +289,17 @@ export async function connectCommand(
         // A closed window defers to the next open minute instead of cancelling the job.
         const preAnswer =
           !business?.connectedAt && !callback && attempt.state === "running";
-        const retry = !preAnswer
+        const candidateRetry = !preAnswer
           ? null
           : event.reason === "outside_window"
             ? nextWindowStart(task, now)
             : retryTime(task, attempt.ordinal, event.reason, now);
+        const retry =
+          candidateRetry &&
+          (!authority || candidateRetry < authority.endsAt) &&
+          (!authority || authority.allowed)
+            ? candidateRetry
+            : null;
         await tx
           .update(callAttempts)
           .set({ state: "terminal", reason: event.reason, endedAt: now })
@@ -332,6 +371,7 @@ export async function claimConnectAttempt(
   allowNewAttempt = true,
 ) {
   return db.transaction(async (tx) => {
+    await lockCallBillingAccount(tx, callId);
     const [call] = await tx
       .select()
       .from(calls)
@@ -342,7 +382,9 @@ export async function claimConnectAttempt(
       call.endedAt ||
       (call.fundingSource === "operator"
         ? call.paymentState !== "not_required"
-        : call.paymentState !== "authorized")
+        : call.fundingSource === "stripe_postpaid"
+          ? call.paymentState !== "accruing"
+          : call.paymentState !== "authorized")
     )
       return null;
     const [job] = await tx
@@ -361,6 +403,17 @@ export async function claimConnectAttempt(
       .set({ updatedAt: now })
       .where(eq(connectJobs.callId, callId));
     const task = input.task;
+    const authority = await stripeCallAuthority(tx, call, now);
+    if (authority && !authority.allowed) {
+      await tx
+        .update(callAttempts)
+        .set({ state: "terminal", endedAt: now, reason: "cancelled" })
+        .where(
+          and(eq(callAttempts.callId, callId), isNull(callAttempts.endedAt)),
+        );
+      await terminal(tx, callId, "cancelled", now);
+      return null;
+    }
     const [active] = await tx
       .select()
       .from(callAttempts)
@@ -437,6 +490,7 @@ export async function cancelConnect(
   db = database(),
 ) {
   return db.transaction(async (tx) => {
+    await lockCallBillingAccount(tx, callId);
     const [call] = await tx
       .select()
       .from(calls)

@@ -3,7 +3,7 @@ import { timingSafeCompare, ApiError } from "@/lib/auth";
 import { getAgentCallbackEnv } from "@/lib/env";
 import { errorResponse } from "@/lib/http";
 import { connectCommand } from "@/lib/connect-me";
-import { authorizeOperatorCall } from "@/lib/operator-funding";
+import { authorizeConnectFunding } from "@/lib/billing-authority";
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -21,7 +21,7 @@ export async function POST(
     if (
       ["claim", "heartbeat", "dial", "accept", "bridged"].includes(event.action)
     )
-      await authorizeOperatorCall(id);
+      await authorizeConnectFunding(id);
     return Response.json(await connectCommand(id, event));
   } catch (error) {
     return errorResponse(error);

@@ -47,8 +47,8 @@ export async function dispatchConnectAttempt(
   attemptId: string,
   room: string,
 ) {
-  const { authorizeOperatorCall } = await import("./operator-funding");
-  await authorizeOperatorCall(callId);
+  const { authorizeConnectFunding } = await import("./billing-authority");
+  await authorizeConnectFunding(callId);
   if (!dispatchClient)
     dispatchClient = new AgentDispatchClient(...credentials());
   await dispatchClient.createDispatch(room, getLiveKitEnv().LIVEKIT_AGENT_EU, {
