@@ -171,9 +171,10 @@ the legacy single-leg settlement helper.
 
 ### Setup
 
-Apply migrations in order and deploy the platform and bundled voice worker.
-Both deployments must use contracts that accept `callingWindow: "now"` before
-using Call now; a weekly-window-only worker cannot parse that task.
+Apply migrations in order and deploy the bundled voice worker before the
+platform when shared contracts change. Both deployments must use contracts that
+accept `callingWindow: "now"` and the supported mobile destination ranges before
+submitting those calls; an older worker cannot parse those tasks.
 Configure the worker's `.env.example` values server-side. Use an authenticated
 LiveKit outbound trunk targeting Telnyx's documented European signaling endpoint
 [`sip.telnyx.eu`](https://sip.telnyx.com/), with SIP credentials and authorized

@@ -305,7 +305,10 @@ from `lk agent deploy --help` in CLI 2.18.8. Prebuilt images (`--image`) require
 an Enterprise LiveKit project, so this project builds from source.
 
 Each version is tagged with the current commit. Deploy from a clean, committed
-tree; a dirty tree only gets a tree hash, which is hard to trace back.
+tree; a dirty tree only gets a tree hash, which is hard to trace back. When
+`packages/contracts` changes, deploy the worker before the platform so the
+active worker can parse newly admitted `connect_me` payloads (`callingWindow:
+"now"` and mobile business destinations).
 
 Production configuration comes from the agent's LiveKit secrets, not
 `apps/voice-agent/.env`. List their names with `lk agent secrets` and change

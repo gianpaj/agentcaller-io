@@ -376,3 +376,21 @@ it("keeps a pre-answer disconnect from hiding the definitive busy outcome", asyn
     sipStatusCode: 486,
   });
 });
+
+it("finishes with configuration_error when an allowed claim fails schema parsing", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  state.input = { ...state.input, destination: "invalid-destination" };
+  await run();
+  expect(log).toHaveBeenCalledWith(
+    "Connect worker could not claim its attempt",
+    {
+      stage: "claim",
+      callId: state.callId,
+      attemptId: state.attemptId,
+      failure: "claim_rejected_or_invalid",
+    },
+  );
+  expect(state.dials).toHaveLength(0);
+  expect(state.commands.map((c) => c.action)).toEqual(["claim", "finish"]);
+  expect(state.commands[1].reason).toBe("configuration_error");
+});
