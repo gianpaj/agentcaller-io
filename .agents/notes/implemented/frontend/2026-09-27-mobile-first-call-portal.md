@@ -40,6 +40,8 @@ contract errors to readable field messages. The form focuses the first invalid
 control and expands advanced limits when needed; general failures focus the
 error summary. Client validation does not replace server authorization.
 
+New calls default to the [Call now mode](2026-09-28-call-now-mode.md).
+Choosing calling hours shows the schedule controls and retry limits.
 The schedule uses a location selector, explicit calling days with Mon–Fri and
 Every day shortcuts, native time controls, and a local date-time deadline.
 No opening hours are inferred. The selected business timezone governs both the
