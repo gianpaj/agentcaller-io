@@ -639,7 +639,7 @@ export function CallForm({
                   onChange: (event) =>
                     setSchedule({ ...schedule, expiresAt: event.target.value }),
                 },
-                `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline. Redial needs a fresh deadline.`,
+                `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline, and calls in progress also end at this time. Redial needs a fresh deadline.`,
               )}
               <p role="status" className="text-sm leading-6 text-[var(--ink)]">
                 {scheduleComplete
