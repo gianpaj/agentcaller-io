@@ -90,12 +90,14 @@ export function CallForm({
     async (previous: CallFormState, form: FormData): Promise<CallFormState> => {
       try {
         if (form.get("scheduleMode") === "now") {
-          // Use server time once, then retain the deadline even if submission
-          // fails in transit. The browser clock is only used for preflight.
+          // Retain the server deadline only across an uncertain transport
+          // failure; reset it once the server returns a definitive rejection.
           immediateExpiresAt.current ??= await getCallNowDeadline();
           form.set("immediateExpiresAt", immediateExpiresAt.current);
         }
-        return await startCall(previous, form);
+        const next = await startCall(previous, form);
+        immediateExpiresAt.current = null;
+        return next;
       } catch (error) {
         unstable_rethrow(error);
         return {
@@ -387,6 +389,7 @@ export function CallForm({
                       : undefined
                   }
                   onChange={() => {
+                    immediateExpiresAt.current = null;
                     setScheduleMode(value!);
                     setLocalError(emptyState);
                   }}

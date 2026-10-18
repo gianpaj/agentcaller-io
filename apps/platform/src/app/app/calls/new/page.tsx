@@ -39,6 +39,7 @@ export default async function NewCallPage({
     });
     if (parsed.success) initial = parsed.data;
   }
+  const idempotencyKey = randomUUID();
   return (
     <>
       <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-3">
@@ -59,9 +60,10 @@ export default async function NewCallPage({
         The assistant reaches the business, then connects you on your mobile.
       </p>
       <CallForm
+        key={idempotencyKey}
         initial={initial}
         redialOf={redial}
-        idempotencyKey={randomUUID()}
+        idempotencyKey={idempotencyKey}
         enabled={
           profile.isOperator &&
           process.env.CONNECT_OPERATOR_CALLS_ENABLED === "true"

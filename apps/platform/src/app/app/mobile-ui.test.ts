@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   pathname: "/app",
   startCall: vi.fn(),
+  getCallNowDeadline: vi.fn(),
+  rethrow: vi.fn(),
+  capturedAction: null as null | ((previous: any, form: FormData) => Promise<any>),
   refresh: vi.fn(),
   listCallHistory: vi.fn(),
   parseCursor: vi.fn(),
@@ -17,21 +20,20 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
-  useActionState: (_action: unknown, initial: unknown) => [
-    mocks.formState ?? initial,
-    mocks.startCall,
-    false,
-  ],
+  useActionState: (action: any, initial: unknown) => {
+    mocks.capturedAction = action;
+    return [mocks.formState ?? initial, mocks.startCall, false];
+  },
 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
   useRouter: () => ({ refresh: mocks.refresh }),
-  unstable_rethrow: vi.fn(),
+  unstable_rethrow: mocks.rethrow,
 }));
 vi.mock("./calls/new/actions", () => ({
   startCall: mocks.startCall,
-  getCallNowDeadline: vi.fn(),
+  getCallNowDeadline: mocks.getCallNowDeadline,
 }));
 vi.mock("@/lib/portal", () => ({
   requireClientProfile: async () => ({ id: "ui-test-client" }),
@@ -43,6 +45,7 @@ vi.mock("@/lib/call-history", () => ({
 
 import { CallNavigation } from "./call-navigation";
 import { CallForm } from "./calls/new/call-form";
+import NewCallPage from "./calls/new/page";
 import HistoryPage from "./page";
 
 function openingTag(markup: string, name: string) {
@@ -376,5 +379,45 @@ describe("new-call presentation safeguards", () => {
     expect(openingTag(markup, "redialOf")).toContain('value="previous-call"');
     expect(markup).toContain("Confirm and redial");
     expect(mocks.startCall).not.toHaveBeenCalled();
+  });
+  it("retains the server deadline across transport errors and resets it after a returned rejection", async () => {
+    renderForm(true);
+    mocks.getCallNowDeadline
+      .mockResolvedValueOnce("2026-07-01T12:30:00.000Z")
+      .mockResolvedValueOnce("2026-07-01T12:50:00.000Z");
+    mocks.startCall
+      .mockRejectedValueOnce(new Error("Transport lost"))
+      .mockResolvedValueOnce({ error: "Active-call limit reached", fieldErrors: {} })
+      .mockResolvedValueOnce({ error: "", fieldErrors: {} });
+
+    const first = new FormData();
+    first.set("scheduleMode", "now");
+    const transportState = await mocks.capturedAction!(
+      { error: "", fieldErrors: {} },
+      first,
+    );
+    expect(transportState.error).toMatch(/Could not confirm submission/);
+    expect(first.get("immediateExpiresAt")).toBe("2026-07-01T12:30:00.000Z");
+    expect(mocks.rethrow).toHaveBeenCalledTimes(1);
+
+    const retry = new FormData();
+    retry.set("scheduleMode", "now");
+    const rejected = await mocks.capturedAction!(transportState, retry);
+    expect(rejected.error).toBe("Active-call limit reached");
+    expect(retry.get("immediateExpiresAt")).toBe("2026-07-01T12:30:00.000Z");
+
+    const fresh = new FormData();
+    fresh.set("scheduleMode", "now");
+    await mocks.capturedAction!(rejected, fresh);
+    expect(fresh.get("immediateExpiresAt")).toBe("2026-07-01T12:50:00.000Z");
+    expect(mocks.getCallNowDeadline).toHaveBeenCalledTimes(2);
+  });
+
+  it("keys CallForm on the generated idempotency key", async () => {
+    const element = await NewCallPage({ searchParams: Promise.resolve({}) });
+    const formElement = (element.props.children as any[]).find(
+      (child) => child?.type === CallForm,
+    );
+    expect(formElement?.key).toBe(formElement?.props.idempotencyKey);
   });
 });
