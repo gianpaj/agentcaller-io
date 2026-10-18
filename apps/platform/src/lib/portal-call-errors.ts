@@ -120,7 +120,10 @@ export function portalCallError(error: ZodError): CallFormState {
   const issues = error.issues.flatMap((issue) =>
     issue.code === "invalid_union" &&
     issue.path.join(".") === "task.callingWindow"
-      ? (issue.errors[0] ?? [issue])
+      ? (issue.errors[0]?.map((nested) => ({
+          ...nested,
+          path: [...issue.path, ...nested.path],
+        })) ?? [issue])
       : [issue],
   );
   for (const issue of issues) {

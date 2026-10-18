@@ -441,6 +441,17 @@ describe("portalCallInput contract and readable errors", () => {
     expect(errors(form({ [field]: value })).fieldErrors[field]).toBeTruthy();
   });
 
+
+  it("maps non-numeric weekdays and invalid timezone together to their fields", () => {
+    const data = form({ timezone: "Invalid/Zone" });
+    data.delete("weekdays");
+    data.append("weekdays", "x");
+    const result = errors(data);
+    expect(result.fieldErrors.weekdays).toMatch(/permitted weekday/);
+    expect(result.fieldErrors.timezone).toMatch(/valid timezone/);
+    expect(result.error).not.toMatch(/Could not validate the call/);
+  });
+
   it("maps invalid weekday array entries to the checkbox group", () => {
     const data = form();
     data.append("weekdays", "8");
