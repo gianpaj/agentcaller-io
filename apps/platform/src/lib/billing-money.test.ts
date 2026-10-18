@@ -53,6 +53,9 @@ describe("confirmed connected usage", () => {
     ).toMatchObject({ measuredMicros: "11000", finalCents: 2 });
   });
   it("keeps unknown metering and pending cleanup unresolved", () => {
+    expect(assessCallUsage([], 100, true)).toEqual({
+      state: "metering_pending",
+    });
     expect(assessCallUsage([{ state: "unknown" }], 100, true)).toEqual({
       state: "metering_pending",
     });

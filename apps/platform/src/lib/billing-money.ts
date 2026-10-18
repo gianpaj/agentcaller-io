@@ -64,7 +64,11 @@ export function assessCallUsage(
   cleanupConfirmed: boolean,
 ) {
   centsSchema.parse(reservedCents);
-  if (!cleanupConfirmed || legs.some((leg) => leg.state === "unknown"))
+  if (
+    !cleanupConfirmed ||
+    legs.length === 0 ||
+    legs.some((leg) => leg.state === "unknown")
+  )
     return { state: "metering_pending" as const };
   let micros = 0n;
   for (const leg of legs) {
