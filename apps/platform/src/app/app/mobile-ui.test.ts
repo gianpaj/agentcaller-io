@@ -369,6 +369,8 @@ describe("new-call presentation safeguards", () => {
     expect(openingTag(markup, "handoffSeconds")).toContain(
       'aria-invalid="true"',
     );
+    expect(markup).toMatch(/<details[^>]*open=""/);
+    expect(markup).toContain("Allow enough time for the callback.");
     expect(markup).not.toContain("task.callingWindow");
   });
 

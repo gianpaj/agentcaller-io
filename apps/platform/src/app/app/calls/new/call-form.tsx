@@ -105,13 +105,15 @@ export function CallForm({
             "Could not confirm submission. Check Recents, then retry this same form to avoid a duplicate call.",
           fieldErrors: {},
         };
+      } finally {
+        setLocalError(null);
       }
     },
     emptyState,
   );
   const [localError, setLocalError] = useState<CallFormState | null>(null);
   const [confirmForm, setConfirmForm] = useState<FormData | undefined>(undefined);
-  const feedback = localError ?? state;
+  const feedback = pending ? emptyState : (localError ?? state);
   const formRef = useRef<HTMLFormElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const confirmCancelRef = useRef<HTMLButtonElement>(null);
@@ -137,12 +139,15 @@ export function CallForm({
 
   useEffect(() => {
     if (!feedback.error || pending) return;
-    const invalid = formRef.current?.querySelector<HTMLElement>(
-      '[aria-invalid="true"]:not(:disabled)',
-    );
-    const details = invalid?.closest("details");
-    if (details) details.open = true;
-    (invalid ?? summaryRef.current)?.focus();
+    const invalids =
+      formRef.current?.querySelectorAll<HTMLElement>(
+        '[aria-invalid="true"]:not(:disabled)',
+      ) ?? [];
+    for (const element of invalids) {
+      const details = element.closest("details");
+      if (details) details.open = true;
+    }
+    (invalids[0] ?? summaryRef.current)?.focus();
   }, [feedback, pending]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -170,7 +175,7 @@ export function CallForm({
       );
       return;
     }
-    setLocalError(null);
+    setLocalError(emptyState);
     if (
       parsed.task.type === "connect_me" &&
       parsed.destination === parsed.task.callbackNumber
@@ -238,6 +243,9 @@ export function CallForm({
   const timezoneLabel =
     timezones.find(([value]) => value === schedule.timezone)?.[1] ??
     schedule.timezone;
+  const hasAdvancedError =
+    limits.some(([name]) => Boolean(feedback.fieldErrors[name])) ||
+    Boolean(feedback.fieldErrors.maxIvrDigits);
   const scheduleComplete =
     schedule.weekdays.length > 0 &&
     schedule.timezone &&
@@ -331,13 +339,11 @@ export function CallForm({
               ? "Check the highlighted fields, then try again."
               : feedback.error}
           </p>
-          {Object.entries(feedback.fieldErrors)
-            .filter(
-              ([name]) => name === "idempotencyKey" || name === "redialOf",
-            )
-            .map(([name, message]) => (
-              <p key={name}>{message}</p>
-            ))}
+          {Object.entries(feedback.fieldErrors).map(([name, message]) => (
+            <p key={name} className="mt-1">
+              {message}
+            </p>
+          ))}
         </div>
       )}
       <fieldset
@@ -683,7 +689,10 @@ export function CallForm({
             Each new job has its own cap. Operator funding pays provider charges
             without x402.
           </p>
-          <details className="min-w-0 border-t border-[var(--line)] pt-5">
+          <details
+            open={hasAdvancedError || undefined}
+            className="min-w-0 border-t border-[var(--line)] pt-5"
+          >
             <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-[var(--ink)] hover:text-[var(--signal)]">
               Duration and IVR limits
             </summary>
