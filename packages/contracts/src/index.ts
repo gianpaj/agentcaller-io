@@ -6,6 +6,7 @@ import {
 } from "./connect-me";
 export * from "./connect-me";
 export * from "./agent-auth";
+export * from "./billing";
 
 export const supportedCountries = ["ES", "US", "IT"] as const;
 export const languages = ["en", "es", "it"] as const;
@@ -65,50 +66,68 @@ export const callTaskSchema = z.discriminatedUnion("type", [
   connectMeTaskSchema,
 ]);
 
-export const createCallSchema = z
-  .object({
-    destination: z
-      .string()
-      .regex(/^\+[1-9]\d{7,14}$/, "Use an E.164 phone number"),
-    destinationCountry: z.enum(supportedCountries),
-    language: z.enum(languages),
-    voiceId: z.string().trim().min(1).max(80).optional(),
-    maxDurationSeconds: z.number().int().min(60).max(1800),
-    maxAmountUsd: moneySchema,
-    clientReference: z.string().trim().max(120).optional(),
-    task: callTaskSchema,
-  })
-  .superRefine((input, ctx) => {
-    if (input.task.type === "connect_me") {
-      const destinationError = businessDestinationError(
-        input.destination,
-        input.destinationCountry,
-      );
-      if (destinationError)
-        ctx.addIssue({
-          code: "custom",
-          path: ["destination"],
-          message: destinationError,
-        });
-      if (!["es", "it"].includes(input.language))
-        ctx.addIssue({
-          code: "custom",
-          path: ["language"],
-          message: "Business language must be es or it",
-        });
-      if (input.maxDurationSeconds < legLimit(input.task, "business"))
-        ctx.addIssue({
-          code: "custom",
-          path: ["maxDurationSeconds"],
-          message: "Duration must cover waiting, handoff and conversation",
-        });
-    } else if (input.destinationCountry === "IT" || input.language === "it") {
+const callInputBase = z.object({
+  destination: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/, "Use an E.164 phone number"),
+  destinationCountry: z.enum(supportedCountries),
+  language: z.enum(languages),
+  voiceId: z.string().trim().min(1).max(80).optional(),
+  maxDurationSeconds: z.number().int().min(60).max(1800),
+  clientReference: z.string().trim().max(120).optional(),
+  task: callTaskSchema,
+});
+
+function validateCallPolicy(
+  input: z.infer<typeof callInputBase>,
+  ctx: z.RefinementCtx,
+) {
+  if (input.task.type === "connect_me") {
+    const destinationError = businessDestinationError(
+      input.destination,
+      input.destinationCountry,
+    );
+    if (destinationError)
       ctx.addIssue({
         code: "custom",
-        message: "Italy and Italian are restricted to connect_me",
+        path: ["destination"],
+        message: destinationError,
       });
-    }
-  });
+    if (!["es", "it"].includes(input.language))
+      ctx.addIssue({
+        code: "custom",
+        path: ["language"],
+        message: "Business language must be es or it",
+      });
+    if (input.maxDurationSeconds < legLimit(input.task, "business"))
+      ctx.addIssue({
+        code: "custom",
+        path: ["maxDurationSeconds"],
+        message: "Duration must cover waiting, handoff and conversation",
+      });
+  } else if (input.destinationCountry === "IT" || input.language === "it") {
+    ctx.addIssue({
+      code: "custom",
+      message: "Italy and Italian are restricted to connect_me",
+    });
+  }
+}
+
+export const createCallSchema = callInputBase
+  .extend({ maxAmountUsd: moneySchema })
+  .superRefine(validateCallPolicy);
+
+// Preserve the legacy dollar request while card billing uses exact integer cents.
+export const createStripeCallSchema = callInputBase
+  .extend({
+    task: connectMeTaskSchema,
+    maxAmountCents: z.number().int().min(1).max(50_000),
+    quoteVersion: z.string().trim().min(1).max(120),
+    scheduledFor: z.iso.datetime({ offset: true }).optional(),
+  })
+  .strict()
+  .superRefine(validateCallPolicy);
+export type CreateStripeCallInput = z.infer<typeof createStripeCallSchema>;
 
 export const callStates = [
   "queued",

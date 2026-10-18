@@ -32,6 +32,12 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 - Only billing readiness is exposed until the billing application functions exist.
 - Platform typecheck and 273 offline tests pass. Disposable PostgreSQL passes
   6 onboarding/ownership/RLS tests and all 45 existing connect regression tests.
+- Billing contracts require cents and accepted quote versions, preserve legacy
+  dollar inputs and reject mixed money/claimed authority. Domain functions cover
+  full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
+  merchant overruns, shared exposure, UTC/DST schedules and request fingerprints.
+- Setup tokens are reproducible HMAC values bound to request, generation and
+  expiry; storage needs only a digest. These helpers are not an enrollment API.
 
 ## Open release checks
 
