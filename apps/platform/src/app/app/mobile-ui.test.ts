@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   startCall: vi.fn(),
   refresh: vi.fn(),
   listCallHistory: vi.fn(),
+  loadCallHistory: vi.fn(),
   parseCursor: vi.fn(),
   formState: null as null | {
     error: string;
@@ -39,9 +40,11 @@ vi.mock("@/lib/portal", () => ({
 vi.mock("@/lib/call-history", () => ({
   historyCursor: { safeParse: mocks.parseCursor },
   listCallHistory: mocks.listCallHistory,
+  loadCallHistory: mocks.loadCallHistory,
 }));
 
 import { CallNavigation } from "./call-navigation";
+import CallDetail from "./calls/[id]/page";
 import { CallForm } from "./calls/new/call-form";
 import HistoryPage from "./page";
 
@@ -150,6 +153,322 @@ describe("recent calls presentation", () => {
       id: "cursor",
     });
   });
+});
+
+describe("call-detail presentation", () => {
+  function detail() {
+    return {
+      call: {
+        id: "detail-call",
+        clientReference: "Example business",
+        destination: "+34911234567",
+        state: "failed",
+        createdAt: new Date("2026-09-01T12:00:00Z"),
+        endedAt: new Date("2026-09-01T12:05:00Z"),
+        language: "es",
+        fundingSource: "operator",
+        maxAmountMicros: 5_250_000,
+        task: {
+          type: "connect_me",
+          purpose: "Ask about opening hours",
+          maxAttempts: 2,
+        },
+        outcome: { reason: "busy" },
+      },
+      job: {
+        attemptCount: 0,
+        reservedMicros: 1_750_000,
+        nextAttemptAt: new Date("2026-09-01T12:10:00Z"),
+      },
+      attempts: [],
+      legs: [],
+      events: [],
+    };
+  }
+
+  async function renderDetail(id = "detail-call") {
+    return renderToStaticMarkup(
+      await CallDetail({ params: Promise.resolve({ id }) }),
+    );
+  }
+
+  function text(markup: string) {
+    return markup
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function namedSection(markup: string, name: string) {
+    const sections = [
+      ...markup.matchAll(/<section\b([^>]*)>([\s\S]*?)<\/section>/gi),
+    ];
+    const matches = sections.filter(([, attributes, content]) => {
+      const labelledBy = attributes.match(/\baria-labelledby="([^"]+)"/)?.[1];
+      if (!labelledBy) return false;
+      return [
+        ...content.matchAll(/<h[1-6]\b([^>]*)>([\s\S]*?)<\/h[1-6]>/gi),
+      ].some(([, headingAttributes, heading]) => {
+        const id = headingAttributes.match(/\bid="([^"]+)"/)?.[1];
+        return (
+          id &&
+          labelledBy.split(/\s+/).includes(id) &&
+          new RegExp(`^${name}(?:$|\\s|·)`, "i").test(text(heading))
+        );
+      });
+    });
+    expect(matches, `Expected one section labelled ${name}`).toHaveLength(1);
+    return matches[0]![2];
+  }
+
+  function definition(markup: string, label: string) {
+    const lists = [...markup.matchAll(/<dl\b[^>]*>([\s\S]*?)<\/dl>/gi)];
+    const pairs = lists.flatMap(([, content]) => [
+      ...content.matchAll(
+        /<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi,
+      ),
+    ]);
+    const matches = pairs.filter(
+      ([, term]) => text(term).toLowerCase() === label.toLowerCase(),
+    );
+    expect(matches, `Expected one definition for ${label}`).toHaveLength(1);
+    return matches[0]![2];
+  }
+
+  beforeEach(() => {
+    mocks.loadCallHistory.mockResolvedValue(detail());
+  });
+
+  it("loads the requested call for the authenticated tenant and keeps its identity", async () => {
+    const markup = await renderDetail("requested-call");
+    expect(mocks.loadCallHistory).toHaveBeenCalledExactlyOnceWith(
+      "ui-test-client",
+      "requested-call",
+    );
+    expect(text(markup.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)![1])).toBe(
+      "Example business",
+    );
+    expect(markup).toContain("+34911234567");
+    expect(markup).toContain("Ask about opening hours");
+    expect(text(markup)).toMatch(/\bfailed\b/i);
+  });
+
+  it("labels the call details, attempts, and status log sections", async () => {
+    const markup = await renderDetail();
+    for (const name of ["Call details", "Attempts", "Status log"]) {
+      namedSection(markup, name);
+    }
+  });
+
+  it("uses summary definitions for UTC start, raw language, funding, and monetary values", async () => {
+    const summary = await renderDetail();
+    const started = definition(summary, "Started");
+    expect(started).toMatch(
+      /<time\b[^>]*\bdatetime="2026-09-01T12:00:00\.000Z"[^>]*>/i,
+    );
+    expect(text(started)).toBe("1 Sept 2026, 12:00 UTC");
+    expect(text(definition(summary, "Language"))).toBe("es");
+    expect(text(definition(summary, "Funding"))).toBe("operator funded");
+    expect(text(definition(summary, "Spend cap"))).toBe("$5.25");
+    expect(text(definition(summary, "Reserved quote"))).toBe("$1.75");
+  });
+
+  it("falls back to the destination and omits absent purpose and job reservations", async () => {
+    const fixture = detail();
+    mocks.loadCallHistory.mockResolvedValue({
+      ...fixture,
+      call: {
+        ...fixture.call,
+        clientReference: null,
+        task: { type: "connect_me", maxAttempts: 2 },
+      },
+      job: undefined,
+    });
+    const markup = await renderDetail();
+    expect(text(markup.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)![1])).toBe(
+      "+34911234567",
+    );
+    expect(markup).not.toContain("Ask about opening hours");
+    expect(markup).not.toMatch(/Reserved quote/i);
+    expect(markup).not.toContain("undefined");
+  });
+
+  it("explains when no attempts have started", async () => {
+    const markup = await renderDetail();
+    expect(markup).toContain("No attempt has started.");
+    expect(markup).not.toContain("Attempt 1");
+  });
+
+  it("explains when the status log is empty", async () => {
+    expect(await renderDetail()).toContain("No status events yet.");
+  });
+
+  it.each([
+    [null, "unknown", "$0.0000"],
+    [0, "$0.0000", "unknown"],
+  ])(
+    "keeps completed attempt and leg details with measured cost %s",
+    async (measuredMicros, expectedCost, absentCost) => {
+      const fixture = detail();
+      mocks.loadCallHistory.mockResolvedValue({
+        ...fixture,
+        call: {
+          ...fixture.call,
+          state: "completed",
+          outcome: { reason: "connected" },
+        },
+        job: { ...fixture.job, attemptCount: 1 },
+        attempts: [
+          {
+            id: "attempt-1",
+            ordinal: 1,
+            state: "completed",
+            reason: "connected",
+            createdAt: new Date("2026-09-01T12:01:00Z"),
+            endedAt: new Date("2026-09-01T12:04:00Z"),
+          },
+        ],
+        legs: [
+          {
+            attemptId: "attempt-1",
+            kind: "business",
+            state: "ended",
+            connectedAt: new Date("2026-09-01T12:01:10Z"),
+            endedAt: new Date("2026-09-01T12:04:00Z"),
+            measuredMicros: 123_400,
+          },
+          {
+            attemptId: "attempt-1",
+            kind: "callback",
+            state: "ended",
+            connectedAt: null,
+            endedAt: new Date("2026-09-01T12:02:00Z"),
+            measuredMicros,
+          },
+          {
+            attemptId: "another-attempt",
+            kind: "callback",
+            state: "dialing",
+            connectedAt: null,
+            endedAt: null,
+            measuredMicros: 9_990_000,
+          },
+        ],
+      });
+      const markup = await renderDetail();
+      const attempt = [
+        ...markup.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi),
+      ].find(([, content]) => text(content).includes("Attempt 1"))?.[1];
+      expect(attempt).toBeDefined();
+      const content = text(attempt!);
+      expect(content).toMatch(/Attempt 1[\s\S]*connected/i);
+      expect(content).toContain("1 Sept 2026, 12:01 UTC");
+      expect(content).toContain("1 Sept 2026, 12:04 UTC");
+      const [business, callback] = content.split(/callback/i);
+      expect(business).toMatch(/business[\s\S]*ended/i);
+      expect(business).toContain("Answered 1 Sept 2026, 12:01 UTC");
+      expect(business).toContain("Ended 1 Sept 2026, 12:04 UTC");
+      expect(business).toMatch(/Measured cost:?\s*\$0\.1234/);
+      expect(callback).toMatch(/\bended\b/i);
+      expect(callback).toContain("No confirmed connection");
+      expect(callback).toContain("Ended 1 Sept 2026, 12:02 UTC");
+      expect(callback).toContain("Measured cost");
+      expect(callback).toContain(expectedCost);
+      expect(callback).not.toContain(absentCost);
+      expect(text(markup)).toMatch(/\bcompleted\b/i);
+      expect(markup).not.toContain("$9.9900");
+      expect(markup).not.toContain("No attempt has started.");
+    },
+  );
+
+  it("separates event names, context, and semantic UTC timestamps", async () => {
+    mocks.loadCallHistory.mockResolvedValue({
+      ...detail(),
+      events: [
+        {
+          id: "event-1",
+          type: "connect.attempt_ended",
+          payload: { ordinal: 1, leg: "business", reason: "no_answer" },
+          occurredAt: new Date("2026-09-01T12:03:00Z"),
+        },
+      ],
+    });
+    const markup = await renderDetail();
+    const event = [...markup.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].find(
+      ([, content]) => text(content).includes("connect · attempt ended"),
+    )?.[1];
+    expect(event).toBeDefined();
+    expect(event).toMatch(/>\s*connect · attempt ended\s*</i);
+    const time = event!.match(
+      /<time\b[^>]*\bdatetime="2026-09-01T12:03:00\.000Z"[^>]*>([\s\S]*?)<\/time>/i,
+    );
+    expect(time).not.toBeNull();
+    expect(text(time![1])).toBe("1 Sept 2026, 12:03 UTC");
+    const context = text(event!.replace(/<time\b[^>]*>[\s\S]*?<\/time>/gi, ""));
+    expect(context).toContain("Attempt 1 · business · no answer");
+    expect(markup).not.toContain("No status events yet.");
+  });
+
+  it("offers cancellation and progress refresh for an active connect-me call", async () => {
+    const fixture = detail();
+    mocks.loadCallHistory.mockResolvedValue({
+      ...fixture,
+      call: {
+        ...fixture.call,
+        state: "in_progress",
+        endedAt: null,
+        outcome: null,
+      },
+    });
+    const markup = await renderDetail();
+    expect(text(markup)).toContain("in progress");
+    const cancel = [
+      ...markup.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/gi),
+    ].find(([, content]) => text(content) === "Cancel call");
+    expect(cancel).toBeDefined();
+    expect(cancel![0]).not.toMatch(/\bdisabled=/);
+    expect(openingTag(markup, "callId")).toContain('value="detail-call"');
+    expect(markup).toContain("Progress refreshes every 4 seconds");
+    expect(markup).not.toContain("?redial=");
+  });
+
+  it("offers review-before-redial for an eligible failed busy call", async () => {
+    const markup = await renderDetail();
+    expect(text(markup)).toMatch(/\bfailed\b/i);
+    expect(text(markup)).toMatch(/\bbusy\b/i);
+    const redial = [...markup.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].find(
+      ([, , content]) => text(content) === "Review and redial",
+    );
+    expect(redial).toBeDefined();
+    expect(redial![1]).toContain('href="/app/calls/new?redial=detail-call"');
+    expect(markup).not.toContain("Cancel call");
+    expect(markup).not.toContain("Progress refreshes every 4 seconds");
+  });
+
+  it.each([
+    ["failed", "refused", "The business requested that calling stop."],
+    [
+      "cancelled",
+      "cancelled",
+      "Verify provider cleanup and configuration before starting another call. Quick redial is unavailable for this outcome.",
+    ],
+  ])(
+    "blocks redial and cancellation for %s / %s",
+    async (state, reason, blocked) => {
+      const fixture = detail();
+      mocks.loadCallHistory.mockResolvedValue({
+        ...fixture,
+        call: { ...fixture.call, state, outcome: { reason } },
+      });
+      const markup = await renderDetail();
+      expect(markup).toContain(blocked);
+      expect(text(markup)).toMatch(new RegExp(`\\b${state}\\b`, "i"));
+      expect(markup).not.toContain("Cancel call");
+      expect(markup).not.toContain("Review and redial");
+      expect(markup).not.toContain("?redial=");
+      expect(markup).not.toContain("Progress refreshes every 4 seconds");
+    },
+  );
 });
 
 describe("new-call presentation safeguards", () => {
