@@ -18,13 +18,13 @@ import { portalCallError, type CallFormState } from "@/lib/portal-call-errors";
 import { getCallNowDeadline, startCall } from "./actions";
 
 const panelClass =
-  "grid w-full min-w-0 gap-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 sm:p-6";
+  "grid w-full min-w-0 gap-5 rounded-xl border border-(--line) bg-(--panel) p-5 sm:p-6";
 const inputClass =
-  "min-h-12 w-full min-w-0 rounded-md border border-[var(--muted)] bg-[var(--void)] px-3 py-3 text-base font-normal text-[var(--ink)] [color-scheme:dark] placeholder:text-[var(--muted)] aria-invalid:border-[var(--ember)] disabled:cursor-not-allowed";
-const helpClass = "text-sm font-normal leading-6 text-[var(--muted)]";
-const headingClass = "text-lg font-semibold leading-7 text-[var(--ink)]";
+  "min-h-12 w-full min-w-0 rounded-md border border-(--muted) bg-(--void) px-3 py-3 text-base font-normal text-(--ink) [color-scheme:dark] placeholder:text-(--muted) aria-invalid:border-(--ember) disabled:cursor-not-allowed";
+const helpClass = "text-sm font-normal leading-6 text-(--muted)";
+const headingClass = "text-lg font-semibold leading-7 text-(--ink)";
 const shortcutClass =
-  "min-h-11 rounded-md border border-[var(--muted)] px-3 py-2 text-sm font-medium text-[var(--ink)] enabled:hover:border-[var(--signal)] disabled:cursor-not-allowed";
+  "min-h-11 rounded-md border border-(--muted) px-3 py-2 text-sm font-medium text-(--ink) enabled:hover:border-(--signal) disabled:cursor-not-allowed";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const timezones = [
   ["Europe/Madrid", "Spain mainland / Balearic Islands"],
@@ -320,7 +320,7 @@ export function CallForm({
         <p
           id="calling-disabled"
           role="status"
-          className="rounded-xl border border-[var(--ember)] bg-[var(--panel)] p-5 text-sm leading-6 text-[var(--ink)]"
+          className="rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 text-(--ink)"
         >
           Calling is disabled. Configure operator funding and explicitly
           authorize a live test before enabling it.
@@ -331,7 +331,7 @@ export function CallForm({
           ref={summaryRef}
           tabIndex={-1}
           role="alert"
-          className="min-w-0 rounded-xl border border-[var(--ember)] bg-[var(--panel)] p-5 text-sm leading-6 break-words text-[var(--ink)]"
+          className="min-w-0 rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 break-words text-(--ink)"
         >
           <p className="font-semibold">Your entries have been kept.</p>
           <p className="mt-1">
@@ -529,7 +529,7 @@ export function CallForm({
               </select>
             </Field>
             <fieldset className="grid min-w-0 gap-3">
-              <legend className="mb-3 text-sm font-medium text-[var(--ink)]">
+              <legend className="mb-3 text-sm font-medium text-(--ink)">
                 Calling days
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -559,7 +559,7 @@ export function CallForm({
                 {days.map((day, index) => (
                   <label
                     key={day}
-                    className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-[var(--muted)] bg-[var(--void)] px-1 py-3 text-sm font-medium text-[var(--ink)] has-checked:border-[var(--signal)] has-checked:bg-[var(--signal)] has-checked:text-[var(--void)] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[var(--signal)] has-disabled:cursor-not-allowed"
+                    className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-(--muted) bg-(--void) px-1 py-3 text-sm font-medium text-(--ink) has-checked:border-(--signal) has-checked:bg-(--signal) has-checked:text-(--void) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--signal) has-disabled:cursor-not-allowed"
                   >
                     <input
                       id={`weekday-${index + 1}`}
@@ -601,7 +601,7 @@ export function CallForm({
               {feedback.fieldErrors.weekdays && (
                 <p
                   id="weekdays-error"
-                  className="text-sm leading-6 text-[var(--ember)]"
+                  className="text-sm leading-6 text-(--ember)"
                 >
                   {feedback.fieldErrors.weekdays}
                 </p>
@@ -628,7 +628,7 @@ export function CallForm({
                 "Later than the start, on the same day.",
               )}
             </div>
-            <div className="grid gap-5 border-t border-[var(--line)] pt-5">
+            <div className="grid gap-5 border-t border-(--line) pt-5">
               {input(
                 "expiresAt",
                 "Stop trying after",
@@ -641,7 +641,7 @@ export function CallForm({
                 },
                 `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline, and calls in progress also end at this time. Redial needs a fresh deadline.`,
               )}
-              <p role="status" className="text-sm leading-6 text-[var(--ink)]">
+              <p role="status" className="text-sm leading-6 text-(--ink)">
                 {scheduleComplete
                   ? `Calling window: ${schedule.weekdays.map((day) => days[day - 1]).join(", ")}, ${schedule.start}–${schedule.end} (${timezoneLabel}).`
                   : "Choose a timezone, days, and hours to set your calling window."}
@@ -691,9 +691,9 @@ export function CallForm({
           </p>
           <details
             open={hasAdvancedError || undefined}
-            className="min-w-0 border-t border-[var(--line)] pt-5"
+            className="min-w-0 border-t border-(--line) pt-5"
           >
-            <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-[var(--ink)] hover:text-[var(--signal)]">
+            <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-(--ink) hover:text-(--signal)">
               Duration and IVR limits
             </summary>
             <div className="grid min-w-0 gap-5 pt-5">
@@ -718,9 +718,9 @@ export function CallForm({
             </div>
           </details>
         </section>
-        <label className="flex min-h-11 min-w-0 items-start gap-3 text-base leading-6 text-[var(--ink)]">
+        <label className="flex min-h-11 min-w-0 items-start gap-3 text-base leading-6 text-(--ink)">
           <input
-            className="mt-0.5 size-5 shrink-0 accent-[var(--signal)] disabled:cursor-not-allowed"
+            className="mt-0.5 size-5 shrink-0 accent-(--signal) disabled:cursor-not-allowed"
             type="checkbox"
             name="authorized"
             required
@@ -732,7 +732,7 @@ export function CallForm({
           </span>
         </label>
         <button
-          className="min-h-12 w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-[var(--signal)] px-5 py-3 text-base font-semibold text-[var(--void)] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:border-[var(--muted)] disabled:bg-[var(--panel)] disabled:text-[var(--muted)]"
+          className="min-h-12 w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-(--signal) px-5 py-3 text-base font-semibold text-(--void) enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:border-(--muted) disabled:bg-(--panel) disabled:text-(--muted)"
           disabled={pending || !enabled}
         >
           {pending

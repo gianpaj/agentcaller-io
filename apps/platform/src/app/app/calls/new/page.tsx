@@ -18,13 +18,13 @@ export default async function NewCallPage({
     const blocked = redialBlock(call);
     if (blocked)
       return (
-        <section className="grid w-full min-w-0 gap-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 sm:p-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
+        <section className="grid w-full min-w-0 gap-5 rounded-xl border border-(--line) bg-(--panel) p-5 sm:p-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-(--ink) sm:text-3xl">
             Redial unavailable
           </h1>
-          <p className="text-base leading-7 text-[var(--muted)]">{blocked}</p>
+          <p className="text-base leading-7 text-(--muted)">{blocked}</p>
           <Link
-            className="inline-flex min-h-12 w-fit items-center rounded-md border border-[var(--muted)] px-4 py-3 text-base font-medium text-[var(--ink)] hover:border-[var(--signal)] hover:text-[var(--signal)]"
+            className="inline-flex min-h-12 w-fit items-center rounded-md border border-(--muted) px-4 py-3 text-base font-medium text-(--ink) hover:border-(--signal) hover:text-(--signal)"
             href={`/app/calls/${call.id}`}
           >
             View call
@@ -44,19 +44,19 @@ export default async function NewCallPage({
     <>
       <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-3">
         <div className="min-w-0 space-y-2">
-          <p className="text-sm font-medium text-[var(--signal)]">Connect me</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
+          <p className="text-sm font-medium text-(--signal)">Connect me</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-(--ink) sm:text-4xl">
             {redial ? "Call again" : "New call"}
           </h1>
         </div>
         <Link
-          className="inline-flex min-h-11 shrink-0 items-center px-3 py-2 text-base text-[var(--muted)] underline underline-offset-4 hover:text-[var(--ink)]"
+          className="inline-flex min-h-11 shrink-0 items-center px-3 py-2 text-base text-(--muted) underline underline-offset-4 hover:text-(--ink)"
           href="/app"
         >
           Cancel
         </Link>
       </div>
-      <p className="mb-6 text-base leading-7 text-[var(--muted)] sm:mb-8">
+      <p className="mb-6 text-base leading-7 text-(--muted) sm:mb-8">
         The assistant reaches the business, then connects you on your mobile.
       </p>
       <CallForm

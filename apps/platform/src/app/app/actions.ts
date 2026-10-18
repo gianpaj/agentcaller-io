@@ -6,6 +6,11 @@ import { database } from "@/lib/database";
 import { assertPublicWebhookUrl } from "@/lib/webhook-url";
 import { requireClientProfile } from "@/lib/portal";
 
+function formText(form: FormData, name: string) {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "";
+}
+
 function boundedInteger(
   value: FormDataEntryValue | null,
   min: number,
@@ -21,7 +26,7 @@ export async function updateControls(formData: FormData) {
   // submitted form, or any signed-in user can rewrite any tenant's webhook and limits.
   const profile = await requireClientProfile();
 
-  const webhookUrl = String(formData.get("webhookUrl") ?? "").trim();
+  const webhookUrl = formText(formData, "webhookUrl").trim();
   const callsPerMinute = boundedInteger(formData.get("callsPerMinute"), 1, 60);
   const maxConcurrentCalls = boundedInteger(
     formData.get("maxConcurrentCalls"),
@@ -46,7 +51,7 @@ export async function updateControls(formData: FormData) {
 
 export async function cancelConnectJob(formData: FormData) {
   const profile = await requireClientProfile();
-  const id = String(formData.get("callId") ?? "");
+  const id = formText(formData, "callId");
   if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid call ID");
   const { cancelConnect } = await import("@/lib/connect-me");
   const { cleanupConnectRooms } = await import("@/lib/connect-scheduler");
