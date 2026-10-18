@@ -42,7 +42,8 @@ press-1 handoff are implemented and tested offline. Operators can use the
 [operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
 without x402. It requires an enabled server-managed operator profile, an explicit
 funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5).
-**Paid connect-me requests remain blocked** by the unsupported payment scheme.
+**Paid connect-me requests remain disabled.** Stripe monthly invoicing has a
+separate release gate; the x402 scheme cannot fund these jobs.
 Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
 
@@ -172,16 +173,17 @@ These links provide context, not legal advice.
 
 ## Local development
 
-Remote MCP onboarding has a disabled-by-default OAuth foundation: protected-resource
-discovery, human tool consent, first-time profiles and connection revocation.
-It exposes billing readiness only; saved-card enrollment and paid MCP calling are
-not available. See the [MCP guide](apps/docs/content/docs/mcp.mdx) for configuration
-and issuer/host release checks. The
+Remote MCP supports protected-resource discovery, human tool consent, first-time
+profiles and connection revocation. Six tools cover billing setup, readiness,
+quotes, reservations, call status and usage. Saved-card enrollment, spending
+controls and monthly Stripe Invoicing are implemented and tested offline.
+**Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
+acceptance checks pass. Existing x402/operator behavior retains its own gates.
+
+See the [MCP guide](apps/docs/content/docs/mcp.mdx),
+[billing guide](apps/docs/content/docs/billing.mdx) and
 [billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-tracks the remaining saved-card monthly-invoice work. The
-[billing guide](apps/docs/content/docs/billing.mdx) describes the implemented
-money, Stripe setup validation and signed-event inbox boundaries; enrollment,
-paid admission and collection remain unavailable.
+for configuration, invariants and remaining release checks.
 
 ### Prerequisites
 

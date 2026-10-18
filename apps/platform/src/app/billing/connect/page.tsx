@@ -33,7 +33,7 @@ export default async function BillingConnect({
     (await cookies()).get("billing_continuation")?.value ?? "",
     session.user.id,
   );
-  const { account, connection, rates } = await billingSetupView(request);
+  const { account, connection, grant, rates } = await billingSetupView(request);
   const ready = request.status === "ready";
   return (
     <main className="mx-auto grid max-w-2xl gap-6 px-5 py-12 text-(--ink)">
@@ -114,6 +114,7 @@ export default async function BillingConnect({
                   }
                   defaultValue={
                     request.monthlyLimitCents ||
+                    grant?.monthlyLimitCents ||
                     Math.min(account.monthlyLimitCents || 1000, 1000)
                   }
                   required
@@ -131,6 +132,7 @@ export default async function BillingConnect({
                   }
                   defaultValue={
                     request.perCallLimitCents ||
+                    grant?.perCallLimitCents ||
                     Math.min(account.perCallLimitCents || 100, 100)
                   }
                   required

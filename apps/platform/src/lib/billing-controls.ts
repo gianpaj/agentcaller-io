@@ -271,6 +271,17 @@ export async function withdrawCollectionConsent(
       userId,
     );
   });
+  const outstanding = await db
+    .select({ id: calls.id })
+    .from(calls)
+    .where(
+      and(
+        eq(calls.clientId, clientId),
+        eq(calls.fundingSource, "stripe_postpaid"),
+        isNull(calls.endedAt),
+      ),
+    );
+  for (const call of outstanding) await cancelConnect(call.id, clientId, db);
 }
 
 export async function linkBillingApiKey(

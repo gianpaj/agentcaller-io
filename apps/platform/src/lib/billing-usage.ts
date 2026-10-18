@@ -83,6 +83,7 @@ async function prices(db: Reader, input: CreateStripeCallInput, now: Date) {
   const quoteVersion = createHash("sha256")
     .update(
       JSON.stringify([
+        Math.floor(now.getTime() / 300_000),
         policy.pricingVersion,
         business.version,
         business.connectionFeeMicros,
@@ -138,7 +139,9 @@ export async function quoteStripeCall(
     scheduledFor: quote.scheduledFor.toISOString(),
     periodStartsAt: quote.startsAt.toISOString(),
     periodEndsAt: quote.endsAt.toISOString(),
-    expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
+    expiresAt: new Date(
+      (Math.floor(now.getTime() / 300_000) + 1) * 300_000,
+    ).toISOString(),
   };
 }
 
@@ -422,28 +425,22 @@ export async function reserveStripeCall(
         reservedCents: quote.maximumCents,
       })
       .returning();
-    await tx
-      .insert(connectJobs)
-      .values({
-        callId: id,
-        nextAttemptAt: quote.scheduledFor,
-        businessRate: quote.businessRate,
-        callbackRate: quote.callbackRate,
-      });
-    await tx
-      .insert(callEvents)
-      .values({
-        callId: id,
-        type: "call.queued",
-        payload: { fundingSource: "stripe_postpaid" },
-      });
-    await tx
-      .insert(webhookDeliveries)
-      .values({
-        callId: id,
-        eventType: "call.queued",
-        payload: { callId: id, state: "queued" },
-      });
+    await tx.insert(connectJobs).values({
+      callId: id,
+      nextAttemptAt: quote.scheduledFor,
+      businessRate: quote.businessRate,
+      callbackRate: quote.callbackRate,
+    });
+    await tx.insert(callEvents).values({
+      callId: id,
+      type: "call.queued",
+      payload: { fundingSource: "stripe_postpaid" },
+    });
+    await tx.insert(webhookDeliveries).values({
+      callId: id,
+      eventType: "call.queued",
+      payload: { callId: id, state: "queued" },
+    });
     await tx
       .update(billingPeriods)
       .set({
@@ -573,6 +570,9 @@ export async function getBillingUsage(
   before?: string,
   db = database(),
 ) {
+  await db.transaction((tx) =>
+    lockAgentConnection(tx, principal, "billing:read"),
+  );
   if (!principal.connectionId || !principal.operations.includes("billing:read"))
     throw new ApiError(403, "Integration billing access is required");
   const cursor = before ? new Date(before) : null;

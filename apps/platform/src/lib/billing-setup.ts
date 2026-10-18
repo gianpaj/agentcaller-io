@@ -235,6 +235,9 @@ export async function billingSetupStatus(
   now = new Date(),
 ) {
   z.uuid().parse(id);
+  await db.transaction((tx) =>
+    lockAgentConnection(tx, principal, "billing:read"),
+  );
   const [row] = await db
     .select()
     .from(billingSetupRequests)
@@ -283,7 +286,11 @@ export async function billingSetupView(row: Setup, db = database()) {
     );
   if (!account || !connection || connection.status !== "active")
     throw new ApiError(403, "Integration is unavailable");
-  return { account, connection, rates };
+  const [grant] = await db
+    .select()
+    .from(billingAuthorizations)
+    .where(eq(billingAuthorizations.id, row.authorizationId));
+  return { account, connection, grant, rates };
 }
 
 export async function approveBillingSetup(
@@ -389,7 +396,8 @@ export async function approveBillingSetup(
         "Integration limits cannot exceed the shared account allowance",
       );
     const cardGeneration = account.cardGeneration + 1,
-      grantVersion = grant.version + 1;
+      grantVersion =
+        grant.status === "active" ? grant.version : grant.version + 1;
     await tx
       .update(billingAccounts)
       .set({

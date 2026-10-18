@@ -2,5 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "outputDirectory": null,
-  "crons": [{ "path": "/api/internal/webhooks/drain", "schedule": "* * * * *" }]
+  "crons": [
+    {
+      "path": "/api/internal/webhooks/drain",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/billing/drain",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/connect/drain",
+      "schedule": "* * * * *"
+    }
+  ]
 }

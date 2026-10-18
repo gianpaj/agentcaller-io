@@ -50,7 +50,8 @@ responses. Use it to tie a call to your own records.
 
 ## Bounded business-to-mobile connection
 
-Paid `connect_me` requests return `503`: the existing `batch-settlement`
+Paid `connect_me` admission remains disabled. The [saved-card path](/docs/billing)
+has its own enrollment and release gate. For x402, the existing `batch-settlement`
 integration cannot authorize variable capture across retries and expiry, and its
 one-hour timeout cannot fund a multi-day job. Operator-funded testing below uses
 explicit administrative authorization and charges the platform's provider

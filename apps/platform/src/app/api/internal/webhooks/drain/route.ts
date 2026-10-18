@@ -9,3 +9,5 @@ export async function POST(request: Request) {
   }
   return Response.json(await deliverPendingWebhooks());
 }
+
+export const GET = POST;

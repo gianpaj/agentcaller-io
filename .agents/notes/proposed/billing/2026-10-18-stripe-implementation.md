@@ -55,8 +55,20 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 - Human control functions reject limit reductions below committed liabilities,
   revoke spending separately from tool access, withdraw collection consent and
   explicitly link an owned API key to an owned integration.
-- Paid calling remains disabled. Human control screens, event processing and
-  monthly issuance are the remaining integration work.
+- Human billing screens expose limits, spending revocation, API-key linking,
+  card replacement, collection withdrawal and private hosted invoice links.
+- Durable event processing retrieves current Stripe objects. Bounded cron work
+  finalizes usage, closes reconciled UTC months, creates one invoice/item per
+  positive period and reconciles successful allocated card payments. Zero months
+  and audited below-minimum waivers create no Stripe invoice.
+- Issuance persists operation ownership and uses stable keys. After 23 hours,
+  customer invoice metadata and attached lines must prove an earlier outcome;
+  uncertainty blocks issuance for review. Stripe owns collection and recovery.
+- Collection consent is checked under the account lock before finalization.
+  Unpaid invoice overrides follow the current verified card. Withdrawal pauses
+  invoice automation and acknowledges the possibility of an in-flight payment.
+- Paid calling remains disabled. Native URL elicitation, external acceptance,
+  multi-customer prompt identity and operational review remain release work.
 - Billing contracts require cents and accepted quote versions, preserve legacy
   dollar inputs and reject mixed money/claimed authority. Domain functions cover
   full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
@@ -69,25 +81,26 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   filter. Setup verification checks both metadata generations, Customer, mode,
   currency, environment, succeeded off-session intent and attached-card ownership.
 - Signed webhook ingestion persists only event routing, deduplicated by mode/ID.
-  It accepts events while admission is off. Events remain pending until the
-  account/setup/invoice processors exist; no provider resources are registered.
-- Draft invoice parameters hold automatic collection off, exclude pending items
-  and select a verified card. No invoice is created or collected in this increment.
+  It accepts events while admission is off. A leased processor retrieves current
+  objects and stores safe errors; no provider resources are registered.
+- Monthly issuance holds collection off until invoice verification, excludes
+  pending items and selects the verified card. Only offline fakes exercise
+  invoice creation and collection reconciliation in this work.
 - Human portal access rejects OAuth `client_id` and anonymous credentials, even
   when Supabase verifies their user. A valid delegated token is insufficient for
   settings, operator calls or human consent. The MCP route supports bearer
   preflight and exposed challenges only for exact configured browser origins.
 - Empty leg evidence keeps a metering hold. Queued jobs that never acquired a
   dial intent need an explicit release path, not inference from an empty list.
-- The integrated connect lifecycle accepts end observations after expiry while
-  still denying observations after operational terminal state. Preserve the
-  expiry handling; post-terminal accounting remains a billing integration task.
+- Terminal Stripe calls accept worker-owned connected/end observations only for
+  an existing leg, matching SIP identity and bounded timestamps. Observations
+  update usage evidence without reopening the call or granting permissions.
 
 ## Verification
 
 - Workspace typecheck, tests and build pass across all five packages. Offline
   tests pass: platform 327, contracts 98, worker 41, database 2 and scheduler 6.
-- Disposable PostgreSQL passes 14 onboarding/enrollment/reservation tests and 46 existing
+- Disposable PostgreSQL passes 24 onboarding/enrollment/reservation/invoice tests and 46 existing
   connect tests, including upgrades with a historical x402 call. Tests use
   independent connections; OAuth profile ownership and event RLS are enforced.
 - Lint exits successfully with zero findings. The shadcn plugin reports that its
@@ -105,4 +118,4 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 - Confirm resource-bound Supabase issuance and target MCP host behavior.
 - Approve customer tariff, rounding, tax, reservation/retry and calling scope.
 - Verify carrier bounds, metering, multi-customer prompts and Stripe settings.
-- Complete card setup, atomic reservations, usage and monthly invoice acceptance.
+- Complete hosted Stripe card/invoice acceptance and operational accounting review.

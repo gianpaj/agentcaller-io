@@ -1,4 +1,5 @@
-import { authenticateApiPrincipal, ApiError } from "@/lib/auth";
+import { authenticateBillingPrincipal } from "@/lib/agent-auth";
+import { ApiError } from "@/lib/auth";
 import { createBillingSetup, billingSetupStatus } from "@/lib/billing-setup";
 import {
   getBillingStatus,
@@ -13,7 +14,7 @@ export async function GET(
   context: { params: Promise<{ operation: string }> },
 ) {
   try {
-    const principal = await authenticateApiPrincipal(request),
+    const principal = await authenticateBillingPrincipal(request),
       { operation } = await context.params;
     const query = new URL(request.url).searchParams;
     const result =
@@ -35,7 +36,7 @@ export async function POST(
   context: { params: Promise<{ operation: string }> },
 ) {
   try {
-    const principal = await authenticateApiPrincipal(request),
+    const principal = await authenticateBillingPrincipal(request),
       { operation } = await context.params;
     const input: unknown = await request.json();
     const key = request.headers.get("idempotency-key") ?? "";

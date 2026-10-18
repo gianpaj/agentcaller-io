@@ -20,6 +20,7 @@ import {
   billingPeriods,
   billingCallUsage,
   billingAuditEvents,
+  billingInvoices,
   callAttempts,
   callLegs,
   billingSetupRequests,
@@ -47,6 +48,15 @@ import {
   finalizeStripeUsage,
 } from "./billing-usage";
 import { revokeBillingAccess, updateBillingLimits } from "./billing-controls";
+import {
+  closeBillingPeriod,
+  issueMonthlyInvoice,
+  reconcileMonthlyInvoice,
+  syncInvoiceCollection,
+} from "./billing-invoices";
+import { drainBilling } from "./billing-drain";
+import { drainStripeEvents } from "./billing-events";
+import { withdrawCollectionConsent } from "./billing-controls";
 import { claimConnectAttempt, connectCommand } from "./connect-me";
 import type { AgentPrincipal } from "@agentcaller/contracts";
 
@@ -755,6 +765,12 @@ run("agent onboarding with disposable PostgreSQL", () => {
     expect(await finalizeStripeUsage(call.id, first.db, now)).toMatchObject({
       state: "metering_pending",
     });
+    const [heldPeriod] = await first.db.select().from(billingPeriods);
+    await closeBillingPeriod(heldPeriod!.id, first.db, new Date("2026-11-01Z"));
+    expect((await first.db.select().from(billingPeriods))[0]?.status).toBe(
+      "closing",
+    );
+    expect(await first.db.select().from(billingInvoices)).toHaveLength(0);
     expect(await command("connected", now.toISOString())).toMatchObject({
       allowed: true,
     });
@@ -806,5 +822,472 @@ run("agent onboarding with disposable PostgreSQL", () => {
     expect(
       (await first.db.select().from(billingAccounts))[0]?.paymentMethodId,
     ).toBeNull();
+  });
+  const nextMonth = new Date("2026-11-01T00:01:00Z");
+  async function billablePeriod() {
+    const context = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    await first.db
+      .update(rateCards)
+      .set({ connectionFeeMicros: 100000, startedMinuteFeeMicros: 100000 });
+    const quote = await quoteStripeCall(
+      context.principal,
+      callIntent(),
+      first.db,
+      now,
+    );
+    const call = await reserveStripeCall(
+      context.principal,
+      "billable",
+      { ...callIntent(), quoteVersion: quote.quoteVersion },
+      first.db,
+      now,
+    );
+    const [attempt] = await first.db
+      .insert(callAttempts)
+      .values({
+        callId: call.id,
+        ordinal: 1,
+        businessRoom: "offline-business",
+        callbackRoom: "offline-callback",
+        state: "terminal",
+        reason: "callback_declined",
+        endedAt: new Date(now.getTime() + 360000),
+        cleanupUntil: new Date(now.getTime() + 900000),
+        roomsCleanedAt: new Date(now.getTime() + 360000),
+      })
+      .returning();
+    await first.db.insert(callLegs).values({
+      attemptId: attempt!.id,
+      kind: "business",
+      identity: "offline-business",
+      state: "ended",
+      connectedAt: now,
+      endedAt: new Date(now.getTime() + 360000),
+      createdAt: now,
+    });
+    await first.db
+      .update(calls)
+      .set({ state: "failed", endedAt: new Date(now.getTime() + 360000) })
+      .where(eq(calls.id, call.id));
+    await finalizeStripeUsage(call.id, first.db, now);
+    const [period] = await first.db.select().from(billingPeriods);
+    expect(period!.spentCents).toBe(70);
+    await Promise.all([
+      closeBillingPeriod(period!.id, first.db, nextMonth),
+      closeBillingPeriod(period!.id, second.db, nextMonth),
+    ]);
+    const [invoice] = await first.db.select().from(billingInvoices);
+    expect(invoice!.expectedCents).toBe(70);
+    return { ...context, period: period!, invoice: invoice! };
+  }
+  function fakeInvoices() {
+    let invoice: Stripe.Invoice;
+    let lines: Stripe.InvoiceLineItem[] = [];
+    let item: Stripe.InvoiceItem | undefined;
+    const cash: Stripe.InvoicePayment[] = [];
+    const calls = {
+      invoices: {
+        create: vi.fn(async (params: Stripe.InvoiceCreateParams) => {
+          invoice ??= {
+            ...params,
+            id: "in_offline",
+            livemode: false,
+            status: "draft",
+            parent: null,
+            total: 0,
+            amount_due: 0,
+            amount_paid: 0,
+            amount_remaining: 0,
+            amount_overpaid: 0,
+            starting_balance: 0,
+            pre_payment_credit_notes_amount: 0,
+            post_payment_credit_notes_amount: 0,
+            total_discount_amounts: [],
+            total_taxes: [],
+            attempted: false,
+          } as unknown as Stripe.Invoice;
+          return invoice;
+        }),
+        retrieve: vi.fn(async () => invoice),
+        listLineItems: vi.fn(async () => ({ data: lines, has_more: false })),
+        list: vi.fn(() => (invoice ? [invoice] : [])),
+        update: vi.fn(
+          async (_id: string, params: Stripe.InvoiceUpdateParams) => {
+            Object.assign(invoice, params);
+            return invoice;
+          },
+        ),
+        finalizeInvoice: vi.fn(
+          async (_id: string, params: Stripe.InvoiceFinalizeInvoiceParams) => {
+            Object.assign(invoice, params, { status: "open" });
+            return invoice;
+          },
+        ),
+      },
+      invoiceItems: {
+        create: vi.fn(async (params: Stripe.InvoiceItemCreateParams) => {
+          if (!item) {
+            item = {
+              ...params,
+              id: "ii_offline",
+            } as unknown as Stripe.InvoiceItem;
+            lines = [
+              {
+                id: "il_offline",
+                amount: params.amount,
+                metadata: params.metadata,
+                parent: {
+                  type: "invoice_item_details",
+                  invoice_item_details: { invoice_item: item.id },
+                },
+              },
+            ] as Stripe.InvoiceLineItem[];
+            Object.assign(invoice, {
+              total: params.amount,
+              amount_due: params.amount,
+              amount_remaining: params.amount,
+            });
+          }
+          return item;
+        }),
+      },
+      invoicePayments: { list: vi.fn(() => cash) },
+      refunds: { retrieve: vi.fn(async () => ({ charge: "ch_offline" })) },
+      charges: {
+        retrieve: vi.fn(async () => ({
+          id: "ch_offline",
+          customer: "cus_offline",
+          livemode: false,
+          refunded: true,
+        })),
+      },
+    };
+    return {
+      sdk: calls as unknown as Stripe,
+      calls,
+      setStatus(status: "paid" | "open", verified = true) {
+        Object.assign(invoice, {
+          status,
+          attempted: true,
+          amount_paid: status === "paid" ? invoice.total : 0,
+          amount_remaining: status === "paid" ? 0 : invoice.total,
+        });
+        cash.length = 0;
+        if (status === "paid" && verified)
+          cash.push({
+            id: "inpay_offline",
+            invoice: invoice.id,
+            status: "paid",
+            livemode: false,
+            currency: "usd",
+            amount_paid: invoice.total,
+            payment: {
+              type: "payment_intent",
+              payment_intent: {
+                id: "pi_offline",
+                status: "succeeded",
+                customer: "cus_offline",
+                livemode: false,
+                currency: "usd",
+                amount_received: invoice.total,
+                latest_charge: {
+                  id: "ch_offline",
+                  payment_intent: "pi_offline",
+                  customer: "cus_offline",
+                  paid: true,
+                  status: "succeeded",
+                  refunded: false,
+                  disputed: false,
+                  amount_refunded: 0,
+                  livemode: false,
+                  currency: "usd",
+                  payment_method_details: { type: "card" },
+                },
+              },
+            },
+          } as Stripe.InvoicePayment);
+      },
+    };
+  }
+  it("issues one explicit monthly invoice and reconciles cash once without reviving grants", async () => {
+    const { invoice, period, owner, connection } = await billablePeriod(),
+      stripe = fakeInvoices();
+    await Promise.all([
+      issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth),
+      issueMonthlyInvoice(invoice.id, stripe.sdk, second.db, nextMonth),
+    ]);
+    expect(stripe.calls.invoices.create).toHaveBeenCalledTimes(1);
+    expect(stripe.calls.invoiceItems.create).toHaveBeenCalledTimes(1);
+    expect(stripe.calls.invoices.finalizeInvoice).toHaveBeenCalledWith(
+      "in_offline",
+      { auto_advance: true },
+      { idempotencyKey: `monthly:${invoice.id}:finalize:v1` },
+    );
+    stripe.setStatus("open");
+    await reconcileMonthlyInvoice(
+      "in_offline",
+      stripe.sdk,
+      first.db,
+      nextMonth,
+    );
+    expect((await first.db.select().from(billingAccounts))[0]?.status).toBe(
+      "past_due",
+    );
+    await revokeBillingAccess(
+      owner.id,
+      connection.id,
+      false,
+      first.db,
+      nextMonth,
+    );
+    stripe.setStatus("paid");
+    await Promise.all([
+      reconcileMonthlyInvoice("in_offline", stripe.sdk, first.db, nextMonth),
+      reconcileMonthlyInvoice("in_offline", stripe.sdk, second.db, nextMonth),
+    ]);
+    expect(
+      (
+        await first.db
+          .select()
+          .from(billingPeriods)
+          .where(eq(billingPeriods.id, period.id))
+      )[0]?.collectedCents,
+    ).toBe(70);
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.status,
+    ).toBe("revoked");
+    stripe.setStatus("open");
+    await reconcileMonthlyInvoice(
+      "in_offline",
+      stripe.sdk,
+      first.db,
+      nextMonth,
+    );
+    expect(
+      (await first.db.select().from(billingInvoices))[0]?.stripeStatus,
+    ).toBe("paid");
+  });
+  it.each(["create", "item", "finalize"] as const)(
+    "recovers a lost %s response without a second invoice or charge",
+    async (step) => {
+      const { invoice } = await billablePeriod(),
+        stripe = fakeInvoices();
+      if (step === "create") {
+        const original = stripe.calls.invoices.create.getMockImplementation()!;
+        stripe.calls.invoices.create.mockImplementationOnce(async (params) => {
+          await original(params);
+          throw new Error("synthetic response loss");
+        });
+      } else if (step === "item") {
+        const original =
+          stripe.calls.invoiceItems.create.getMockImplementation()!;
+        stripe.calls.invoiceItems.create.mockImplementationOnce(
+          async (params) => {
+            await original(params);
+            throw new Error("synthetic response loss");
+          },
+        );
+      } else {
+        const original =
+          stripe.calls.invoices.finalizeInvoice.getMockImplementation()!;
+        stripe.calls.invoices.finalizeInvoice.mockImplementationOnce(
+          async (id, params) => {
+            await original(id, params);
+            throw new Error("synthetic response loss");
+          },
+        );
+      }
+      await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+      await issueMonthlyInvoice(invoice.id, stripe.sdk, second.db, nextMonth);
+      expect((await first.db.select().from(billingInvoices))[0]).toMatchObject({
+        stripeInvoiceId: "in_offline",
+        stripeItemId: "ii_offline",
+        issuanceState: "ready",
+        stripeStatus: "open",
+      });
+      expect(stripe.calls.invoices.finalizeInvoice).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("holds paid-out-of-band invoices and adjustment events for review", async () => {
+    const { invoice } = await billablePeriod(),
+      stripe = fakeInvoices();
+    await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+    stripe.setStatus("paid", false);
+    await reconcileMonthlyInvoice(
+      "in_offline",
+      stripe.sdk,
+      first.db,
+      nextMonth,
+    );
+    expect(
+      (await first.db.select().from(billingPeriods))[0]?.collectedCents,
+    ).toBe(0);
+    expect((await first.db.select().from(billingAccounts))[0]).toMatchObject({
+      status: "suspended",
+      blockReason: "invoice_cash_review",
+    });
+    await receiveStripeEvent(
+      {
+        id: "evt_refundtest",
+        type: "refund.created",
+        livemode: false,
+        api_version: stripeApiVersion,
+        data: { object: { id: "re_offline" } },
+      } as unknown as Stripe.Event,
+      first.db,
+    );
+    const results = await Promise.all([
+      drainStripeEvents(stripe.sdk, first.db, nextMonth),
+      drainStripeEvents(stripe.sdk, second.db, nextMonth),
+    ]);
+    expect(results.reduce((sum, result) => sum + result.processed, 0)).toBe(1);
+    expect(
+      (await first.db.select().from(billingAccounts))[0]?.blockReason,
+    ).toBe("stripe_adjustment_review");
+  });
+  it("stops invoice automation after collection consent is withdrawn", async () => {
+    const { invoice, owner, uid } = await billablePeriod(),
+      stripe = fakeInvoices();
+    await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+    await withdrawCollectionConsent(owner.id, uid, first.db, nextMonth);
+    await syncInvoiceCollection(
+      invoice.billingAccountId,
+      stripe.sdk,
+      first.db,
+      nextMonth,
+    );
+    expect(stripe.calls.invoices.update).toHaveBeenLastCalledWith(
+      "in_offline",
+      { auto_advance: false, default_payment_method: "pm_offline" },
+    );
+    expect((await first.db.select().from(billingPeriods))[0]?.spentCents).toBe(
+      70,
+    );
+  });
+  it("does not recreate an unmapped invoice after Stripe key retention expires", async () => {
+    const { invoice } = await billablePeriod(),
+      stripe = fakeInvoices();
+    await first.db
+      .update(billingInvoices)
+      .set({
+        createStartedAt: new Date("2026-10-30Z"),
+        issuanceState: "creating",
+      })
+      .where(eq(billingInvoices.id, invoice.id));
+    await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+    expect(stripe.calls.invoices.create).not.toHaveBeenCalled();
+    expect((await first.db.select().from(billingInvoices))[0]).toMatchObject({
+      issuanceState: "unknown",
+      lastError: "invoice_create_unknown",
+    });
+  });
+  it("recovers an unmapped existing invoice by metadata after key retention", async () => {
+    const { invoice } = await billablePeriod(),
+      stripe = fakeInvoices();
+    const original = stripe.calls.invoices.create.getMockImplementation()!;
+    stripe.calls.invoices.create.mockImplementationOnce(async (params) => {
+      await original(params);
+      throw new Error("synthetic response loss");
+    });
+    await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+    await issueMonthlyInvoice(
+      invoice.id,
+      stripe.sdk,
+      second.db,
+      new Date("2026-11-03Z"),
+    );
+    expect(stripe.calls.invoices.create).toHaveBeenCalledTimes(1);
+    expect(
+      (await first.db.select().from(billingInvoices))[0]?.issuanceState,
+    ).toBe("ready");
+  });
+  it("closes zero and below-minimum months without a Stripe invoice", async () => {
+    const { principal } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    const call = await reserveStripeCall(
+      principal,
+      "zero",
+      { ...callIntent(), quoteVersion: quote.quoteVersion },
+      first.db,
+      now,
+    );
+    await first.db
+      .update(calls)
+      .set({ state: "cancelled", endedAt: now })
+      .where(eq(calls.id, call.id));
+    await finalizeStripeUsage(call.id, first.db, now);
+    const [period] = await first.db.select().from(billingPeriods),
+      [usage] = await first.db.select().from(billingCallUsage);
+    await closeBillingPeriod(period!.id, first.db, nextMonth);
+    expect((await first.db.select().from(billingPeriods))[0]).toMatchObject({
+      status: "closed",
+      totalCents: 0,
+    });
+    const [small] = await first.db
+      .insert(billingPeriods)
+      .values({
+        clientId: principal.clientId,
+        billingAccountId: period!.billingAccountId,
+        startsAt: new Date("2026-11-01Z"),
+        endsAt: new Date("2026-12-01Z"),
+        limitCents: 1000,
+        spentCents: 2,
+      })
+      .returning();
+    await first.db
+      .insert(billingCallUsage)
+      .values({
+        clientId: principal.clientId,
+        billingAccountId: usage!.billingAccountId,
+        connectionId: usage!.connectionId,
+        authorizationId: usage!.authorizationId,
+        periodId: small!.id,
+        callReference: randomUUID(),
+        credentialId: usage!.credentialId,
+        authorizationVersion: usage!.authorizationVersion,
+        connectionVersion: usage!.connectionVersion,
+        requestFingerprint: "synthetic-small",
+        pricingVersion: usage!.pricingVersion,
+        businessRate: usage!.businessRate,
+        callbackRate: usage!.callbackRate,
+        reservedCents: 2,
+        finalCents: 2,
+        finalizedAt: now,
+        state: "finalized",
+      });
+    await closeBillingPeriod(small!.id, first.db, new Date("2026-12-01Z"));
+    expect(
+      (
+        await first.db
+          .select()
+          .from(billingPeriods)
+          .where(eq(billingPeriods.id, small!.id))
+      )[0],
+    ).toMatchObject({
+      status: "closed",
+      totalCents: 0,
+      waivedCents: 2,
+      spentCents: 2,
+    });
+    expect(await first.db.select().from(billingInvoices)).toHaveLength(0);
+  });
+  it("runs the durable billing drain with paid admission disabled", async () => {
+    const { invoice } = await billablePeriod(),
+      stripe = fakeInvoices();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "false");
+    const result = await drainBilling(stripe.sdk, first.db, nextMonth);
+    expect(result.deferred).toBe(0);
+    expect(result.invoices).toBe(1);
+    expect(
+      (
+        await first.db
+          .select()
+          .from(billingInvoices)
+          .where(eq(billingInvoices.id, invoice.id))
+      )[0]?.stripeStatus,
+    ).toBe("open");
+    expect(process.env.STRIPE_BILLING_ENABLED).toBe("false");
   });
 });
