@@ -30,6 +30,8 @@ export const paymentState = pgEnum("payment_state", [
   "settling",
   "settled",
   "failed",
+  "accruing",
+  "accrued",
 ]);
 
 const timestamps = {

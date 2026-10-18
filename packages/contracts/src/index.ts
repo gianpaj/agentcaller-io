@@ -137,13 +137,15 @@ export const callStates = [
   "failed",
   "cancelled",
 ] as const;
-export const fundingSources = ["x402", "operator"] as const;
+export const fundingSources = ["x402", "operator", "stripe_postpaid"] as const;
 export const paymentStates = [
   "not_required",
   "authorized",
   "settling",
   "settled",
   "failed",
+  "accruing",
+  "accrued",
 ] as const;
 export type CreateCallInput = z.infer<typeof createCallSchema>;
 export type CallTask = z.infer<typeof callTaskSchema>;
