@@ -70,10 +70,7 @@ export async function submitCall(
         Date.parse(input.task.expiresAt) > Date.now() + CALL_NOW_TTL_MS
       )
         throw new ApiError(422, "Call now must expire within 30 minutes");
-      if (
-        Date.parse(input.task.expiresAt) <= Date.now() ||
-        Date.parse(input.task.expiresAt) > Date.now() + 7 * 86400_000
-      )
+      if (Date.parse(input.task.expiresAt) > Date.now() + 7 * 86400_000)
         throw new ApiError(422, "Expiry must be in the next seven days");
     }
 
@@ -124,6 +121,11 @@ export async function submitCall(
     ]);
 
     if (existing) return Response.json({ data: existing }, { status: 202 });
+    if (
+      input.task.type === "connect_me" &&
+      Date.parse(input.task.expiresAt) <= Date.now()
+    )
+      throw new ApiError(422, "Expiry must be in the next seven days");
     if (recent.length >= client.callsPerMinute)
       throw new ApiError(429, "Calls-per-minute limit reached");
     if (active.length >= client.maxConcurrentCalls)
