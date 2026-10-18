@@ -3,6 +3,48 @@ import { eq } from "drizzle-orm";
 import { database } from "@/lib/database";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateWebhookSecret } from "@/lib/webhooks";
+import { ApiError } from "@/lib/auth";
+import { z } from "zod";
+
+/** Call only with the UID returned by verified human authentication. */
+export async function ensureClientProfileForUser(
+  userId: string,
+  db = database(),
+) {
+  const uid = z.uuid().parse(userId);
+  await db
+    .insert(clientProfiles)
+    .values({
+      supabaseUserId: uid,
+      name: "AgentCaller customer",
+      isOperator: false,
+      webhookSecret: generateWebhookSecret(),
+    })
+    .onConflictDoNothing({ target: clientProfiles.supabaseUserId });
+  const [profile] = await db
+    .select()
+    .from(clientProfiles)
+    .where(eq(clientProfiles.supabaseUserId, uid))
+    .limit(1);
+  if (!profile?.enabled) throw new ApiError(403, "This account is unavailable");
+  return profile;
+}
+
+export async function requireHumanSession() {
+  const supabase = await createSupabaseServerClient();
+  const [
+    {
+      data: { user },
+      error,
+    },
+    { data: claimsData, error: claimsError },
+  ] = await Promise.all([supabase.auth.getUser(), supabase.auth.getClaims()]);
+  if (error || claimsError || !user || claimsData?.claims.sub !== user.id)
+    throw new ApiError(401, "Sign in to continue");
+  if (claimsData.claims.client_id || user.is_anonymous)
+    throw new ApiError(403, "A human sign-in is required");
+  return { user, supabase };
+}
 
 /**
  * Resolves the signed-in developer's client profile.

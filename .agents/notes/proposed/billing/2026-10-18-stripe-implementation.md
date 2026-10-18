@@ -23,7 +23,15 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 - Isolated worktree created; original uncommitted planning files preserved.
 - Dependencies installed with the pinned package manager and frozen lockfile.
-- OAuth/MCP foundation is the first implementation increment.
+- OAuth/MCP foundation: resource metadata, strict asymmetric JWT validation,
+  separate tool consent, verified first-time profile creation, durable connection
+  uniqueness and human revocation. API keys retain a distinct principal.
+- The v2 server package includes stateless legacy compatibility; no deprecated
+  legacy package or Express dependency is needed. Current requests require
+  matching protocol, method and tool-name headers and the per-request envelope.
+- Only billing readiness is exposed until the billing application functions exist.
+- Platform typecheck and 273 offline tests pass. Disposable PostgreSQL passes
+  6 onboarding/ownership/RLS tests and all 45 existing connect regression tests.
 
 ## Open release checks
 

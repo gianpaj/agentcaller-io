@@ -172,6 +172,14 @@ These links provide context, not legal advice.
 
 ## Local development
 
+Remote MCP onboarding has a disabled-by-default OAuth foundation: protected-resource
+discovery, human tool consent, first-time profiles and connection revocation.
+It exposes billing readiness only; saved-card enrollment and paid MCP calling are
+not available. See the [MCP guide](apps/docs/content/docs/mcp.mdx) for configuration
+and issuer/host release checks. The
+[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
+tracks the remaining saved-card monthly-invoice work.
+
 ### Prerequisites
 
 - Node.js 22 or newer
@@ -323,6 +331,7 @@ Run the workspace checks from the repository root:
 pnpm typecheck
 pnpm test
 pnpm test:connect-db # isolated disposable PostgreSQL; requires Docker
+pnpm test:billing-db # isolated onboarding/migration PostgreSQL tests
 pnpm format:check
 pnpm build
 ```

@@ -5,6 +5,7 @@ import {
   legLimit,
 } from "./connect-me";
 export * from "./connect-me";
+export * from "./agent-auth";
 
 export const supportedCountries = ["ES", "US", "IT"] as const;
 export const languages = ["en", "es", "it"] as const;

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -39,23 +40,85 @@ const timestamps = {
     .defaultNow(),
 };
 
-export const clientProfiles = pgTable("client_profiles", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  isOperator: boolean("is_operator").notNull().default(false),
-  supabaseUserId: uuid("supabase_user_id").unique(),
-  githubUserId: text("github_user_id").unique(),
-  webhookUrl: text("webhook_url"),
-  webhookSecret: text("webhook_secret"),
-  callsPerMinute: integer("calls_per_minute").notNull().default(5),
-  maxConcurrentCalls: integer("max_concurrent_calls").notNull().default(2),
-  allowedVoiceIds: jsonb("allowed_voice_ids")
-    .$type<string[]>()
-    .notNull()
-    .default([]),
-  enabled: boolean("enabled").notNull().default(true),
-  ...timestamps,
-});
+export const clientProfiles = pgTable(
+  "client_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    isOperator: boolean("is_operator").notNull().default(false),
+    supabaseUserId: uuid("supabase_user_id").unique(),
+    githubUserId: text("github_user_id").unique(),
+    webhookUrl: text("webhook_url"),
+    webhookSecret: text("webhook_secret"),
+    callsPerMinute: integer("calls_per_minute").notNull().default(5),
+    maxConcurrentCalls: integer("max_concurrent_calls").notNull().default(2),
+    allowedVoiceIds: jsonb("allowed_voice_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    enabled: boolean("enabled").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    unique("client_profiles_id_owner_key").on(table.id, table.supabaseUserId),
+  ],
+);
+
+export const agentConnections = pgTable(
+  "agent_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clientProfiles.id),
+    name: text("name").notNull(),
+    issuer: text("issuer").notNull(),
+    subject: uuid("subject").notNull(),
+    oauthClientId: text("oauth_client_id").notNull(),
+    operations: jsonb("operations").$type<string[]>().notNull().default([]),
+    status: text("status").notNull().default("pending"),
+    consentVersion: text("consent_version"),
+    consentedAt: timestamp("consented_at", { withTimezone: true }),
+    consentedBy: uuid("consented_by"),
+    version: integer("version").notNull().default(1),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("agent_connections_identity_key").on(
+      table.issuer,
+      table.subject,
+      table.oauthClientId,
+    ),
+    unique("agent_connections_id_client_key").on(table.id, table.clientId),
+    foreignKey({
+      name: "agent_connections_owner_fk",
+      columns: [table.clientId, table.subject],
+      foreignColumns: [clientProfiles.id, clientProfiles.supabaseUserId],
+    }),
+    check(
+      "agent_connections_status_check",
+      sql`${table.status} in ('pending','active','revoked')`,
+    ),
+    check("agent_connections_version_check", sql`${table.version} > 0`),
+    check(
+      "agent_connections_operations_check",
+      sql`jsonb_typeof(${table.operations}) = 'array' and ${table.operations} <@ '["calls:read","calls:create","billing:setup","billing:read"]'::jsonb`,
+    ),
+    check(
+      "agent_connections_consent_check",
+      sql`${table.status} <> 'active' or (${table.consentedBy} = ${table.subject} and ${table.consentedBy} is not null and ${table.consentedAt} is not null and ${table.consentVersion} is not null and ${table.revokedAt} is null)`,
+    ),
+    check(
+      "agent_connections_revocation_check",
+      sql`(${table.status} = 'revoked') = (${table.revokedAt} is not null)`,
+    ),
+    index("agent_connections_client_status_index").on(
+      table.clientId,
+      table.status,
+    ),
+  ],
+).enableRLS();
 
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
