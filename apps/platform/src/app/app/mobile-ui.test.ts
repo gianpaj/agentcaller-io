@@ -288,11 +288,11 @@ describe("new-call presentation safeguards", () => {
             mode === "now"
               ? "now"
               : {
-                  timezone: "Europe/Rome",
-                  weekdays: [2, 4],
-                  start: "10:00",
-                  end: "16:00",
-                },
+                timezone: "Europe/Rome",
+                weekdays: [2, 4],
+                start: "10:00",
+                end: "16:00",
+              },
         },
       });
       const markup = renderForm(true, "previous-call", initial);
@@ -327,8 +327,8 @@ describe("new-call presentation safeguards", () => {
     expect(markup).not.toMatch(/<input[^>]*name="weekdays"[^>]*checked=""/);
     expect(openingTag(markup, "start")).toContain('value=""');
     expect(openingTag(markup, "end")).toContain('value=""');
-    // Submission is dispatched from onSubmit so React cannot auto-reset drafts.
-    expect(markup.match(/<form[^>]*>/)?.[0]).not.toMatch(/\baction=/);
+    // Keep a form action alongside onSubmit so pre-hydration submits cannot fall back to GET.
+    expect(markup.match(/<form[^>]*>/)?.[0]).toMatch(/\baction=/);
   });
 
   it("associates readable errors with fields and announces preserved entries", () => {

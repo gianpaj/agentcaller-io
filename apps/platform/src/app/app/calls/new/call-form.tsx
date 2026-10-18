@@ -154,10 +154,10 @@ export function CallForm({
         error instanceof ZodError
           ? portalCallError(error)
           : {
-              error:
-                "Could not validate the call. Your entries are still here. Try again.",
-              fieldErrors: {},
-            },
+            error:
+              "Could not validate the call. Your entries are still here. Try again.",
+            fieldErrors: {},
+          },
       );
       return;
     }
@@ -229,7 +229,12 @@ export function CallForm({
     schedule.start < schedule.end;
 
   return (
-    <form ref={formRef} onSubmit={submit} className="grid w-full min-w-0 gap-6">
+    <form
+      ref={formRef}
+      action={action}
+      onSubmit={submit}
+      className="grid w-full min-w-0 gap-6"
+    >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="redialOf" value={redialOf ?? ""} />
       {!enabled && (
@@ -498,11 +503,11 @@ export function CallForm({
                           ...schedule,
                           weekdays: event.target.checked
                             ? [...schedule.weekdays, index + 1].sort(
-                                (a, b) => a - b,
-                              )
+                              (a, b) => a - b,
+                            )
                             : schedule.weekdays.filter(
-                                (day) => day !== index + 1,
-                              ),
+                              (day) => day !== index + 1,
+                            ),
                         })
                       }
                     />
@@ -650,7 +655,7 @@ export function CallForm({
           disabled={pending || !enabled}
         >
           {pending
-            ? "Submitting…"
+            ? "Starting call…"
             : redialOf
               ? "Confirm and redial"
               : callNow
