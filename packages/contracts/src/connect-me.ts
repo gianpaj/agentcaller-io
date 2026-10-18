@@ -123,7 +123,9 @@ export function isBusinessDestination(destination: string, country: string) {
   return country === "ES"
     ? /^\+34(?:[89][1-8]\d{7}|6\d{8}|7[1-48]\d{7})$/.test(destination)
     : country === "IT" &&
-        /^\+39(?:0\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(destination);
+    /^\+39(?:0(?!0|878)\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(
+      destination,
+    );
 }
 
 export function businessDestinationError(
