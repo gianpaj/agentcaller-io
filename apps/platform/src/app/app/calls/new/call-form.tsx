@@ -157,7 +157,7 @@ export function CallForm({
     }
     let parsed: CreateCallInput;
     try {
-      parsed = portalCallInput(form);
+      parsed = portalCallInput(form, { checkRelativeDeadline: false });
     } catch (error) {
       setLocalError(
         error instanceof ZodError

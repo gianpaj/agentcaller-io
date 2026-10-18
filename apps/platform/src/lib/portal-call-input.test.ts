@@ -322,7 +322,13 @@ describe("portalCallInput deadlines", () => {
     );
   });
 
-  it.each(["2026-07-01T12:00:00Z", "2026-07-01T11:59:59Z", "2026-07-01T14:00"])(
+  it.each([
+    "2026-07-01T12:00:00Z",
+    "2026-07-01T11:59:59Z",
+    "2026-07-01T14:00",
+    "0202-10-19T17:00",
+    "1899-10-19T17:00",
+  ])(
     "rejects elapsed deadline %s",
     (expiresAt) => {
       expect(errors(form({ expiresAt })).fieldErrors.expiresAt).toMatch(
@@ -344,6 +350,18 @@ describe("portalCallInput deadlines", () => {
     "2026-07-01T12:00:00.001Z",
   ])("accepts deadline boundary %s", (expiresAt) => {
     expect(() => portalCallInput(form({ expiresAt }))).not.toThrow();
+  });
+
+
+  it("defers relative deadline rejection during client preflight when requested", () => {
+    expect(
+      portalCallInput(form({ expiresAt: "2026-07-01T13:00" }), {
+        checkRelativeDeadline: false,
+      }).task,
+    ).toMatchObject({
+      type: "connect_me",
+      expiresAt: "2026-07-01T11:00:00.000Z",
+    });
   });
 
   it.each(["2026-07-02T17:00", "2026-07-02T17:00:00Z"])(
