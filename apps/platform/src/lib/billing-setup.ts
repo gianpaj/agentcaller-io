@@ -4,21 +4,23 @@ import {
   billingAccounts,
   billingAuthorizations,
   billingSetupRequests,
+  billingInvoices,
   rateCards,
 } from "@agentcaller/database";
 import {
+  billingContactNameSchema,
   billingLimitsSchema,
   billingSetupInputSchema,
   type AgentPrincipal,
   type BillingLimits,
 } from "@agentcaller/contracts";
-import { and, eq, inArray, lte, gt } from "drizzle-orm";
+import { and, eq, inArray, lte, gt, or } from "drizzle-orm";
 import { z } from "zod";
 import type Stripe from "stripe";
 import { ApiError } from "./auth";
 import { database } from "./database";
 import { getBillingSetupTokenSecret } from "./env";
-import { requireEnrollmentPolicy } from "./billing-policy";
+import { enrollmentBlocked, requireEnrollmentPolicy } from "./billing-policy";
 import {
   billingSetupToken,
   billingSetupTokenDigest,
@@ -83,10 +85,7 @@ export async function createBillingSetup(
       principal,
       "billing:setup",
     );
-    if (
-      account.livemode !== policy.livemode ||
-      ["revoked", "suspended"].includes(account.status)
-    )
+    if (account.livemode !== policy.livemode || enrollmentBlocked(account))
       throw new ApiError(403, "Billing account is unavailable");
     const [previous] = await tx
       .select()
@@ -298,11 +297,16 @@ export async function approveBillingSetup(
   userId: string,
   email: string,
   limits: BillingLimits,
-  versions: { agreementVersion: string; pricingVersion: string },
+  versions: {
+    agreementVersion: string;
+    pricingVersion: string;
+    contactName: string;
+  },
   db = database(),
   now = new Date(),
 ) {
   billingLimitsSchema.parse(limits);
+  const contactName = billingContactNameSchema.parse(versions.contactName);
   z.email().parse(email);
   const policy = requireEnrollmentPolicy();
   const [locator] = await db
@@ -341,7 +345,7 @@ export async function approveBillingSetup(
       connection.status !== "active" ||
       !grant ||
       ["revoked", "expired"].includes(grant.status) ||
-      ["revoked", "suspended"].includes(account.status)
+      enrollmentBlocked(account)
     )
       throw new ApiError(403, "Setup consent is unavailable");
     if (
@@ -409,6 +413,7 @@ export async function approveBillingSetup(
         collectionConsent: true,
         cardGeneration,
         billingEmail: email,
+        contactName,
         updatedAt: now,
       })
       .where(eq(billingAccounts.id, account.id));
@@ -506,7 +511,7 @@ export async function beginBillingCheckout(
       row.authorizationVersion !== grant.version ||
       row.cardGeneration !== account.cardGeneration ||
       !account.collectionConsent ||
-      ["revoked", "suspended"].includes(account.status)
+      enrollmentBlocked(account)
     )
       throw new ApiError(403, "Setup authorization is unavailable");
     if (row.status === "ready")
@@ -545,6 +550,7 @@ export async function beginBillingCheckout(
         status: "creating_checkout",
         operationStartedAt: row.operationStartedAt ?? now,
         checkoutExpiresAt,
+        checkoutOrigin: row.checkoutOrigin ?? policy.origin,
         leaseToken: lease,
         leaseUntil: new Date(now.getTime() + 120_000),
         updatedAt: now,
@@ -599,7 +605,7 @@ export async function beginBillingCheckout(
       : await stripe.checkout.sessions.create(
           cardSetupParams(
             reference,
-            policy.origin,
+            operation.request.checkoutOrigin!,
             operation.request.checkoutExpiresAt!,
           ),
           { idempotencyKey: stripeSetupOperationKey(reference) },
@@ -716,7 +722,7 @@ export async function reconcileCheckoutSession(
       request.authorizationVersion !== grant.version ||
       request.cardGeneration !== account.cardGeneration ||
       !account.collectionConsent ||
-      ["revoked", "suspended"].includes(account.status)
+      enrollmentBlocked(account)
     )
       return;
     if (request.stripeSessionId && request.stripeSessionId !== session.id)
@@ -739,6 +745,28 @@ export async function reconcileCheckoutSession(
       cardGeneration: request.cardGeneration,
       livemode: account.livemode,
     });
+    const needsRecovery = [
+      "saved_card_unavailable",
+      "collection_withdrawn",
+    ].includes(account.blockReason ?? "");
+    const arrears = await tx
+      .select({ id: billingInvoices.id })
+      .from(billingInvoices)
+      .where(
+        and(
+          eq(billingInvoices.billingAccountId, account.id),
+          or(
+            eq(billingInvoices.actionRequired, true),
+            eq(billingInvoices.issuanceState, "unknown"),
+            inArray(billingInvoices.stripeStatus, ["void", "uncollectible"]),
+          ),
+        ),
+      );
+    const recoveredStatus = needsRecovery
+      ? arrears.length
+        ? "past_due"
+        : "active"
+      : account.status;
     await tx
       .update(billingAccounts)
       .set({
@@ -748,7 +776,12 @@ export async function reconcileCheckoutSession(
         cardLast4: card.last4,
         cardExpiryMonth: card.expiryMonth,
         cardExpiryYear: card.expiryYear,
-        status: account.status === "pending_setup" ? "active" : account.status,
+        status: account.status === "pending_setup" ? "active" : recoveredStatus,
+        blockReason: needsRecovery
+          ? arrears.length
+            ? "invoice_payment_required"
+            : null
+          : account.blockReason,
         updatedAt: now,
       })
       .where(eq(billingAccounts.id, account.id));
@@ -782,4 +815,6 @@ export async function reconcileCheckoutSession(
       },
     );
   });
+  const { syncInvoiceCollection } = await import("./billing-invoices");
+  await syncInvoiceCollection(row.billingAccountId, stripe, db, now);
 }

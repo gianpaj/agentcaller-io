@@ -6,6 +6,7 @@ import {
   billingPeriods,
   clientProfiles,
   calls,
+  callAttempts,
 } from "@agentcaller/database";
 import { and, eq, isNull } from "drizzle-orm";
 import { isStripeBillingEnabled } from "./env";
@@ -19,6 +20,12 @@ export async function stripeCallAuthority(
   tx: BillingTX,
   call: typeof calls.$inferSelect,
   now: Date,
+  ongoing?: {
+    createdAt: Date;
+    cleanupUntil: Date;
+    workerId: string | null;
+    endedAt: Date | null;
+  },
 ) {
   if (call.fundingSource !== "stripe_postpaid") return null;
   const account = await lockCallBillingAccount(tx, call.id);
@@ -81,15 +88,23 @@ export async function stripeCallAuthority(
       connection.operations.includes("calls:create") &&
       (usage.credentialId === connection.oauthClientId || !!key) &&
       !!period &&
-      period.status === "open" &&
       now >= period.startsAt &&
-      now < period.endsAt &&
+      ((period.status === "open" && now < period.endsAt) ||
+        (!!ongoing?.workerId &&
+          !ongoing.endedAt &&
+          ongoing.createdAt < period.endsAt &&
+          now < ongoing.cleanupUntil &&
+          ["open", "closing"].includes(period.status))) &&
       usage.reservedCents <=
         Math.min(grant.perCallLimitCents, account.perCallLimitCents),
   };
 }
 
-export async function authorizeConnectFunding(callId: string, db = database()) {
+export async function authorizeConnectFunding(
+  callId: string,
+  db = database(),
+  attemptId?: string,
+) {
   const [call] = await db.select().from(calls).where(eq(calls.id, callId));
   if (call?.fundingSource === "operator") return authorizeOperatorCall(callId);
   if (call?.fundingSource !== "stripe_postpaid")
@@ -101,10 +116,21 @@ export async function authorizeConnectFunding(callId: string, db = database()) {
       .from(calls)
       .where(eq(calls.id, callId))
       .for("update");
+    const [ongoing] = attemptId
+      ? await tx
+          .select()
+          .from(callAttempts)
+          .where(
+            and(
+              eq(callAttempts.id, attemptId),
+              eq(callAttempts.callId, callId),
+            ),
+          )
+      : [];
     if (
       !current ||
       current.endedAt ||
-      !(await stripeCallAuthority(tx, current, new Date()))?.allowed
+      !(await stripeCallAuthority(tx, current, new Date(), ongoing))?.allowed
     )
       throw new ApiError(403, "Spending authority is unavailable");
   });

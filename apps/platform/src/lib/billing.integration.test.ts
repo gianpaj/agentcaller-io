@@ -1,3 +1,4 @@
+import { getAgentCallStatus } from "./billing-agent";
 import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
@@ -55,7 +56,7 @@ import {
   syncInvoiceCollection,
 } from "./billing-invoices";
 import { drainBilling } from "./billing-drain";
-import { drainStripeEvents } from "./billing-events";
+import { blockBillingAccount, drainStripeEvents } from "./billing-events";
 import { withdrawCollectionConsent } from "./billing-controls";
 import { claimConnectAttempt, connectCommand } from "./connect-me";
 import type { AgentPrincipal } from "@agentcaller/contracts";
@@ -437,7 +438,7 @@ run("agent onboarding with disposable PostgreSQL", () => {
     });
     return { uid, owner, connection, principal };
   }
-  function fakeStripe() {
+  function fakeStripe(sessionId = "cs_offline", methodId = "pm_offline") {
     let session: Stripe.Checkout.Session;
     const sdk = {
       customers: {
@@ -453,7 +454,7 @@ run("agent onboarding with disposable PostgreSQL", () => {
           create: vi.fn(async (params: Stripe.Checkout.SessionCreateParams) => {
             session = {
               ...params,
-              id: "cs_offline",
+              id: sessionId,
               livemode: false,
               status: "open",
               url: "https://checkout.stripe.com/offline",
@@ -480,7 +481,7 @@ run("agent onboarding with disposable PostgreSQL", () => {
             customer: "cus_offline",
             metadata: session.metadata,
             payment_method: {
-              id: "pm_offline",
+              id: methodId,
               type: "card",
               livemode: false,
               customer: "cus_offline",
@@ -511,7 +512,11 @@ run("agent onboarding with disposable PostgreSQL", () => {
       context.uid,
       "offline@example.test",
       { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
-      { agreementVersion: "monthly-usage-v1", pricingVersion: "offline-v1" },
+      {
+        contactName: "Offline caller",
+        agreementVersion: "monthly-usage-v1",
+        pricingVersion: "offline-v1",
+      },
       first.db,
       now,
     );
@@ -575,6 +580,7 @@ run("agent onboarding with disposable PostgreSQL", () => {
     );
     const limits = { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
       versions = {
+        contactName: "Offline caller",
         agreementVersion: "monthly-usage-v1",
         pricingVersion: "offline-v1",
       };
@@ -802,7 +808,11 @@ run("agent onboarding with disposable PostgreSQL", () => {
       uid,
       "offline@example.test",
       { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
-      { agreementVersion: "monthly-usage-v1", pricingVersion: "offline-v1" },
+      {
+        contactName: "Offline caller",
+        agreementVersion: "monthly-usage-v1",
+        pricingVersion: "offline-v1",
+      },
       first.db,
       now,
     );
@@ -824,7 +834,7 @@ run("agent onboarding with disposable PostgreSQL", () => {
     ).toBeNull();
   });
   const nextMonth = new Date("2026-11-01T00:01:00Z");
-  async function billablePeriod() {
+  async function billablePeriod(count = 1) {
     const context = await enrolled();
     vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
     await first.db
@@ -836,49 +846,51 @@ run("agent onboarding with disposable PostgreSQL", () => {
       first.db,
       now,
     );
-    const call = await reserveStripeCall(
-      context.principal,
-      "billable",
-      { ...callIntent(), quoteVersion: quote.quoteVersion },
-      first.db,
-      now,
-    );
-    const [attempt] = await first.db
-      .insert(callAttempts)
-      .values({
-        callId: call.id,
-        ordinal: 1,
-        businessRoom: "offline-business",
-        callbackRoom: "offline-callback",
-        state: "terminal",
-        reason: "callback_declined",
+    for (let index = 0; index < count; index++) {
+      const call = await reserveStripeCall(
+        context.principal,
+        `billable:${index}`,
+        { ...callIntent(), quoteVersion: quote.quoteVersion },
+        first.db,
+        now,
+      );
+      const [attempt] = await first.db
+        .insert(callAttempts)
+        .values({
+          callId: call.id,
+          ordinal: 1,
+          businessRoom: `offline-business:${index}`,
+          callbackRoom: `offline-callback:${index}`,
+          state: "terminal",
+          reason: "callback_declined",
+          endedAt: new Date(now.getTime() + 360000),
+          cleanupUntil: new Date(now.getTime() + 900000),
+          roomsCleanedAt: new Date(now.getTime() + 360000),
+        })
+        .returning();
+      await first.db.insert(callLegs).values({
+        attemptId: attempt!.id,
+        kind: "business",
+        identity: `offline-business:${index}`,
+        state: "ended",
+        connectedAt: now,
         endedAt: new Date(now.getTime() + 360000),
-        cleanupUntil: new Date(now.getTime() + 900000),
-        roomsCleanedAt: new Date(now.getTime() + 360000),
-      })
-      .returning();
-    await first.db.insert(callLegs).values({
-      attemptId: attempt!.id,
-      kind: "business",
-      identity: "offline-business",
-      state: "ended",
-      connectedAt: now,
-      endedAt: new Date(now.getTime() + 360000),
-      createdAt: now,
-    });
-    await first.db
-      .update(calls)
-      .set({ state: "failed", endedAt: new Date(now.getTime() + 360000) })
-      .where(eq(calls.id, call.id));
-    await finalizeStripeUsage(call.id, first.db, now);
+        createdAt: now,
+      });
+      await first.db
+        .update(calls)
+        .set({ state: "failed", endedAt: new Date(now.getTime() + 360000) })
+        .where(eq(calls.id, call.id));
+      await finalizeStripeUsage(call.id, first.db, now);
+    }
     const [period] = await first.db.select().from(billingPeriods);
-    expect(period!.spentCents).toBe(70);
+    expect(period!.spentCents).toBe(70 * count);
     await Promise.all([
       closeBillingPeriod(period!.id, first.db, nextMonth),
       closeBillingPeriod(period!.id, second.db, nextMonth),
     ]);
     const [invoice] = await first.db.select().from(billingInvoices);
-    expect(invoice!.expectedCents).toBe(70);
+    expect(invoice!.expectedCents).toBe(70 * count);
     return { ...context, period: period!, invoice: invoice! };
   }
   function fakeInvoices() {
@@ -1144,7 +1156,15 @@ run("agent onboarding with disposable PostgreSQL", () => {
     expect(results.reduce((sum, result) => sum + result.processed, 0)).toBe(1);
     expect(
       (await first.db.select().from(billingAccounts))[0]?.blockReason,
-    ).toBe("stripe_adjustment_review");
+    ).toBe("invoice_cash_review");
+    expect(
+      (
+        await first.db
+          .select()
+          .from(billingAuditEvents)
+          .where(eq(billingAuditEvents.kind, "stripe_review_required"))
+      )[0]?.detail,
+    ).toMatchObject({ reason: "stripe_adjustment_review" });
   });
   it("stops invoice automation after collection consent is withdrawn", async () => {
     const { invoice, owner, uid } = await billablePeriod(),
@@ -1236,27 +1256,25 @@ run("agent onboarding with disposable PostgreSQL", () => {
         spentCents: 2,
       })
       .returning();
-    await first.db
-      .insert(billingCallUsage)
-      .values({
-        clientId: principal.clientId,
-        billingAccountId: usage!.billingAccountId,
-        connectionId: usage!.connectionId,
-        authorizationId: usage!.authorizationId,
-        periodId: small!.id,
-        callReference: randomUUID(),
-        credentialId: usage!.credentialId,
-        authorizationVersion: usage!.authorizationVersion,
-        connectionVersion: usage!.connectionVersion,
-        requestFingerprint: "synthetic-small",
-        pricingVersion: usage!.pricingVersion,
-        businessRate: usage!.businessRate,
-        callbackRate: usage!.callbackRate,
-        reservedCents: 2,
-        finalCents: 2,
-        finalizedAt: now,
-        state: "finalized",
-      });
+    await first.db.insert(billingCallUsage).values({
+      clientId: principal.clientId,
+      billingAccountId: usage!.billingAccountId,
+      connectionId: usage!.connectionId,
+      authorizationId: usage!.authorizationId,
+      periodId: small!.id,
+      callReference: randomUUID(),
+      credentialId: usage!.credentialId,
+      authorizationVersion: usage!.authorizationVersion,
+      connectionVersion: usage!.connectionVersion,
+      requestFingerprint: "synthetic-small",
+      pricingVersion: usage!.pricingVersion,
+      businessRate: usage!.businessRate,
+      callbackRate: usage!.callbackRate,
+      reservedCents: 2,
+      finalCents: 2,
+      finalizedAt: now,
+      state: "finalized",
+    });
     await closeBillingPeriod(small!.id, first.db, new Date("2026-12-01Z"));
     expect(
       (
@@ -1289,5 +1307,232 @@ run("agent onboarding with disposable PostgreSQL", () => {
       )[0]?.stripeStatus,
     ).toBe("open");
     expect(process.env.STRIPE_BILLING_ENABLED).toBe("false");
+  });
+  it("pins the human-approved caller name and rejects an expired quote", async () => {
+    const { principal } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    const input = {
+      ...callIntent(),
+      task: { ...callIntent().task, callerName: "Different caller" },
+      quoteVersion: quote.quoteVersion,
+    };
+    await expect(
+      reserveStripeCall(
+        principal,
+        "expired",
+        input,
+        first.db,
+        new Date("2026-10-18T12:05:00Z"),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    const result = await reserveStripeCall(
+      principal,
+      "name",
+      input,
+      first.db,
+      now,
+    );
+    expect(
+      (await first.db.select().from(calls).where(eq(calls.id, result.id)))[0]
+        ?.task,
+    ).toMatchObject({ callerName: "Offline caller" });
+  });
+  it("lets a bounded active call finish across UTC month close without starting another attempt", async () => {
+    const { principal } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const start = new Date("2026-10-31T23:55:00Z"),
+      afterBoundary = new Date("2026-11-01T00:00:10Z");
+    const base = callIntent(),
+      raw = {
+        ...base,
+        task: { ...base.task, expiresAt: "2026-11-01T00:20:00Z" },
+      };
+    const quote = await quoteStripeCall(principal, raw, first.db, start);
+    const call = await reserveStripeCall(
+      principal,
+      "boundary",
+      { ...raw, quoteVersion: quote.quoteVersion },
+      first.db,
+      start,
+    );
+    const attempt = await claimConnectAttempt(call.id, first.db, start),
+      workerId = randomUUID();
+    async function command(
+      action: "claim" | "dial" | "connected" | "human" | "heartbeat",
+      at = start,
+      leg: "business" | "callback" = "business",
+    ) {
+      return connectCommand(
+        call.id,
+        {
+          action,
+          eventId: randomUUID(),
+          attemptId: attempt!.id,
+          workerId,
+          leg,
+          ...(action === "connected"
+            ? { at: at.toISOString(), sipCallId: "offline-sip" }
+            : {}),
+        },
+        first.db,
+        at,
+      );
+    }
+    expect(await command("claim")).toMatchObject({ allowed: true });
+    expect(await command("dial")).toMatchObject({ allowed: true });
+    expect(await command("connected")).toMatchObject({ allowed: true });
+    expect(await command("human")).toMatchObject({ allowed: true });
+    await first.db
+      .update(callAttempts)
+      .set({ heartbeatAt: afterBoundary })
+      .where(eq(callAttempts.id, attempt!.id));
+    const [period] = await first.db.select().from(billingPeriods);
+    await closeBillingPeriod(period!.id, first.db, afterBoundary);
+    expect(await command("heartbeat", afterBoundary)).toMatchObject({
+      allowed: true,
+    });
+    expect(await command("dial", afterBoundary, "callback")).toMatchObject({
+      allowed: true,
+    });
+    await claimConnectAttempt(call.id, first.db, afterBoundary);
+    expect((await first.db.select().from(calls))[0]?.endedAt).toBeNull();
+    expect(await first.db.select().from(callAttempts)).toHaveLength(1);
+  });
+
+  it("replaces an unavailable card without changing existing grant authority", async () => {
+    const { principal, uid } = await enrolled();
+    const [original] = await first.db.select().from(billingAuthorizations),
+      [account] = await first.db.select().from(billingAccounts);
+    await blockBillingAccount(
+      account!.id,
+      "saved_card_unavailable",
+      "evt_detached",
+      first.db,
+      now,
+    );
+    const setup = await createBillingSetup(
+        principal,
+        "replace",
+        "replace_card",
+        first.db,
+        now,
+      ),
+      stripe = fakeStripe("cs_replacement", "pm_replacement");
+    await approveBillingSetup(
+      setup.setupRequestId,
+      uid,
+      "offline@example.test",
+      { monthlyLimitCents: 1000, perCallLimitCents: 1000 },
+      {
+        agreementVersion: "monthly-usage-v1",
+        pricingVersion: "offline-v1",
+        contactName: "Offline caller",
+      },
+      first.db,
+      now,
+    );
+    await beginBillingCheckout(
+      setup.setupRequestId,
+      uid,
+      stripe.sdk,
+      first.db,
+      now,
+    );
+    stripe.complete();
+    await reconcileCheckoutSession("cs_replacement", stripe.sdk, first.db, now);
+    expect((await first.db.select().from(billingAccounts))[0]).toMatchObject({
+      status: "active",
+      blockReason: null,
+      paymentMethodId: "pm_replacement",
+    });
+    expect(
+      (await first.db.select().from(billingAuthorizations))[0]?.version,
+    ).toBe(original!.version);
+    await blockBillingAccount(
+      account!.id,
+      "stripe_adjustment_review",
+      "evt_refund",
+      first.db,
+      now,
+    );
+    await blockBillingAccount(
+      account!.id,
+      "saved_card_unavailable",
+      "evt_latedetached",
+      first.db,
+      now,
+    );
+    expect(
+      (await first.db.select().from(billingAccounts))[0]?.blockReason,
+    ).toBe("stripe_adjustment_review");
+    await expect(
+      createBillingSetup(
+        principal,
+        "review-blocked",
+        "replace_card",
+        first.db,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+  it("isolates call status between integrations on the same account", async () => {
+    const { principal, uid, owner } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    const call = await reserveStripeCall(
+      principal,
+      "owned",
+      { ...callIntent(), quoteVersion: quote.quoteVersion },
+      first.db,
+      now,
+    );
+    expect((await getAgentCallStatus(principal, call.id, first.db)).id).toBe(
+      call.id,
+    );
+    const other = await approveAgentConnection(
+      owner.id,
+      uid,
+      issuer,
+      details(uid),
+      first.db,
+    );
+    await expect(
+      getAgentCallStatus(
+        {
+          ...principal,
+          connectionId: other.id,
+          credentialId: other.oauthClientId,
+        },
+        call.id,
+        second.db,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+  it("collects several calls in one monthly invoice", async () => {
+    const { invoice, period } = await billablePeriod(2),
+      stripe = fakeInvoices();
+    expect(await first.db.select().from(billingCallUsage)).toHaveLength(2);
+    expect(await first.db.select().from(billingInvoices)).toHaveLength(1);
+    await issueMonthlyInvoice(invoice.id, stripe.sdk, first.db, nextMonth);
+    expect(stripe.calls.invoiceItems.create).toHaveBeenCalledWith(
+      expect.objectContaining({ invoice: "in_offline", amount: 140 }),
+      expect.anything(),
+    );
+    stripe.setStatus("paid");
+    await reconcileMonthlyInvoice(
+      "in_offline",
+      stripe.sdk,
+      first.db,
+      nextMonth,
+    );
+    expect(
+      (
+        await first.db
+          .select()
+          .from(billingPeriods)
+          .where(eq(billingPeriods.id, period.id))
+      )[0]?.collectedCents,
+    ).toBe(140);
   });
 });

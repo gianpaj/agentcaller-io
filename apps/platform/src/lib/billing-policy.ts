@@ -40,6 +40,17 @@ export function requireEnrollmentPolicy() {
   return policy;
 }
 
+export function enrollmentBlocked(account: {
+  status: string;
+  blockReason: string | null;
+}) {
+  return (
+    account.status === "revoked" ||
+    (account.status === "suspended" &&
+      account.blockReason !== "saved_card_unavailable")
+  );
+}
+
 export function billingErrorResponse(error: unknown) {
   if (error instanceof ApiError)
     return Response.json(

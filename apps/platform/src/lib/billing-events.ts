@@ -28,7 +28,11 @@ export async function blockBillingAccount(
       .update(billingAccounts)
       .set({
         status: account.status === "revoked" ? "revoked" : "suspended",
-        blockReason: reason,
+        blockReason:
+          account.status === "suspended" &&
+          account.blockReason !== "saved_card_unavailable"
+            ? account.blockReason
+            : reason,
         updatedAt: now,
       })
       .where(eq(billingAccounts.id, account.id));

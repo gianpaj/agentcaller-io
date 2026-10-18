@@ -500,12 +500,17 @@ export const billingAccounts = pgTable(
     cardExpiryMonth: integer("card_expiry_month"),
     cardExpiryYear: integer("card_expiry_year"),
     billingEmail: text("billing_email"),
+    contactName: text("contact_name"),
     customerOperationAt: timestamp("customer_operation_at", {
       withTimezone: true,
     }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [
+    check(
+      "billing_accounts_contact_name_length",
+      sql`contact_name is null or char_length(contact_name) between 1 and 80`,
+    ),
     check("billing_accounts_check_1", sql.raw("currency = 'USD'")),
     check(
       "billing_accounts_check_2",
@@ -659,6 +664,7 @@ export const billingSetupRequests = pgTable(
     consentedAt: timestamp("consented_at", { withTimezone: true }),
     stripeSessionId: text("stripe_session_id"),
     stripeSetupIntentId: text("stripe_setup_intent_id"),
+    checkoutOrigin: text("checkout_origin"),
     checkoutExpiresAt: timestamp("checkout_expires_at", { withTimezone: true }),
     operationStartedAt: timestamp("operation_started_at", {
       withTimezone: true,

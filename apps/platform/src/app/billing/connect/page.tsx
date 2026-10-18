@@ -92,6 +92,7 @@ export default async function BillingConnect({
               action={saveBillingConsent}
               className="grid gap-5 rounded-xl border border-(--line) bg-(--panel) p-6"
             >
+              <input type="hidden" name="setupRequestId" value={request.id} />
               <input
                 type="hidden"
                 name="agreementVersion"
@@ -102,6 +103,17 @@ export default async function BillingConnect({
                 name="pricingVersion"
                 value={request.pricingVersion ?? ""}
               />
+              <label className="grid gap-2">
+                Name to use when introducing your call
+                <input
+                  className="rounded-md border border-(--line) bg-(--void) p-3"
+                  name="contactName"
+                  autoComplete="name"
+                  maxLength={80}
+                  defaultValue={account.contactName ?? ""}
+                  required
+                />
+              </label>
               <label className="grid gap-2">
                 Monthly integration limit (USD cents)
                 <input

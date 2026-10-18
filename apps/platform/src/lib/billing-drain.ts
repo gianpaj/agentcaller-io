@@ -5,6 +5,7 @@ import {
   billingPeriods,
   billingSetupRequests,
   calls,
+  callAttempts,
 } from "@agentcaller/database";
 import { and, eq, inArray, isNotNull, isNull, lte, asc, or } from "drizzle-orm";
 import type Stripe from "stripe";
@@ -109,6 +110,12 @@ export async function drainBilling(
           .from(calls)
           .where(eq(calls.id, call.id))
           .for("update");
+        const [ongoing] = await tx
+          .select()
+          .from(callAttempts)
+          .where(
+            and(eq(callAttempts.callId, call.id), isNull(callAttempts.endedAt)),
+          );
         return (
           current &&
           (
@@ -118,6 +125,7 @@ export async function drainBilling(
               current.scheduledFor && current.scheduledFor > now
                 ? current.scheduledFor
                 : now,
+              ongoing,
             )
           )?.allowed
         );

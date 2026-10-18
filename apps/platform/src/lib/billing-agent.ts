@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AgentPrincipal } from "@agentcaller/contracts";
 import { calls, billingCallUsage } from "@agentcaller/database";
 import { and, eq } from "drizzle-orm";
@@ -9,6 +10,7 @@ export async function getAgentCallStatus(
   id: string,
   db = database(),
 ) {
+  z.uuid().parse(id);
   await db.transaction((tx) =>
     lockAgentConnection(tx, principal, "calls:read"),
   );

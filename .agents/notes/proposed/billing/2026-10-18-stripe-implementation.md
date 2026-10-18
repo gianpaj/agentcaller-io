@@ -35,11 +35,15 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   matching protocol, method and tool-name headers and the per-request envelope.
 - Six MCP tools call the billing application functions: setup, readiness, quote,
   reservation, integration-scoped call status and usage. Linked API keys use
-  `/api/v1/billing/{setup,status,quote,calls,usage}`; unlinked keys cannot spend.
+  the canonical billing endpoints and explicit `stripe_postpaid` calls; unlinked
+  keys cannot spend. Resource-bound OAuth can read/cancel its own calls through
+  the detail/cancel routes; legacy API keys retain their historical tenant scope.
 - Human enrollment exchanges a setup token for an HttpOnly continuation cookie,
   checks the verified owner, records unchecked-form consent and caps, then opens
   a card-only Stripe Checkout Session. GET and browser return never activate a
   grant. Authoritative Session/Intent/card verification activates it once.
+- Consent forms bind the displayed request to the continuation cookie. A second
+  setup tab cannot switch the integration receiving the human's approval.
 - Checkout create operations have persisted generations, a two-minute lease,
   stable Stripe keys and a 23-hour retry boundary. Checkout expires after 31
   minutes so request latency does not violate Stripe's 30-minute minimum.
@@ -67,8 +71,18 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 - Collection consent is checked under the account lock before finalization.
   Unpaid invoice overrides follow the current verified card. Withdrawal pauses
   invoice automation and acknowledges the possibility of an in-flight payment.
-- Paid calling remains disabled. Native URL elicitation, external acceptance,
-  multi-customer prompt identity and operational review remain release work.
+- Enrollment records the human-approved introduction name. Each reservation pins
+  it for the worker; agent-supplied names cannot override it. Spanish and Italian
+  introductions disclose automation without assuming a fixed customer.
+- Existing active attempts can finish across UTC month close within their bound.
+  No new business attempt starts after the period ends; retained reservations
+  keep close pending until usage is final.
+- Checkout operations freeze the return origin. Card replacement keeps an active
+  grant's version and can resolve an unavailable card; financial review blocks
+  remain sticky. Collection resumption requires fresh human consent.
+- Paid calling remains disabled. Native URL elicitation is unimplemented; ordinary
+  setup links and polling are available. External acceptance and operational
+  review remain release work.
 - Billing contracts require cents and accepted quote versions, preserve legacy
   dollar inputs and reject mixed money/claimed authority. Domain functions cover
   full-job quotes, confirmed connected usage, aggregate rounding, unknown holds,
@@ -99,13 +113,13 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 ## Verification
 
 - Workspace typecheck, tests and build pass across all five packages. Offline
-  tests pass: platform 327, contracts 98, worker 41, database 2 and scheduler 6.
-- Disposable PostgreSQL passes 24 onboarding/enrollment/reservation/invoice tests and 46 existing
-  connect tests, including upgrades with a historical x402 call. Tests use
+  tests pass: platform 335, contracts 98, worker 42, database 2 and scheduler 6.
+- Disposable PostgreSQL passes 29 billing tests and 46 existing connect
+  tests, including upgrades with a historical x402 call. Tests use
   independent connections; OAuth profile ownership and event RLS are enforced.
 - Lint exits successfully with zero findings. The shadcn plugin reports that its
   configured UI alias has no directory; this configuration belongs to the base.
-- Repository formatting reports 51 files: 50 are byte-identical to the base;
+- Repository formatting reports 50 files: 49 are byte-identical to the base;
   the modified pnpm lockfile also fails formatting on the base. Changed source
   and documentation pass targeted formatting. No unrelated formatting is applied.
 - Initial docs typecheck requires generated Fumadocs collections; generation
@@ -117,5 +131,17 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 - Confirm resource-bound Supabase issuance and target MCP host behavior.
 - Approve customer tariff, rounding, tax, reservation/retry and calling scope.
-- Verify carrier bounds, metering, multi-customer prompts and Stripe settings.
+- Verify carrier bounds, metering, caller introductions and Stripe settings.
 - Complete hosted Stripe card/invoice acceptance and operational accounting review.
+
+## Phase status
+
+| Phase              | Implemented and tested offline                                                | Release gate                                                                  |
+| ------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 0: Dependencies    | SDK/protocol checks and migration fixtures                                    | Approved tariffs/tax, resource-bound issuer, target host and carrier checks   |
+| 1: OAuth/MCP       | Consent, verified ownership, revocation and six tools                         | Real issuer/host onboarding acceptance; native elicitation is unimplemented   |
+| 2: Enrollment      | Human consent, card setup/verification, controls and key linking              | Hosted Stripe test-mode and human browser acceptance                          |
+| 3: Calls and usage | Atomic full-job holds, permissions, cancellation, metering and UTC scheduling | Controlled provider calls and policy approval                                 |
+| 4: Monthly billing | Closing, held draft/item verification, collection reconciliation and cron     | Stripe collection/recovery settings, hosted acceptance and operational review |
+
+No phase is declared release-accepted. Link Agent Wallet remains planning only.

@@ -13,7 +13,8 @@ release gates. There are no subscriptions or upfront payments.
 1. Connect through [OAuth MCP onboarding](/docs/mcp) and approve tool access.
 2. Ask the agent to run `setup_billing` and open the returned AgentCaller link.
 3. Sign in as the same human who connected the integration. Review approved USD
-   tariffs, monthly and per-call limits, and the monthly collection agreement.
+   tariffs, the name used to introduce your call, monthly and per-call limits,
+   and the monthly collection agreement.
 4. Approve spending and save a card in Stripe Checkout. The setup has no charge.
 5. Let the agent poll readiness and submit its call. Opening a setup link or
    returning from Checkout cannot activate spending authority.
@@ -38,6 +39,9 @@ OAuth tokens require the resource-bound audience described in the MCP guide.
 | `GET /api/v1/billing/usage`      | Read integration-scoped usage; paginate with `before` |
 | `POST /api/v1/calls/quote`       | Quote a validated `connect_me` job                    |
 | `POST /api/v1/calls`             | Reserve with `X-AgentCaller-Funding: stripe_postpaid` |
+
+Resource-bound OAuth can read or cancel its own integration’s calls through the
+existing call detail/cancel routes. Legacy API keys retain tenant-wide scope.
 
 Card requests use integer `maxAmountCents`, the accepted `quoteVersion` and an
 optional offset-resolved `scheduledFor`. Use a fresh quote before submitting;
@@ -67,7 +71,8 @@ Unknown timing keeps a hold. A terminal job with confirmed cleanup and no dial
 intent releases its reservation without inventing a charge.
 
 A scheduled job belongs to its first-start UTC month. No new attempt starts after
-that month ends. Connected calls can finish within their existing bounds. Period
+that month ends. Active calls can finish within their existing bounds. The worker
+uses the introduction name approved by the human and pinned when reserving. Period
 close waits for cleanup and final usage; unresolved holds prevent invoicing.
 
 ## Monthly collection and controls

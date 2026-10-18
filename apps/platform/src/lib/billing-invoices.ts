@@ -178,7 +178,11 @@ async function review(
       .where(eq(billingInvoices.id, row.id));
     await tx
       .update(billingAccounts)
-      .set({ status: "suspended", blockReason: reason, updatedAt: now })
+      .set({
+        status: account.status === "revoked" ? "revoked" : "suspended",
+        blockReason: reason,
+        updatedAt: now,
+      })
       .where(eq(billingAccounts.id, account.id));
     await billingAudit(
       tx,

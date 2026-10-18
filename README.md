@@ -129,7 +129,7 @@ rather than a working MVP.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                           |
 | Voice path              | Worker owns dialing and waits for SIP answer; connect-me detection and handoff require live verification               |
-| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                    |
+| Payment                 | Saved-card monthly invoicing is tested offline and disabled; x402 variable capture remains blocked                     |
 | Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
 | Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
 | Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |

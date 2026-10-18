@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const billingContactNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[\p{L}\p{M} .'-]+$/u, "Use the name the business should hear");
+
 // The merchant exposure cap is independent of any customer spending allowance.
 export const unpaidExposureLimitCents = 1000;
 export const centsSchema = z.number().int().nonnegative().max(2_147_483_647);

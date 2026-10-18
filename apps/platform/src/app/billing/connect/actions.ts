@@ -19,6 +19,8 @@ export async function saveBillingConsent(form: FormData) {
     (await cookies()).get("billing_continuation")?.value ?? "",
     user.id,
   );
+  if (z.uuid().parse(form.get("setupRequestId")) !== request.id)
+    throw new Error("This setup tab is out of date; reopen its approval link");
   await approveBillingSetup(
     request.id,
     user.id,
@@ -28,6 +30,7 @@ export async function saveBillingConsent(form: FormData) {
       perCallLimitCents: Number(form.get("perCallLimitCents")),
     },
     {
+      contactName: z.string().parse(form.get("contactName")),
       agreementVersion: z.string().parse(form.get("agreementVersion")),
       pricingVersion: z.string().parse(form.get("pricingVersion")),
     },

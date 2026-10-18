@@ -284,7 +284,12 @@ export async function reserveStripeCall(
         ),
       )
       .for("update");
-    if (!grant || grant.status === "pending" || !account.paymentMethodId)
+    if (
+      !grant ||
+      grant.status === "pending" ||
+      !account.paymentMethodId ||
+      !account.contactName
+    )
       return null;
     if (!isStripeBillingEnabled())
       throw new ApiError(503, "Paid calling is disabled");
@@ -398,7 +403,7 @@ export async function reserveStripeCall(
         language: input.language,
         voiceId: input.voiceId,
         clientReference: input.clientReference,
-        task: input.task,
+        task: { ...input.task, callerName: account.contactName! },
         maxDurationSeconds: input.maxDurationSeconds,
         maxAmountMicros: input.maxAmountCents * 10000,
         paymentState: "accruing",

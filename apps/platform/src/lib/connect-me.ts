@@ -98,7 +98,15 @@ export async function connectCommand(
       .from(connectJobs)
       .where(eq(connectJobs.callId, callId));
     if (!job) throw new ApiError(409, "Missing job");
-    const authority = await stripeCallAuthority(tx, call, now);
+    const authority = await stripeCallAuthority(
+      tx,
+      call,
+      now,
+      event.action !== "claim" &&
+        !(event.action === "dial" && event.leg === "business")
+        ? attempt
+        : undefined,
+    );
     if (
       authority &&
       !authority.allowed &&
@@ -403,7 +411,13 @@ export async function claimConnectAttempt(
       .set({ updatedAt: now })
       .where(eq(connectJobs.callId, callId));
     const task = input.task;
-    const authority = await stripeCallAuthority(tx, call, now);
+    const [active] = await tx
+      .select()
+      .from(callAttempts)
+      .where(
+        and(eq(callAttempts.callId, callId), isNull(callAttempts.endedAt)),
+      );
+    const authority = await stripeCallAuthority(tx, call, now, active);
     if (authority && !authority.allowed) {
       await tx
         .update(callAttempts)
@@ -414,12 +428,6 @@ export async function claimConnectAttempt(
       await terminal(tx, callId, "cancelled", now);
       return null;
     }
-    const [active] = await tx
-      .select()
-      .from(callAttempts)
-      .where(
-        and(eq(callAttempts.callId, callId), isNull(callAttempts.endedAt)),
-      );
     if (active) {
       const heartbeatStale =
         now.getTime() - active.heartbeatAt.getTime() > 90_000;

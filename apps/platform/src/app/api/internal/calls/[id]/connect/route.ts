@@ -21,7 +21,14 @@ export async function POST(
     if (
       ["claim", "heartbeat", "dial", "accept", "bridged"].includes(event.action)
     )
-      await authorizeConnectFunding(id);
+      await authorizeConnectFunding(
+        id,
+        undefined,
+        event.action === "claim" ||
+          (event.action === "dial" && event.leg === "business")
+          ? undefined
+          : event.attemptId,
+      );
     return Response.json(await connectCommand(id, event));
   } catch (error) {
     return errorResponse(error);

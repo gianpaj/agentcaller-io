@@ -131,10 +131,15 @@ export function sipFailure(code?: number): Reason {
   // A transport timeout has no definitive SIP response and cannot authorize a retry.
   return code ? "configuration_error" : "dial_unknown";
 }
-export const businessMessage = {
-  es: "Hola, soy el asistente automático de Gianfranco. Le conecto con él, un momento, por favor.",
-  it: "Buongiorno, sono l’assistente automatico di Gianfranco. La metto in contatto con lui, un momento, per favore.",
-};
+export function businessMessage(language: "es" | "it", callerName?: string) {
+  if (language === "it")
+    return callerName
+      ? `Buongiorno, sono l’assistente automatico di ${callerName}. La metto in contatto, un momento, per favore.`
+      : "Buongiorno, sono l’assistente automatico di AgentCaller. La metto in contatto, un momento, per favore.";
+  return callerName
+    ? `Hola, soy el asistente automático de ${callerName}. Le conecto, un momento, por favor.`
+    : "Hola, soy el asistente automático de AgentCaller. Le conecto, un momento, por favor.";
+}
 export const callbackMessage = {
   es: "Soy el asistente automático de AgentCaller. El negocio está en línea. Pulse 1 para aceptar la llamada, o 2 para rechazarla.",
   it: "Sono l’assistente automatico di AgentCaller. L’attività è in linea. Prema 1 per accettare la chiamata, oppure 2 per rifiutarla.",
