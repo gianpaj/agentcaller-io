@@ -1,7 +1,7 @@
 # Agent billing implementation
 
 Date: 2026-10-18. Branch: `codex/stripe-agent-billing`.
-Base: `feat/landing-page-refresh` at `fe01da0`.
+Integrated base: `feat/landing-page-refresh` at `13ab75e`.
 
 ## Decisions
 
@@ -13,8 +13,7 @@ Saved-card monthly Invoicing is the MVP; Link Agent Wallet stays future scope.
 
 ## Evidence
 
-The base platform typecheck passes; 224 offline tests pass and 45 database tests
-are skipped without a disposable database. Supabase Auth JS 2.110.1 exposes the
+Supabase Auth JS 2.110.1 exposes the
 authorization-details, approval and denial APIs needed for consent. Its official
 [token example](https://supabase.com/docs/guides/auth/oauth-server/token-security)
 uses `aud: authenticated`; this does not meet the MCP resource requirement.
@@ -52,16 +51,20 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
   preflight and exposed challenges only for exact configured browser origins.
 - Empty leg evidence keeps a metering hold. Queued jobs that never acquired a
   dial intent need an explicit release path, not inference from an empty list.
+- The integrated connect lifecycle accepts end observations after expiry while
+  still denying observations after operational terminal state. Preserve the
+  expiry handling; post-terminal accounting remains a billing integration task.
 
 ## Verification
 
 - Workspace typecheck, tests and build pass across all five packages. Offline
-  tests pass: platform 306, contracts 91, worker 40, database 2 and scheduler 6.
-- Disposable PostgreSQL passes 7 onboarding/event-inbox tests and 45 existing
+  tests pass: platform 327, contracts 98, worker 41, database 2 and scheduler 6.
+- Disposable PostgreSQL passes 7 onboarding/event-inbox tests and 46 existing
   connect tests, including upgrades with a historical x402 call. Tests use
   independent connections; OAuth profile ownership and event RLS are enforced.
-- Lint exits successfully with six existing warnings in untouched files.
-- Repository formatting reports 58 files: 57 are byte-identical to the base;
+- Lint exits successfully with zero findings. The shadcn plugin reports that its
+  configured UI alias has no directory; this configuration belongs to the base.
+- Repository formatting reports 51 files: 50 are byte-identical to the base;
   the modified pnpm lockfile also fails formatting on the base. Changed source
   and documentation pass targeted formatting. No unrelated formatting is applied.
 - Initial docs typecheck requires generated Fumadocs collections; generation

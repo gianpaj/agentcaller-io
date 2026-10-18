@@ -14,6 +14,19 @@ const timezone = z
     }
   }, "Use an IANA timezone");
 
+const callingWindowObjectSchema = z
+  .object({
+    timezone,
+    // Explicit local business hours, same-day windows only. No inferred schedule.
+    weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
+    start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  })
+  .refine(
+    (v) => v.start < v.end,
+    "Window must end on the same day after its start",
+  );
+
 export const connectMeTaskSchema = z
   .object({
     type: z.literal("connect_me"),
@@ -25,18 +38,31 @@ export const connectMeTaskSchema = z
     maxAttempts: z.number().int().min(1).max(6).default(6),
     retryDelaySeconds: z.number().int().min(300).max(86400).default(300),
     callingWindow: z
-      .object({
-        timezone,
-        // Explicit local business hours, same-day windows only. No inferred schedule.
-        weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7),
-        start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-        end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      .custom<
+        | {
+            timezone: string;
+            weekdays: number[];
+            start: string;
+            end: string;
+          }
+        | "now"
+      >(() => true)
+      .superRefine((value, ctx) => {
+        if (value === "now") return;
+        const parsed = callingWindowObjectSchema.safeParse(value);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues)
+            ctx.addIssue({
+              code: "custom",
+              path: issue.path,
+              message: issue.message,
+              continue: true,
+            });
+        }
       })
-      .refine(
-        (v) => v.start < v.end,
-        "Window must end on the same day after its start",
-      )
-      .or(z.literal("now")),
+      .transform((value) =>
+        value === "now" ? ("now" as const) : callingWindowObjectSchema.parse(value),
+      ),
     expiresAt: z.string().datetime(),
     ringingSeconds: z.number().int().min(10).max(60).default(40),
     waitingSeconds: z.number().int().min(10).max(300).default(120),
@@ -123,7 +149,9 @@ export function isBusinessDestination(destination: string, country: string) {
   return country === "ES"
     ? /^\+34(?:[89][1-8]\d{7}|6\d{8}|7[1-48]\d{7})$/.test(destination)
     : country === "IT" &&
-        /^\+39(?:0\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(destination);
+    /^\+39(?:0(?!0|878)\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(
+      destination,
+    );
 }
 
 export function businessDestinationError(
@@ -132,7 +160,8 @@ export function businessDestinationError(
 ): string | null {
   if (!/^\+\d+$/.test(destination)) return businessDestinationErrors.format;
   const prefix = country === "ES" ? "+34" : country === "IT" ? "+39" : null;
-  if (!prefix || !destination.startsWith(prefix))
+  if (!prefix) return businessDestinationErrors.unsupported;
+  if (!destination.startsWith(prefix))
     return businessDestinationErrors.country;
   const national = destination.slice(prefix.length);
   if (country === "ES" && national.length !== 9)

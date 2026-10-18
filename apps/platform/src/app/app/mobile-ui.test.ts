@@ -6,32 +6,48 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   pathname: "/app",
   startCall: vi.fn(),
+  getCallNowDeadline: vi.fn(),
+  rethrow: vi.fn(),
+  capturedAction: null as
+    | null
+    | ((previous: any, form: FormData) => Promise<any>),
   refresh: vi.fn(),
   listCallHistory: vi.fn(),
+  loadCallHistory: vi.fn(),
   parseCursor: vi.fn(),
   formState: null as null | {
     error: string;
     fieldErrors: Record<string, string>;
   },
+  confirmForm: undefined as FormData | undefined,
+  setConfirmForm: vi.fn(),
 }));
 
-vi.mock("react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("react")>()),
-  useActionState: (_action: unknown, initial: unknown) => [
-    mocks.formState ?? initial,
-    mocks.startCall,
-    false,
-  ],
-}));
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (initial: unknown) => {
+      if (initial === undefined) {
+        return [mocks.confirmForm, mocks.setConfirmForm];
+      }
+      return actual.useState(initial);
+    },
+    useActionState: (action: any, initial: unknown) => {
+      mocks.capturedAction = action;
+      return [mocks.formState ?? initial, mocks.startCall, false];
+    },
+  };
+});
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
   useRouter: () => ({ refresh: mocks.refresh }),
-  unstable_rethrow: vi.fn(),
+  unstable_rethrow: mocks.rethrow,
 }));
 vi.mock("./calls/new/actions", () => ({
   startCall: mocks.startCall,
-  getCallNowDeadline: vi.fn(),
+  getCallNowDeadline: mocks.getCallNowDeadline,
 }));
 vi.mock("@/lib/portal", () => ({
   requireClientProfile: async () => ({ id: "ui-test-client" }),
@@ -39,10 +55,13 @@ vi.mock("@/lib/portal", () => ({
 vi.mock("@/lib/call-history", () => ({
   historyCursor: { safeParse: mocks.parseCursor },
   listCallHistory: mocks.listCallHistory,
+  loadCallHistory: mocks.loadCallHistory,
 }));
 
 import { CallNavigation } from "./call-navigation";
+import CallDetail from "./calls/[id]/page";
 import { CallForm } from "./calls/new/call-form";
+import NewCallPage from "./calls/new/page";
 import HistoryPage from "./page";
 
 function openingTag(markup: string, name: string) {
@@ -56,6 +75,7 @@ function openingTag(markup: string, name: string) {
 beforeEach(() => {
   mocks.pathname = "/app";
   mocks.formState = null;
+  mocks.confirmForm = undefined;
   vi.clearAllMocks();
   mocks.listCallHistory.mockResolvedValue([]);
   mocks.parseCursor.mockReturnValue({ success: false });
@@ -150,6 +170,322 @@ describe("recent calls presentation", () => {
       id: "cursor",
     });
   });
+});
+
+describe("call-detail presentation", () => {
+  function detail() {
+    return {
+      call: {
+        id: "detail-call",
+        clientReference: "Example business",
+        destination: "+34911234567",
+        state: "failed",
+        createdAt: new Date("2026-09-01T12:00:00Z"),
+        endedAt: new Date("2026-09-01T12:05:00Z"),
+        language: "es",
+        fundingSource: "operator",
+        maxAmountMicros: 5_250_000,
+        task: {
+          type: "connect_me",
+          purpose: "Ask about opening hours",
+          maxAttempts: 2,
+        },
+        outcome: { reason: "busy" },
+      },
+      job: {
+        attemptCount: 0,
+        reservedMicros: 1_750_000,
+        nextAttemptAt: new Date("2026-09-01T12:10:00Z"),
+      },
+      attempts: [],
+      legs: [],
+      events: [],
+    };
+  }
+
+  async function renderDetail(id = "detail-call") {
+    return renderToStaticMarkup(
+      await CallDetail({ params: Promise.resolve({ id }) }),
+    );
+  }
+
+  function text(markup: string) {
+    return markup
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function namedSection(markup: string, name: string) {
+    const sections = [
+      ...markup.matchAll(/<section\b([^>]*)>([\s\S]*?)<\/section>/gi),
+    ];
+    const matches = sections.filter(([, attributes, content]) => {
+      const labelledBy = attributes.match(/\baria-labelledby="([^"]+)"/)?.[1];
+      if (!labelledBy) return false;
+      return [
+        ...content.matchAll(/<h[1-6]\b([^>]*)>([\s\S]*?)<\/h[1-6]>/gi),
+      ].some(([, headingAttributes, heading]) => {
+        const id = headingAttributes.match(/\bid="([^"]+)"/)?.[1];
+        return (
+          id &&
+          labelledBy.split(/\s+/).includes(id) &&
+          new RegExp(`^${name}(?:$|\\s|·)`, "i").test(text(heading))
+        );
+      });
+    });
+    expect(matches, `Expected one section labelled ${name}`).toHaveLength(1);
+    return matches[0]![2];
+  }
+
+  function definition(markup: string, label: string) {
+    const lists = [...markup.matchAll(/<dl\b[^>]*>([\s\S]*?)<\/dl>/gi)];
+    const pairs = lists.flatMap(([, content]) => [
+      ...content.matchAll(
+        /<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi,
+      ),
+    ]);
+    const matches = pairs.filter(
+      ([, term]) => text(term).toLowerCase() === label.toLowerCase(),
+    );
+    expect(matches, `Expected one definition for ${label}`).toHaveLength(1);
+    return matches[0]![2];
+  }
+
+  beforeEach(() => {
+    mocks.loadCallHistory.mockResolvedValue(detail());
+  });
+
+  it("loads the requested call for the authenticated tenant and keeps its identity", async () => {
+    const markup = await renderDetail("requested-call");
+    expect(mocks.loadCallHistory).toHaveBeenCalledExactlyOnceWith(
+      "ui-test-client",
+      "requested-call",
+    );
+    expect(text(markup.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)![1])).toBe(
+      "Example business",
+    );
+    expect(markup).toContain("+34911234567");
+    expect(markup).toContain("Ask about opening hours");
+    expect(text(markup)).toMatch(/\bfailed\b/i);
+  });
+
+  it("labels the call details, attempts, and status log sections", async () => {
+    const markup = await renderDetail();
+    for (const name of ["Call details", "Attempts", "Status log"]) {
+      namedSection(markup, name);
+    }
+  });
+
+  it("uses summary definitions for UTC start, raw language, funding, and monetary values", async () => {
+    const summary = await renderDetail();
+    const started = definition(summary, "Started");
+    expect(started).toMatch(
+      /<time\b[^>]*\bdatetime="2026-09-01T12:00:00\.000Z"[^>]*>/i,
+    );
+    expect(text(started)).toBe("1 Sept 2026, 12:00 UTC");
+    expect(text(definition(summary, "Language"))).toBe("es");
+    expect(text(definition(summary, "Funding"))).toBe("operator funded");
+    expect(text(definition(summary, "Spend cap"))).toBe("$5.25");
+    expect(text(definition(summary, "Reserved quote"))).toBe("$1.75");
+  });
+
+  it("falls back to the destination and omits absent purpose and job reservations", async () => {
+    const fixture = detail();
+    mocks.loadCallHistory.mockResolvedValue({
+      ...fixture,
+      call: {
+        ...fixture.call,
+        clientReference: null,
+        task: { type: "connect_me", maxAttempts: 2 },
+      },
+      job: undefined,
+    });
+    const markup = await renderDetail();
+    expect(text(markup.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)![1])).toBe(
+      "+34911234567",
+    );
+    expect(markup).not.toContain("Ask about opening hours");
+    expect(markup).not.toMatch(/Reserved quote/i);
+    expect(markup).not.toContain("undefined");
+  });
+
+  it("explains when no attempts have started", async () => {
+    const markup = await renderDetail();
+    expect(markup).toContain("No attempt has started.");
+    expect(markup).not.toContain("Attempt 1");
+  });
+
+  it("explains when the status log is empty", async () => {
+    expect(await renderDetail()).toContain("No status events yet.");
+  });
+
+  it.each([
+    [null, "unknown", "$0.0000"],
+    [0, "$0.0000", "unknown"],
+  ])(
+    "keeps completed attempt and leg details with measured cost %s",
+    async (measuredMicros, expectedCost, absentCost) => {
+      const fixture = detail();
+      mocks.loadCallHistory.mockResolvedValue({
+        ...fixture,
+        call: {
+          ...fixture.call,
+          state: "completed",
+          outcome: { reason: "connected" },
+        },
+        job: { ...fixture.job, attemptCount: 1 },
+        attempts: [
+          {
+            id: "attempt-1",
+            ordinal: 1,
+            state: "completed",
+            reason: "connected",
+            createdAt: new Date("2026-09-01T12:01:00Z"),
+            endedAt: new Date("2026-09-01T12:04:00Z"),
+          },
+        ],
+        legs: [
+          {
+            attemptId: "attempt-1",
+            kind: "business",
+            state: "ended",
+            connectedAt: new Date("2026-09-01T12:01:10Z"),
+            endedAt: new Date("2026-09-01T12:04:00Z"),
+            measuredMicros: 123_400,
+          },
+          {
+            attemptId: "attempt-1",
+            kind: "callback",
+            state: "ended",
+            connectedAt: null,
+            endedAt: new Date("2026-09-01T12:02:00Z"),
+            measuredMicros,
+          },
+          {
+            attemptId: "another-attempt",
+            kind: "callback",
+            state: "dialing",
+            connectedAt: null,
+            endedAt: null,
+            measuredMicros: 9_990_000,
+          },
+        ],
+      });
+      const markup = await renderDetail();
+      const attempt = [
+        ...markup.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi),
+      ].find(([, content]) => text(content).includes("Attempt 1"))?.[1];
+      expect(attempt).toBeDefined();
+      const content = text(attempt!);
+      expect(content).toMatch(/Attempt 1[\s\S]*connected/i);
+      expect(content).toContain("1 Sept 2026, 12:01 UTC");
+      expect(content).toContain("1 Sept 2026, 12:04 UTC");
+      const [business, callback] = content.split(/callback/i);
+      expect(business).toMatch(/business[\s\S]*ended/i);
+      expect(business).toContain("Answered 1 Sept 2026, 12:01 UTC");
+      expect(business).toContain("Ended 1 Sept 2026, 12:04 UTC");
+      expect(business).toMatch(/Measured cost:?\s*\$0\.1234/);
+      expect(callback).toMatch(/\bended\b/i);
+      expect(callback).toContain("No confirmed connection");
+      expect(callback).toContain("Ended 1 Sept 2026, 12:02 UTC");
+      expect(callback).toContain("Measured cost");
+      expect(callback).toContain(expectedCost);
+      expect(callback).not.toContain(absentCost);
+      expect(text(markup)).toMatch(/\bcompleted\b/i);
+      expect(markup).not.toContain("$9.9900");
+      expect(markup).not.toContain("No attempt has started.");
+    },
+  );
+
+  it("separates event names, context, and semantic UTC timestamps", async () => {
+    mocks.loadCallHistory.mockResolvedValue({
+      ...detail(),
+      events: [
+        {
+          id: "event-1",
+          type: "connect.attempt_ended",
+          payload: { ordinal: 1, leg: "business", reason: "no_answer" },
+          occurredAt: new Date("2026-09-01T12:03:00Z"),
+        },
+      ],
+    });
+    const markup = await renderDetail();
+    const event = [...markup.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].find(
+      ([, content]) => text(content).includes("connect · attempt ended"),
+    )?.[1];
+    expect(event).toBeDefined();
+    expect(event).toMatch(/>\s*connect · attempt ended\s*</i);
+    const time = event!.match(
+      /<time\b[^>]*\bdatetime="2026-09-01T12:03:00\.000Z"[^>]*>([\s\S]*?)<\/time>/i,
+    );
+    expect(time).not.toBeNull();
+    expect(text(time![1])).toBe("1 Sept 2026, 12:03 UTC");
+    const context = text(event!.replace(/<time\b[^>]*>[\s\S]*?<\/time>/gi, ""));
+    expect(context).toContain("Attempt 1 · business · no answer");
+    expect(markup).not.toContain("No status events yet.");
+  });
+
+  it("offers cancellation and progress refresh for an active connect-me call", async () => {
+    const fixture = detail();
+    mocks.loadCallHistory.mockResolvedValue({
+      ...fixture,
+      call: {
+        ...fixture.call,
+        state: "in_progress",
+        endedAt: null,
+        outcome: null,
+      },
+    });
+    const markup = await renderDetail();
+    expect(text(markup)).toContain("in progress");
+    const cancel = [
+      ...markup.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/gi),
+    ].find(([, content]) => text(content) === "Cancel call");
+    expect(cancel).toBeDefined();
+    expect(cancel![0]).not.toMatch(/\bdisabled=/);
+    expect(openingTag(markup, "callId")).toContain('value="detail-call"');
+    expect(markup).toContain("Progress refreshes every 4 seconds");
+    expect(markup).not.toContain("?redial=");
+  });
+
+  it("offers review-before-redial for an eligible failed busy call", async () => {
+    const markup = await renderDetail();
+    expect(text(markup)).toMatch(/\bfailed\b/i);
+    expect(text(markup)).toMatch(/\bbusy\b/i);
+    const redial = [...markup.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].find(
+      ([, , content]) => text(content) === "Review and redial",
+    );
+    expect(redial).toBeDefined();
+    expect(redial![1]).toContain('href="/app/calls/new?redial=detail-call"');
+    expect(markup).not.toContain("Cancel call");
+    expect(markup).not.toContain("Progress refreshes every 4 seconds");
+  });
+
+  it.each([
+    ["failed", "refused", "The business requested that calling stop."],
+    [
+      "cancelled",
+      "cancelled",
+      "Verify provider cleanup and configuration before starting another call. Quick redial is unavailable for this outcome.",
+    ],
+  ])(
+    "blocks redial and cancellation for %s / %s",
+    async (state, reason, blocked) => {
+      const fixture = detail();
+      mocks.loadCallHistory.mockResolvedValue({
+        ...fixture,
+        call: { ...fixture.call, state, outcome: { reason } },
+      });
+      const markup = await renderDetail();
+      expect(markup).toContain(blocked);
+      expect(text(markup)).toMatch(new RegExp(`\\b${state}\\b`, "i"));
+      expect(markup).not.toContain("Cancel call");
+      expect(markup).not.toContain("Review and redial");
+      expect(markup).not.toContain("?redial=");
+      expect(markup).not.toContain("Progress refreshes every 4 seconds");
+    },
+  );
 });
 
 describe("new-call presentation safeguards", () => {
@@ -327,8 +663,8 @@ describe("new-call presentation safeguards", () => {
     expect(markup).not.toMatch(/<input[^>]*name="weekdays"[^>]*checked=""/);
     expect(openingTag(markup, "start")).toContain('value=""');
     expect(openingTag(markup, "end")).toContain('value=""');
-    // Submission is dispatched from onSubmit so React cannot auto-reset drafts.
-    expect(markup.match(/<form[^>]*>/)?.[0]).not.toMatch(/\baction=/);
+    // Keep a form action alongside onSubmit so pre-hydration submits cannot fall back to GET.
+    expect(markup.match(/<form[^>]*>/)?.[0]).toMatch(/\baction=/);
   });
 
   it("associates readable errors with fields and announces preserved entries", () => {
@@ -354,6 +690,8 @@ describe("new-call presentation safeguards", () => {
     expect(openingTag(markup, "handoffSeconds")).toContain(
       'aria-invalid="true"',
     );
+    expect(markup).toMatch(/<details[^>]*open=""/);
+    expect(markup).toContain("Allow enough time for the callback.");
     expect(markup).not.toContain("task.callingWindow");
   });
 
@@ -375,6 +713,62 @@ describe("new-call presentation safeguards", () => {
     const markup = renderForm(true, "previous-call");
     expect(openingTag(markup, "redialOf")).toContain('value="previous-call"');
     expect(markup).toContain("Confirm and redial");
+    expect(mocks.startCall).not.toHaveBeenCalled();
+  });
+  it("retains the server deadline across transport errors and resets it after a returned rejection", async () => {
+    renderForm(true);
+    mocks.getCallNowDeadline
+      .mockResolvedValueOnce("2026-07-01T12:30:00.000Z")
+      .mockResolvedValueOnce("2026-07-01T12:50:00.000Z");
+    mocks.startCall
+      .mockRejectedValueOnce(new Error("Transport lost"))
+      .mockResolvedValueOnce({
+        error: "Active-call limit reached",
+        fieldErrors: {},
+      })
+      .mockResolvedValueOnce({ error: "", fieldErrors: {} });
+
+    const first = new FormData();
+    first.set("scheduleMode", "now");
+    const transportState = await mocks.capturedAction!(
+      { error: "", fieldErrors: {} },
+      first,
+    );
+    expect(transportState.error).toMatch(/Could not confirm submission/);
+    expect(first.get("immediateExpiresAt")).toBe("2026-07-01T12:30:00.000Z");
+    expect(mocks.rethrow).toHaveBeenCalledTimes(1);
+
+    const retry = new FormData();
+    retry.set("scheduleMode", "now");
+    const rejected = await mocks.capturedAction!(transportState, retry);
+    expect(rejected.error).toBe("Active-call limit reached");
+    expect(retry.get("immediateExpiresAt")).toBe("2026-07-01T12:30:00.000Z");
+
+    const fresh = new FormData();
+    fresh.set("scheduleMode", "now");
+    await mocks.capturedAction!(rejected, fresh);
+    expect(fresh.get("immediateExpiresAt")).toBe("2026-07-01T12:50:00.000Z");
+    expect(mocks.getCallNowDeadline).toHaveBeenCalledTimes(2);
+  });
+
+  it("keys CallForm on the generated idempotency key", async () => {
+    const element = await NewCallPage({ searchParams: Promise.resolve({}) });
+    const formElement = (element.props.children as any[]).find(
+      (child) => child?.type === CallForm,
+    );
+    expect(formElement?.key).toBe(formElement?.props.idempotencyKey);
+  });
+  it("prompts for confirmation when destination equals callbackNumber", () => {
+    const data = new FormData();
+    data.set("destination", "+34612345678");
+    data.set("callbackNumber", "+34612345678");
+    mocks.confirmForm = data;
+    const markup = renderForm(true);
+    expect(markup).toContain('role="alertdialog"');
+    expect(markup).toContain("Call your own callback number?");
+    expect(markup).toContain("+34612345678");
+    expect(markup).toContain("Change number");
+    expect(markup).toContain("Call anyway");
     expect(mocks.startCall).not.toHaveBeenCalled();
   });
 });

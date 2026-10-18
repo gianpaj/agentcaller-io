@@ -31,7 +31,7 @@ const body = {
   destinationCountry: "ES",
   language: "es",
   maxDurationSeconds: 900,
-  maxAmountUsd: 10,
+  maxAmountUsd: 5,
   task: {
     type: "connect_me",
     callbackNumber: "+34612345678",
@@ -48,6 +48,7 @@ const body = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-18T10:00:00Z"));
   mocks.client.mockResolvedValue({ id: "client", allowedVoiceIds: [] });
 });
@@ -119,6 +120,44 @@ it.each(["2026-09-18T10:30:00.001Z", "2026-09-19T10:00:00Z"])(
     expect(mocks.dispatch).not.toHaveBeenCalled();
   },
 );
+
+it("returns the existing call when replaying an idempotency key after expiry", async () => {
+  vi.stubEnv("CONNECT_OPERATOR_CALLS_ENABLED", "true");
+  mocks.client.mockResolvedValue({
+    id: "client",
+    enabled: true,
+    isOperator: true,
+    callsPerMinute: 5,
+    maxConcurrentCalls: 2,
+    allowedVoiceIds: [],
+  });
+  let callIndex = 0;
+  mocks.database.mockImplementation(() => ({
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => {
+            callIndex += 1;
+            return callIndex === 1 ? [{ id: "existing-call" }] : [];
+          },
+        }),
+      }),
+    }),
+  }));
+  const req = request({
+    ...body,
+    task: {
+      ...body.task,
+      callingWindow: "now",
+      maxAttempts: 1,
+      expiresAt: "2026-09-18T09:59:00.000Z",
+    },
+  });
+  req.headers.set("x-agentcaller-funding", "operator");
+  const response = await POST(req);
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ data: { id: "existing-call" } });
+});
 
 it("keeps the payment blocker for an otherwise valid immediate call", async () => {
   const response = await POST(

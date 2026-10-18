@@ -56,6 +56,19 @@ describe("Call now", () => {
     );
   });
 
+
+  it("reports nested callingWindow field paths instead of an opaque union error", () => {
+    const { end: _end, ...withoutEnd } = scheduledWindow;
+    const result = createCallSchema.safeParse({
+      ...input,
+      task: { ...task, callingWindow: withoutEnd },
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toContainEqual(
+      expect.objectContaining({ path: ["task", "callingWindow", "end"] }),
+    );
+  });
+
   it("requires an explicit expiry", () => {
     expect(
       connectMeTaskSchema.safeParse({ ...nowTask, expiresAt: undefined })
@@ -165,6 +178,9 @@ describe("business destinations", () => {
     ["IT", "+393012345678"],
     ["IT", "+39431234567"],
     ["IT", "+39899123456"],
+    ["IT", "+39087812345"],
+    ["IT", "+390878123456"],
+    ["IT", "+3900123456"],
     ["IT", "+39800123456"],
     ["IT", "+39112"],
     ["IT", "+34612345678"],
@@ -191,6 +207,9 @@ describe("business destinations", () => {
     ["ES", "+393331234567", businessDestinationErrors.country],
     ["IT", "+34612345678", businessDestinationErrors.country],
     ["IT", "+39899123456", businessDestinationErrors.unsupported],
+    ["IT", "+39087812345", businessDestinationErrors.unsupported],
+    ["IT", "+3900123456", businessDestinationErrors.unsupported],
+    ["US", "+12025550123", businessDestinationErrors.unsupported],
     ["ES", "+34 612 345 678", businessDestinationErrors.format],
   ])(
     "explains the specific destination problem for %s %s",

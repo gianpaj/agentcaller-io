@@ -15,7 +15,7 @@
       "passThroughEnv": ["CRON_SECRET"]
     },
     "typecheck": { "dependsOn": ["^typecheck"], "outputs": [] },
-    "lint": { "outputs": [] },
+    "lint": { "dependsOn": ["^build"], "outputs": [] },
     "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }
   }
 }

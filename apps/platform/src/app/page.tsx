@@ -24,10 +24,7 @@ const capabilities = [
 
 export default function HomePage() {
   return (
-    <div
-      style={{ "--demo-muted": "#a0aca5" } as React.CSSProperties}
-      className="relative z-1 min-h-screen bg-(--void) px-[clamp(1.25rem,4vw,4rem)] font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) [&_a:focus-visible]:rounded-xs [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-5 [&_a:focus-visible]:outline-(--signal)"
-    >
+    <div className="relative z-1 min-h-screen bg-(--void) px-[clamp(1.25rem,4vw,4rem)] font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) [&_a:focus-visible]:rounded-xs [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-5 [&_a:focus-visible]:outline-(--signal)">
       <a
         className="absolute top-4 left-4 z-2 translate-y-[-200%] bg-(--signal) px-4 py-3 text-(--void) focus:translate-y-0"
         href="#main-content"

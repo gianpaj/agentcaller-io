@@ -57,7 +57,8 @@ export async function connectLiveKit(
       attemptId,
       action,
     });
-  const claim = claimSchema.safeParse(await request("claim"));
+  const rawClaim = await request("claim");
+  const claim = claimSchema.safeParse(rawClaim);
   if (!claim.success || claim.data.input.task.type !== "connect_me") {
     console.error("Connect worker could not claim its attempt", {
       stage: "claim",
@@ -65,6 +66,9 @@ export async function connectLiveKit(
       attemptId,
       failure: "claim_rejected_or_invalid",
     });
+    if ((rawClaim as { allowed?: unknown } | null)?.allowed === true) {
+      await request("finish", { reason: "configuration_error" });
+    }
     return;
   }
   const input = { ...claim.data.input, task: claim.data.input.task };

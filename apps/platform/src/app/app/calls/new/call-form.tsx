@@ -18,13 +18,13 @@ import { portalCallError, type CallFormState } from "@/lib/portal-call-errors";
 import { getCallNowDeadline, startCall } from "./actions";
 
 const panelClass =
-  "grid w-full min-w-0 gap-5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-5 sm:p-6";
+  "grid w-full min-w-0 gap-5 rounded-xl border border-(--line) bg-(--panel) p-5 sm:p-6";
 const inputClass =
-  "min-h-12 w-full min-w-0 rounded-md border border-[var(--muted)] bg-[var(--void)] px-3 py-3 text-base font-normal text-[var(--ink)] [color-scheme:dark] placeholder:text-[var(--muted)] aria-invalid:border-[var(--ember)] disabled:cursor-not-allowed";
-const helpClass = "text-sm font-normal leading-6 text-[var(--muted)]";
-const headingClass = "text-lg font-semibold leading-7 text-[var(--ink)]";
+  "min-h-12 w-full min-w-0 rounded-md border border-(--muted) bg-(--void) px-3 py-3 text-base font-normal text-(--ink) [color-scheme:dark] placeholder:text-(--muted) aria-invalid:border-(--ember) disabled:cursor-not-allowed";
+const helpClass = "text-sm font-normal leading-6 text-(--muted)";
+const headingClass = "text-lg font-semibold leading-7 text-(--ink)";
 const shortcutClass =
-  "min-h-11 rounded-md border border-[var(--muted)] px-3 py-2 text-sm font-medium text-[var(--ink)] enabled:hover:border-[var(--signal)] disabled:cursor-not-allowed";
+  "min-h-11 rounded-md border border-(--muted) px-3 py-2 text-sm font-medium text-(--ink) enabled:hover:border-(--signal) disabled:cursor-not-allowed";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const timezones = [
   ["Europe/Madrid", "Spain mainland / Balearic Islands"],
@@ -90,12 +90,14 @@ export function CallForm({
     async (previous: CallFormState, form: FormData): Promise<CallFormState> => {
       try {
         if (form.get("scheduleMode") === "now") {
-          // Use server time once, then retain the deadline even if submission
-          // fails in transit. The browser clock is only used for preflight.
+          // Retain the server deadline only across an uncertain transport
+          // failure; reset it once the server returns a definitive rejection.
           immediateExpiresAt.current ??= await getCallNowDeadline();
           form.set("immediateExpiresAt", immediateExpiresAt.current);
         }
-        return await startCall(previous, form);
+        const next = await startCall(previous, form);
+        immediateExpiresAt.current = null;
+        return next;
       } catch (error) {
         unstable_rethrow(error);
         return {
@@ -103,14 +105,20 @@ export function CallForm({
             "Could not confirm submission. Check Recents, then retry this same form to avoid a duplicate call.",
           fieldErrors: {},
         };
+      } finally {
+        setLocalError(null);
       }
     },
     emptyState,
   );
   const [localError, setLocalError] = useState<CallFormState | null>(null);
-  const feedback = localError ?? state;
+  const [confirmForm, setConfirmForm] = useState<FormData | undefined>(
+    undefined,
+  );
+  const feedback = pending ? emptyState : (localError ?? state);
   const formRef = useRef<HTMLFormElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
   const task = initial?.task.type === "connect_me" ? initial.task : undefined;
   const initialWindow =
     task?.callingWindow !== "now" ? task?.callingWindow : undefined;
@@ -128,13 +136,20 @@ export function CallForm({
   });
 
   useEffect(() => {
+    if (confirmForm) confirmCancelRef.current?.focus();
+  }, [confirmForm]);
+
+  useEffect(() => {
     if (!feedback.error || pending) return;
-    const invalid = formRef.current?.querySelector<HTMLElement>(
-      '[aria-invalid="true"]:not(:disabled)',
-    );
-    const details = invalid?.closest("details");
-    if (details) details.open = true;
-    (invalid ?? summaryRef.current)?.focus();
+    const invalids =
+      formRef.current?.querySelectorAll<HTMLElement>(
+        '[aria-invalid="true"]:not(:disabled)',
+      ) ?? [];
+    for (const element of invalids) {
+      const details = element.closest("details");
+      if (details) details.open = true;
+    }
+    (invalids[0] ?? summaryRef.current)?.focus();
   }, [feedback, pending]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -147,8 +162,9 @@ export function CallForm({
         new Date(Date.now() + CALL_NOW_TTL_MS).toISOString(),
       );
     }
+    let parsed: CreateCallInput;
     try {
-      portalCallInput(form);
+      parsed = portalCallInput(form, { checkRelativeDeadline: false });
     } catch (error) {
       setLocalError(
         error instanceof ZodError
@@ -161,7 +177,14 @@ export function CallForm({
       );
       return;
     }
-    setLocalError(null);
+    setLocalError(emptyState);
+    if (
+      parsed.task.type === "connect_me" &&
+      parsed.destination === parsed.task.callbackNumber
+    ) {
+      setConfirmForm(form);
+      return;
+    }
     // Dispatch manually: a form action resets uncontrolled inputs even when
     // the server returns a validation error. Keep the draft until redirect.
     startTransition(() => action(form));
@@ -218,9 +241,13 @@ export function CallForm({
     );
   }
 
+  const confirmDestination = confirmForm?.get("destination");
   const timezoneLabel =
     timezones.find(([value]) => value === schedule.timezone)?.[1] ??
     schedule.timezone;
+  const hasAdvancedError =
+    limits.some(([name]) => Boolean(feedback.fieldErrors[name])) ||
+    Boolean(feedback.fieldErrors.maxIvrDigits);
   const scheduleComplete =
     schedule.weekdays.length > 0 &&
     schedule.timezone &&
@@ -229,14 +256,73 @@ export function CallForm({
     schedule.start < schedule.end;
 
   return (
-    <form ref={formRef} onSubmit={submit} className="grid w-full min-w-0 gap-6">
+    <form
+      ref={formRef}
+      action={action}
+      onSubmit={submit}
+      className="grid w-full min-w-0 gap-6"
+    >
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="redialOf" value={redialOf ?? ""} />
+      {confirmForm && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="same-number-heading"
+          aria-describedby="same-number-description"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmForm(undefined);
+          }}
+          className="fixed inset-0 z-50 grid place-items-center bg-(--void)/80 p-5"
+        >
+          <div className="grid w-full max-w-md gap-4 rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 text-(--ink) sm:p-6">
+            <h2 id="same-number-heading" className={headingClass}>
+              Call your own callback number?
+            </h2>
+            <p id="same-number-description" className={helpClass}>
+              The business phone and your callback mobile are both{" "}
+              <span className="font-semibold text-(--ink)">
+                {typeof confirmDestination === "string"
+                  ? confirmDestination
+                  : ""}
+              </span>
+              . The assistant will dial this handset as the business first and
+              then call it again for the callback.
+            </p>
+            <div className="flex flex-wrap justify-end gap-3 pt-2">
+              <button
+                ref={confirmCancelRef}
+                type="button"
+                className={shortcutClass}
+                onClick={() => {
+                  setConfirmForm(undefined);
+                  formRef.current
+                    ?.querySelector<HTMLElement>('[name="destination"]')
+                    ?.focus();
+                }}
+              >
+                Change number
+              </button>
+              <button
+                type="button"
+                className="min-h-11 cursor-pointer rounded-md border border-transparent bg-(--signal) px-4 py-2 text-sm font-semibold text-(--void) hover:brightness-110"
+                onClick={() => {
+                  const next = confirmForm;
+                  setConfirmForm(undefined);
+                  startTransition(() => action(next));
+                }}
+              >
+                Call anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!enabled && (
         <p
           id="calling-disabled"
           role="status"
-          className="rounded-xl border border-[var(--ember)] bg-[var(--panel)] p-5 text-sm leading-6 text-[var(--ink)]"
+          className="rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 text-(--ink)"
         >
           Calling is disabled. Configure operator funding and explicitly
           authorize a live test before enabling it.
@@ -247,7 +333,7 @@ export function CallForm({
           ref={summaryRef}
           tabIndex={-1}
           role="alert"
-          className="min-w-0 rounded-xl border border-[var(--ember)] bg-[var(--panel)] p-5 text-sm leading-6 break-words text-[var(--ink)]"
+          className="min-w-0 rounded-xl border border-(--ember) bg-(--panel) p-5 text-sm leading-6 break-words text-(--ink)"
         >
           <p className="font-semibold">Your entries have been kept.</p>
           <p className="mt-1">
@@ -255,13 +341,11 @@ export function CallForm({
               ? "Check the highlighted fields, then try again."
               : feedback.error}
           </p>
-          {Object.entries(feedback.fieldErrors)
-            .filter(
-              ([name]) => name === "idempotencyKey" || name === "redialOf",
-            )
-            .map(([name, message]) => (
-              <p key={name}>{message}</p>
-            ))}
+          {Object.entries(feedback.fieldErrors).map(([name, message]) => (
+            <p key={name} className="mt-1">
+              {message}
+            </p>
+          ))}
         </div>
       )}
       <fieldset
@@ -382,6 +466,7 @@ export function CallForm({
                       : undefined
                   }
                   onChange={() => {
+                    immediateExpiresAt.current = null;
                     setScheduleMode(value!);
                     setLocalError(emptyState);
                   }}
@@ -446,7 +531,7 @@ export function CallForm({
               </select>
             </Field>
             <fieldset className="grid min-w-0 gap-3">
-              <legend className="mb-3 text-sm font-medium text-[var(--ink)]">
+              <legend className="mb-3 text-sm font-medium text-(--ink)">
                 Calling days
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -476,7 +561,7 @@ export function CallForm({
                 {days.map((day, index) => (
                   <label
                     key={day}
-                    className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-[var(--muted)] bg-[var(--void)] px-1 py-3 text-sm font-medium text-[var(--ink)] has-checked:border-[var(--signal)] has-checked:bg-[var(--signal)] has-checked:text-[var(--void)] has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[var(--signal)] has-disabled:cursor-not-allowed"
+                    className="relative flex min-h-12 cursor-pointer items-center justify-center rounded-md border border-(--muted) bg-(--void) px-1 py-3 text-sm font-medium text-(--ink) has-checked:border-(--signal) has-checked:bg-(--signal) has-checked:text-(--void) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--signal) has-disabled:cursor-not-allowed"
                   >
                     <input
                       id={`weekday-${index + 1}`}
@@ -518,7 +603,7 @@ export function CallForm({
               {feedback.fieldErrors.weekdays && (
                 <p
                   id="weekdays-error"
-                  className="text-sm leading-6 text-[var(--ember)]"
+                  className="text-sm leading-6 text-(--ember)"
                 >
                   {feedback.fieldErrors.weekdays}
                 </p>
@@ -545,7 +630,7 @@ export function CallForm({
                 "Later than the start, on the same day.",
               )}
             </div>
-            <div className="grid gap-5 border-t border-[var(--line)] pt-5">
+            <div className="grid gap-5 border-t border-(--line) pt-5">
               {input(
                 "expiresAt",
                 "Stop trying after",
@@ -556,9 +641,9 @@ export function CallForm({
                   onChange: (event) =>
                     setSchedule({ ...schedule, expiresAt: event.target.value }),
                 },
-                `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline. Redial needs a fresh deadline.`,
+                `Choose a date and time within the next seven days${timezoneLabel ? `, in ${timezoneLabel}` : ""}. No new attempts start after this deadline, and calls in progress also end at this time. Redial needs a fresh deadline.`,
               )}
-              <p role="status" className="text-sm leading-6 text-[var(--ink)]">
+              <p role="status" className="text-sm leading-6 text-(--ink)">
                 {scheduleComplete
                   ? `Calling window: ${schedule.weekdays.map((day) => days[day - 1]).join(", ")}, ${schedule.start}–${schedule.end} (${timezoneLabel}).`
                   : "Choose a timezone, days, and hours to set your calling window."}
@@ -606,8 +691,11 @@ export function CallForm({
             Each new job has its own cap. Operator funding pays provider charges
             without x402.
           </p>
-          <details className="min-w-0 border-t border-[var(--line)] pt-5">
-            <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-[var(--ink)] hover:text-[var(--signal)]">
+          <details
+            open={hasAdvancedError || undefined}
+            className="min-w-0 border-t border-(--line) pt-5"
+          >
+            <summary className="min-h-12 cursor-pointer py-3 text-base font-medium text-(--ink) hover:text-(--signal)">
               Duration and IVR limits
             </summary>
             <div className="grid min-w-0 gap-5 pt-5">
@@ -632,9 +720,9 @@ export function CallForm({
             </div>
           </details>
         </section>
-        <label className="flex min-h-11 min-w-0 items-start gap-3 text-base leading-6 text-[var(--ink)]">
+        <label className="flex min-h-11 min-w-0 items-start gap-3 text-base leading-6 text-(--ink)">
           <input
-            className="mt-0.5 size-5 shrink-0 accent-[var(--signal)] disabled:cursor-not-allowed"
+            className="mt-0.5 size-5 shrink-0 accent-(--signal) disabled:cursor-not-allowed"
             type="checkbox"
             name="authorized"
             required
@@ -646,11 +734,11 @@ export function CallForm({
           </span>
         </label>
         <button
-          className="min-h-12 w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-[var(--signal)] px-5 py-3 text-base font-semibold text-[var(--void)] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:border-[var(--muted)] disabled:bg-[var(--panel)] disabled:text-[var(--muted)]"
+          className="min-h-12 w-full min-w-0 cursor-pointer rounded-md border border-transparent bg-(--signal) px-5 py-3 text-base font-semibold text-(--void) enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:border-(--muted) disabled:bg-(--panel) disabled:text-(--muted)"
           disabled={pending || !enabled}
         >
           {pending
-            ? "Submitting…"
+            ? "Starting call…"
             : redialOf
               ? "Confirm and redial"
               : callNow

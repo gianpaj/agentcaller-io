@@ -1,0 +1,98 @@
+name: Deploy voice agent
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/voice-agent/**
+      - packages/contracts/**
+      - Dockerfile
+      - .dockerignore
+      - livekit.toml
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/deploy-voice-agent.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Queue deploys instead of cancelling one mid-rollout.
+concurrency:
+  group: deploy-voice-agent
+  cancel-in-progress: false
+
+env:
+  # Pinned: --skip-sdk-check is an undocumented flag.
+  LK_VERSION: 2.19.0
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check worker
+        run: |
+          pnpm --filter @agentcaller/contracts test
+          pnpm --filter @agentcaller/voice-agent typecheck
+          pnpm --filter @agentcaller/voice-agent test
+
+      - name: Install LiveKit CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="lk_${LK_VERSION}_linux_amd64.tar.gz"
+          dir="$RUNNER_TEMP/lk"
+          gh release download "v$LK_VERSION" -R livekit/livekit-cli -D "$dir" \
+            -p "$archive" -p checksums.txt
+          cd "$dir"
+          grep " $archive\$" checksums.txt | sha256sum -c -
+          tar -xzf "$archive" lk
+          echo "$dir" >> "$GITHUB_PATH"
+
+      # Runtime configuration lives in the agent's LiveKit secrets and persists
+      # across deploys. Fail before deploying if the worker would start without
+      # one. LiveKit Cloud injects LIVEKIT_URL, LIVEKIT_API_KEY and
+      # LIVEKIT_API_SECRET itself.
+      - name: Check agent secrets
+        run: |
+          set -o pipefail
+          present=$(lk agent secrets --json | jq -r '.secrets[].name')
+          missing=0
+          for name in \
+            LIVEKIT_AGENT_NAME PLATFORM_URL AGENT_CALLBACK_SECRET \
+            LIVEKIT_SIP_TRUNK_EU LIVEKIT_SIP_TRUNK_US \
+            LIVEKIT_CALLER_ID_EU LIVEKIT_CALLER_ID_US \
+            CONNECT_CALLER_ID_ES CONNECT_CALLER_ID_IT CONNECT_CALLBACK_CALLER_ID
+          do
+            if ! grep -qx "$name" <<<"$present"; then
+              echo "::error::LiveKit agent secret $name is not set"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      # The SDK preflight looks for @livekit/agents in the root package files;
+      # the dependency is declared in apps/voice-agent/package.json.
+      - name: Deploy
+        run: lk agent deploy --yes --skip-sdk-check
+
+      - name: Status
+        run: lk agent status

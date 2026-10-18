@@ -8,11 +8,13 @@ function parseDeadline(
   value: string,
   timezone: string,
   issues: z.core.$ZodIssue[],
+  checkRelativeDeadline: boolean,
 ) {
   const fail = (message: string) => {
     issues.push({ code: "custom", path: ["task", "expiresAt"], message });
     return undefined;
   };
+  const now = Date.now();
   let instant: number;
   if (localDeadline.test(value)) {
     // Validate the calendar before Date can normalize an impossible date.
@@ -37,6 +39,14 @@ function parseDeadline(
       return undefined;
     }
     const wallTime = Date.parse(calendar.data);
+    if (checkRelativeDeadline) {
+      if (wallTime + 86400_000 <= now)
+        return fail("Choose a deadline in the future.");
+      if (wallTime - 86400_000 > now + 7 * 86400_000)
+        return fail("Choose a deadline within the next seven days.");
+    } else if (wallTime < Date.UTC(1970, 0, 1)) {
+      return new Date(wallTime).toISOString();
+    }
     const matches: number[] = [];
     // Modern IANA offsets use whole minutes. Check every possible offset, not
     // just the current offset, so DST gaps and repeated times cannot be guessed.
@@ -47,7 +57,7 @@ function parseDeadline(
           .formatToParts(candidate)
           .map(({ type, value }) => [type, value]),
       );
-      const local = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+      const local = `${String(parts.year ?? "").padStart(4, "0")}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
       if (local === value && parts.second === "00") matches.push(candidate);
     }
     if (matches.length === 0)
@@ -66,15 +76,23 @@ function parseDeadline(
     if (!Number.isFinite(instant))
       return fail("Enter a valid deadline date and time.");
   }
-  const now = Date.now();
-  if (instant <= now) return fail("Choose a deadline in the future.");
-  if (instant > now + 7 * 86400_000)
-    return fail("Choose a deadline within the next seven days.");
+  if (checkRelativeDeadline) {
+    if (instant <= now) return fail("Choose a deadline in the future.");
+    if (instant > now + 7 * 86400_000)
+      return fail("Choose a deadline within the next seven days.");
+  }
   return new Date(instant).toISOString();
 }
 
-export function portalCallInput(form: FormData) {
-  const string = (name: string) => String(form.get(name) ?? "").trim();
+export function portalCallInput(
+  form: FormData,
+  options?: { checkRelativeDeadline?: boolean },
+) {
+  const checkRelativeDeadline = options?.checkRelativeDeadline ?? true;
+  const string = (name: string) => {
+    const value = form.get(name);
+    return typeof value === "string" ? value.trim() : "";
+  };
   const number = (name: string) =>
     string(name) === "" ? NaN : Number(string(name));
   const issues: z.core.$ZodIssue[] = [];
@@ -92,8 +110,9 @@ export function portalCallInput(form: FormData) {
     const now = Date.now();
     if (
       !deadline.success ||
-      Date.parse(deadline.data) <= now ||
-      Date.parse(deadline.data) > now + CALL_NOW_TTL_MS
+      (checkRelativeDeadline &&
+        (Date.parse(deadline.data) <= now ||
+          Date.parse(deadline.data) > now + CALL_NOW_TTL_MS))
     ) {
       issues.push({
         code: "custom",
@@ -104,7 +123,12 @@ export function portalCallInput(form: FormData) {
       expiresAt = new Date(deadline.data).toISOString();
     }
   } else {
-    expiresAt = parseDeadline(string("expiresAt"), string("timezone"), issues);
+    expiresAt = parseDeadline(
+      string("expiresAt"),
+      string("timezone"),
+      issues,
+      checkRelativeDeadline,
+    );
   }
   const waitingSeconds = number("waitingSeconds"),
     handoffSeconds = number("handoffSeconds"),

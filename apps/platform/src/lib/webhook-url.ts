@@ -22,7 +22,13 @@ function ipv6IsPrivate(address: string) {
   if (mapped?.[1]) return ipv4IsPrivate(mapped[1]);
   const head = value.slice(0, 2);
   if (head === "fc" || head === "fd") return true; // unique local
-  if (value.startsWith("fe8") || value.startsWith("fe9") || value.startsWith("fea") || value.startsWith("feb")) return true; // link-local
+  if (
+    value.startsWith("fe8") ||
+    value.startsWith("fe9") ||
+    value.startsWith("fea") ||
+    value.startsWith("feb")
+  )
+    return true; // link-local
   return false;
 }
 
@@ -47,18 +53,21 @@ export async function assertPublicWebhookUrl(rawUrl: string) {
     throw new Error("Webhook URL is malformed");
   }
   if (url.protocol !== "https:") throw new Error("Webhook URL must use HTTPS");
-  if (url.username || url.password) throw new Error("Webhook URL must not embed credentials");
+  if (url.username || url.password)
+    throw new Error("Webhook URL must not embed credentials");
 
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   if (isIP(hostname)) {
-    if (isPrivateAddress(hostname)) throw new Error("Webhook URL must not target a private address");
+    if (isPrivateAddress(hostname))
+      throw new Error("Webhook URL must not target a private address");
     return url;
   }
 
   const addresses = await lookup(hostname, { all: true }).catch(() => {
     throw new Error("Webhook URL host could not be resolved");
   });
-  if (!addresses.length) throw new Error("Webhook URL host could not be resolved");
+  if (!addresses.length)
+    throw new Error("Webhook URL host could not be resolved");
   if (addresses.some((entry) => isPrivateAddress(entry.address))) {
     throw new Error("Webhook URL must not target a private address");
   }
