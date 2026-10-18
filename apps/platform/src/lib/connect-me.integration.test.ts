@@ -35,6 +35,7 @@ vi.mock("./auth", async (original) => ({
 import { POST } from "../app/api/v1/calls/route";
 import { authorizeOperatorCall } from "./operator-funding";
 import { attemptReserve } from "./connect-policy";
+import { submitCall } from "./submit-call";
 
 // This suite owns a disposable database, never DATABASE_URL or a Supabase project.
 const url = process.env.CONNECT_TEST_DATABASE_URL;
@@ -570,6 +571,69 @@ run("connect ledger with PostgreSQL locks", () => {
     expect(
       await claimConnectAttempt(callId, db, new Date("2026-09-20T10:00:00Z")),
     ).toBeNull();
+  });
+  describe("website submission after cancellation", () => {
+    it.each([
+      ["queued", 202],
+      ["dispatched", 202],
+      ["claimed", 202],
+      ["dial intent", 409],
+      ["cleaned dial intent", 409],
+    ] as const)("handles a cancelled %s job", async (phase, status) => {
+      const [admin] = await db
+        .update(clientProfiles)
+        .set({ isOperator: true })
+        .where(eq(clientProfiles.id, clientId))
+        .returning();
+      await db.insert(rateCards).values({
+        version: randomUUID(),
+        country: "ES",
+        active: true,
+        ...rate,
+      });
+      if (phase === "dispatched") {
+        await claimConnectAttempt(callId, db, now);
+      } else if (phase !== "queued") {
+        const { send } = await start();
+        if (phase !== "claimed") {
+          expect(await send("dial", { leg: "business" })).toEqual({
+            allowed: true,
+          });
+        }
+      }
+      await cancelConnect(callId, clientId, db);
+      if (phase === "cleaned dial intent") {
+        await db
+          .update(callAttempts)
+          .set({ roomsCleanedAt: now })
+          .where(eq(callAttempts.callId, callId));
+      }
+      const response = await submitCall(
+        new Request("https://offline.invalid/api/v1/calls", {
+          method: "POST",
+          headers: {
+            "idempotency-key": randomUUID(),
+            "x-agentcaller-funding": "operator",
+          },
+          body: JSON.stringify(input),
+        }),
+        admin!,
+        {},
+      );
+      expect(response.status).toBe(status);
+      expect(await db.select().from(calls)).toHaveLength(
+        status === 202 ? 2 : 1,
+      );
+      const [original] = await db
+        .select()
+        .from(calls)
+        .where(eq(calls.id, callId));
+      expect(original).toMatchObject({
+        state: "cancelled",
+        outcome: { reason: "cancelled" },
+      });
+      expect(original!.endedAt).not.toBeNull();
+    });
   });
   it("accepts concurrent operator submissions once without a payment receipt", async () => {
     const [admin] = await db

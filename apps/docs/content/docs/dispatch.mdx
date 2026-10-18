@@ -212,6 +212,9 @@ The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/si
 provides the duration timeout independently of the voice worker.
 Unknown/cancelled attempts remain eligible for repeated cleanup until operator
 reconciliation; absence from a room is not proof that an in-flight dial failed.
+The website permits a fresh manual submission after cancellation only when the
+call is terminal and none of its attempts has a recorded dial leg. A recorded
+leg preserves the reconciliation block even after room cleanup.
 Monitor scheduler failures and its `cleanup.failedRooms` count; reconcile provider call records before deleting
 these jobs. No API idempotency key is documented for this dial method; persisted
 intent prevents redial rather than pretending participant identity is idempotency.
@@ -259,7 +262,17 @@ retry and spend controls still apply. This mode supports only `connect_me`.
    The default switch is `false`; the default per-job cap is USD 5. Omit
    `CDP_API_KEY`, `X402_PAY_TO` and `X402_USDC_ASSET` for an operator-only deployment.
    Keep the other platform/worker configuration described above, plus active
-   rate cards for the business country and Spanish callback. Never invent rates.
+   rate cards for the business country and Spanish callback.
+
+   Migration `20261018160000_personal_test_rate_card.sql` supplies an ES internal
+   test quote when no active ES rate exists: USD 0 per connection and USD 0.10 per
+   started minute on each leg. It preserves existing active rates and does not
+   reactivate a retired version. With the default phase durations, one attempt
+   reserves USD 2.50; use `maxAttempts: 1` with the default USD 5 cap.
+   This quote is for personal testing and does not establish actual provider
+   costs. Replace it with verified all-in rates before accepting paid calls or
+   relying on it to cover provider charges. Italian destinations need a separate
+   active IT rate card.
 
 4. Deploy the platform and voice worker. After authorizing a controlled test,
    save the request example above as `connect-test.json`, replacing destinations,

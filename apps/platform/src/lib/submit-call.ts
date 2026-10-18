@@ -8,8 +8,10 @@ import {
   webhookDeliveries,
   connectJobs,
   clientProfiles,
+  callAttempts,
+  callLegs,
 } from "@agentcaller/database";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, exists, gte, isNull } from "drizzle-orm";
 import { ApiError } from "@/lib/auth";
 import { database } from "@/lib/database";
 import { dispatchCall } from "@/lib/livekit";
@@ -220,7 +222,20 @@ export async function submitCall(
             }
             // An unknown provider result is not evidence that the previous call ended.
             const previous = await tx
-              .select({ outcome: calls.outcome })
+              .select({
+                outcome: calls.outcome,
+                endedAt: calls.endedAt,
+                hasDialIntent: exists(
+                  tx
+                    .select({ id: callLegs.id })
+                    .from(callLegs)
+                    .innerJoin(
+                      callAttempts,
+                      eq(callAttempts.id, callLegs.attemptId),
+                    )
+                    .where(eq(callAttempts.callId, calls.id)),
+                ),
+              })
               .from(calls)
               .where(
                 and(
@@ -229,14 +244,18 @@ export async function submitCall(
                 ),
               );
             if (
-              previous.some((c) =>
-                [
+              previous.some((c) => {
+                const reason = outcomeReason(c.outcome);
+                // Dial permission commits a leg before the worker can contact SIP.
+                if (reason === "cancelled" && c.endedAt && !c.hasDialIntent)
+                  return false;
+                return [
                   "dial_unknown",
                   "worker_lost",
                   "cancelled",
                   "configuration_error",
-                ].includes(outcomeReason(c.outcome) ?? ""),
-              )
+                ].includes(reason ?? "");
+              })
             )
               throw new ApiError(
                 409,
