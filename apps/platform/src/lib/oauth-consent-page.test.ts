@@ -38,6 +38,11 @@ describe("OAuth consent page", () => {
   it("renders consent for a supported client", async () => {
     expect(await render()).toContain("Allow tool access");
   });
+  it("blocks Allow without the consent box but lets Deny through", async () => {
+    const page = await render();
+    expect(page).toMatch(/"name":"consent","value":"yes","required":true/);
+    expect(page).toMatch(/"value":"deny","formNoValidate":true/);
+  });
   it.each([
     ["an empty client name", { client: { ...details.client, name: "" } }],
     ["a custom-scheme redirect", { redirect_uri: "cursor://oauth/callback" }],

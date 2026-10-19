@@ -71,7 +71,7 @@ export default async function OAuthConsentPage({
       <form action={decideOAuthConsent} className="grid gap-4">
         <input type="hidden" name="authorization_id" value={id.data} />
         <label className="flex gap-3">
-          <input type="checkbox" name="consent" value="yes" />
+          <input type="checkbox" name="consent" value="yes" required />
           Allow this integration to use these tools. This does not approve
           charges.
         </label>
@@ -87,6 +87,7 @@ export default async function OAuthConsentPage({
           type="submit"
           name="decision"
           value="deny"
+          formNoValidate
           className="min-h-12 rounded-md border border-(--line) px-4 py-3"
         >
           Deny
