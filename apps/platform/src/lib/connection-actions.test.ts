@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   find: vi.fn(),
   ensure: vi.fn(),
   revoke: vi.fn(),
+  revokeGrant: vi.fn(),
 }));
 vi.mock("./portal", () => ({
   requireHumanSession: state.human,
@@ -22,7 +23,11 @@ function form() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  state.human.mockResolvedValue({ user: { id: user } });
+  state.human.mockResolvedValue({
+    user: { id: user },
+    supabase: { auth: { oauth: { revokeGrant: state.revokeGrant } } },
+  });
+  state.revokeGrant.mockResolvedValue({ data: {}, error: null });
   state.find.mockResolvedValue({ id: "own-profile" });
   state.revoke.mockResolvedValue(null);
 });
@@ -31,6 +36,28 @@ describe("disconnect integration action", () => {
     await disconnectAgent(form());
     expect(state.find).toHaveBeenCalledWith(user);
     expect(state.revoke).toHaveBeenCalledWith("own-profile", connectionId);
+    expect(state.revokeGrant).not.toHaveBeenCalled();
+  });
+  it("revokes the issuer grant after the authoritative database revocation", async () => {
+    state.revoke.mockResolvedValue({ oauthClientId: "oauth-client" });
+    await disconnectAgent(form());
+    expect(state.revokeGrant).toHaveBeenCalledWith({
+      clientId: "oauth-client",
+    });
+    expect(state.revoke.mock.invocationCallOrder[0]).toBeLessThan(
+      state.revokeGrant.mock.invocationCallOrder[0]!,
+    );
+  });
+  it("keeps the database revocation when the issuer call fails", async () => {
+    state.revoke.mockResolvedValue({ oauthClientId: "oauth-client" });
+    state.revokeGrant.mockResolvedValue({
+      data: null,
+      error: new Error("issuer unavailable"),
+    });
+    await expect(disconnectAgent(form())).rejects.toThrow(
+      "sign-in could not be revoked",
+    );
+    expect(state.revoke).toHaveBeenCalled();
   });
   it("never provisions a profile", async () => {
     state.find.mockResolvedValue(null);

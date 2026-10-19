@@ -47,7 +47,7 @@ Delegated OAuth tokens cannot authorize human portal settings or consent actions
 
 The human can disconnect an integration under **Settings → Manage connected
 integrations**. Subsequent requests are denied even while a token remains valid.
-Refresh and repeated issuer consent cannot restore a revoked connection. Human
+Disconnecting also revokes the issuer grant and its refresh tokens. Refresh and repeated issuer consent cannot restore a revoked connection. Human
 reauthorization of revoked connections remains unavailable in this increment.
 
 ## Verification
