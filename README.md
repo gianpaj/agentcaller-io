@@ -136,6 +136,17 @@ rather than a working MVP.
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
 | Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
+Remote MCP onboarding has a disabled-by-default OAuth foundation: protected-resource
+discovery, human tool consent, first-time profiles and connection revocation.
+It exposes billing readiness only; saved-card enrollment and paid MCP calling are
+not available. See the [MCP guide](apps/docs/content/docs/mcp.mdx) for configuration
+and issuer/host release checks. The
+[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
+tracks the remaining saved-card monthly-invoice work. The
+[billing guide](apps/docs/content/docs/billing.mdx) describes the implemented
+money, Stripe setup validation and signed-event inbox boundaries; enrollment,
+paid admission and collection remain unavailable.
+
 The most important provider mismatches are documented upstream:
 
 - x402 describes `upto` as the usage-based authorization scheme and
@@ -171,17 +182,6 @@ These links provide context, not legal advice.
    capped pilot.
 
 ## Local development
-
-Remote MCP onboarding has a disabled-by-default OAuth foundation: protected-resource
-discovery, human tool consent, first-time profiles and connection revocation.
-It exposes billing readiness only; saved-card enrollment and paid MCP calling are
-not available. See the [MCP guide](apps/docs/content/docs/mcp.mdx) for configuration
-and issuer/host release checks. The
-[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-tracks the remaining saved-card monthly-invoice work. The
-[billing guide](apps/docs/content/docs/billing.mdx) describes the implemented
-money, Stripe setup validation and signed-event inbox boundaries; enrollment,
-paid admission and collection remain unavailable.
 
 ### Prerequisites
 
