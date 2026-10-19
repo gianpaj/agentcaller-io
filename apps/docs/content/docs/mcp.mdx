@@ -16,7 +16,9 @@ The canonical MCP resource is that origin plus `/mcp`.
 
 Configure Supabase's OAuth server with authorization path `/oauth/consent`.
 Use authorization code with PKCE and the target host's supported client registration.
-The issuer owns registered redirects, code exchange and refresh tokens. See
+The issuer owns registered redirects, code exchange and refresh tokens. Consent
+accepts only HTTPS or loopback HTTP redirect URIs, so native clients that
+register a custom scheme such as `cursor://` cannot connect. See
 [Supabase OAuth setup](https://supabase.com/docs/guides/auth/oauth-server/getting-started).
 
 The platform requires asymmetrically signed ES256/RS256 access tokens with the

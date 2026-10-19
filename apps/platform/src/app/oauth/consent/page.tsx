@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ZodError } from "zod";
 import { authorizationIdSchema } from "@agentcaller/contracts";
 import { ApiError } from "@/lib/auth";
 import { getLoginUrl } from "@/lib/auth-redirect";
@@ -17,13 +18,13 @@ export default async function OAuthConsentPage({
   const id = authorizationIdSchema.safeParse(
     (await searchParams).authorization_id,
   );
-  if (!isMcpEnabled() || !id.success)
-    return (
-      <main className="p-8">
-        <h1>Connection unavailable</h1>
-        <p>Start a new connection from your agent.</p>
-      </main>
-    );
+  const unavailable = (
+    <main className="p-8">
+      <h1>Connection unavailable</h1>
+      <p>Start a new connection from your agent.</p>
+    </main>
+  );
+  if (!isMcpEnabled() || !id.success) return unavailable;
   let session;
   try {
     session = await requireHumanSession();
@@ -42,7 +43,15 @@ export default async function OAuthConsentPage({
       </main>
     );
   if ("redirect_url" in data) redirect(issuerRedirect(data.redirect_url));
-  const details = verifyOAuthAuthorization(data, session.user.id, id.data);
+  let details;
+  try {
+    details = verifyOAuthAuthorization(data, session.user.id, id.data);
+  } catch (error) {
+    // Unsupported clients (e.g. no name or a custom-scheme redirect) get a page, not a crash.
+    if (error instanceof ApiError || error instanceof ZodError)
+      return unavailable;
+    throw error;
+  }
   return (
     <main className="mx-auto grid min-h-svh max-w-lg content-center gap-6 px-6 py-12 font-sans text-(--ink)">
       <h1 className="text-3xl font-semibold">Connect {details.client.name}</h1>
