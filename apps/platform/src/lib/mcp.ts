@@ -37,6 +37,8 @@ export function createAgentMcpServer(principal: AgentPrincipal) {
 export function createAgentMcpHandler(principal: AgentPrincipal) {
   return createMcpHandler(() => createAgentMcpServer(principal), {
     legacy: "stateless",
+    // The route closes the handler as soon as it returns; an SSE body would be aborted.
+    responseMode: "json",
     maxRequestBodySize: 65536,
     maxSubscriptions: 0,
     keepAliveMs: 0,
