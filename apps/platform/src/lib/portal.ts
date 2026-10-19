@@ -30,6 +30,19 @@ export async function ensureClientProfileForUser(
   return profile;
 }
 
+/** Lookup-only counterpart of `ensureClientProfileForUser`; never provisions a profile. */
+export async function findClientProfileForUser(
+  userId: string,
+  db = database(),
+) {
+  const [profile] = await db
+    .select()
+    .from(clientProfiles)
+    .where(eq(clientProfiles.supabaseUserId, z.uuid().parse(userId)))
+    .limit(1);
+  return profile?.enabled ? profile : null;
+}
+
 export async function requireHumanSession() {
   const supabase = await createSupabaseServerClient();
   const [
