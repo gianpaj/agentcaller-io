@@ -42,6 +42,7 @@ export function cardSetupParams(
   input: CardSetupReference,
   origin: string,
   expiresAt: Date,
+  now = new Date(),
 ): Stripe.Checkout.SessionCreateParams {
   reference.parse(input);
   const base = new URL(origin);
@@ -58,7 +59,12 @@ export function cardSetupParams(
       ))
   )
     throw new Error("Invalid card setup application origin");
-  if (!Number.isSafeInteger(expiresAt.getTime()))
+  // Stripe accepts Checkout expiry between 30 minutes and 24 hours after creation.
+  const lifetime = expiresAt.getTime() - now.getTime();
+  if (
+    !Number.isSafeInteger(expiresAt.getTime()) ||
+    !(lifetime >= 30 * 60_000 && lifetime <= 24 * 60 * 60_000)
+  )
     throw new Error("Invalid Checkout expiry");
   const metadata = setupMetadata(input);
   return {
