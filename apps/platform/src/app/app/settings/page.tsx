@@ -1,257 +1,123 @@
 import Link from "next/link";
-import { calls } from "@agentcaller/database";
-import { desc, eq } from "drizzle-orm";
-import {
-  Activity,
-  ArrowUpRight,
-  BellRing,
-  Gauge,
-  LogOut,
-  Phone,
-  TerminalSquare,
-} from "lucide-react";
-import { database } from "@/lib/database";
-import { loadClientProfile } from "@/lib/portal";
-import { updateControls, cancelConnectJob } from "../actions";
+import { ArrowUpRight, ChevronRight, CreditCard, Plug } from "lucide-react";
+import { requireClientProfile } from "@/lib/portal";
+import { updateControls } from "../actions";
 
-function stateTone(state: string) {
-  if (state === "completed") return "text-[#c6ff4a]";
-  if (state === "failed" || state === "cancelled") return "text-[#ff7a45]";
-  return "text-[#d9e6d2]";
-}
-export default async function PortalPage() {
-  const { user, profile } = await loadClientProfile();
-  if (!user)
-    return (
-      <main className="grid-noise flex min-h-screen items-center justify-center">
-        <Link
-          className="bg-[#c6ff4a] px-5 py-3 text-xs font-bold text-[#080a0d]"
-          href="/login"
-        >
-          SIGN IN
-        </Link>
-      </main>
-    );
-  if (!profile)
-    return (
-      <main className="grid-noise flex min-h-screen items-center justify-center p-6">
-        <div className="signal-border max-w-lg bg-[#0d1117] p-8">
-          <p className="label">ACCESS PENDING</p>
-          <h1 className="mt-4 text-3xl font-black tracking-[-.08em]">
-            PROFILE NOT LINKED.
-          </h1>
-          <p className="mt-4 text-sm leading-6 text-[#8c9a92]">
-            Your identity is authenticated, but an operator has not linked it to
-            an AgentCaller client profile.
+const field =
+  "min-h-12 w-full rounded-md border border-(--line) bg-(--void) px-3 py-2 text-base outline-none focus:border-(--signal)";
+
+export default async function SettingsPage() {
+  const profile = await requireClientProfile();
+  return (
+    <>
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-base leading-relaxed text-(--muted)">
+          {profile.name}
+        </p>
+      </header>
+      <nav
+        aria-label="Account"
+        className="mt-8 divide-y divide-(--line) rounded-xl border border-(--line) bg-(--panel)"
+      >
+        {[
+          {
+            href: "/app/billing",
+            label: "Billing",
+            detail: "Card, spending limits, usage, and invoices",
+            Icon: CreditCard,
+          },
+          {
+            href: "/app/connections",
+            label: "Connected integrations",
+            detail: "Agents with tool access to your account",
+            Icon: Plug,
+          },
+        ].map(({ href, label, detail, Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex min-h-16 items-center gap-4 px-5 py-4 hover:bg-(--void)"
+          >
+            <Icon size={20} className="text-(--signal)" aria-hidden="true" />
+            <span className="grid flex-1 gap-0.5">
+              <span className="font-semibold">{label}</span>
+              <span className="text-sm text-(--muted)">{detail}</span>
+            </span>
+            <ChevronRight
+              size={18}
+              className="text-(--muted)"
+              aria-hidden="true"
+            />
+          </Link>
+        ))}
+      </nav>
+      <form
+        action={updateControls}
+        className="mt-8 grid gap-5 rounded-xl border border-(--line) bg-(--panel) p-5 sm:p-6"
+        aria-labelledby="controls-title"
+      >
+        <div className="space-y-1">
+          <h2 id="controls-title" className="text-xl font-semibold">
+            Webhook and throttle
+          </h2>
+          <p className="text-sm leading-relaxed text-(--muted)">
+            Call events are signed with your secret and sent to this endpoint.
           </p>
         </div>
-      </main>
-    );
-  const rows = await database()
-    .select()
-    .from(calls)
-    .where(eq(calls.clientId, profile.id))
-    .orderBy(desc(calls.createdAt))
-    .limit(12);
-  const active = rows.filter((call) =>
-    ["queued", "dialing", "in_progress"].includes(call.state),
-  ).length;
-  return (
-    <main className="grid-noise min-h-screen p-4 md:p-7">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-center justify-between gap-5 border-b border-[#273129] pb-5">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm font-bold tracking-[-.06em]"
-          >
-            <TerminalSquare size={20} className="text-[#c6ff4a]" />{" "}
-            AGENTCALLER.IO
-          </Link>
-          <div className="flex items-center gap-4 text-xs text-[#8c9a92]">
-            <span>{user.email}</span>
-            <Link href="https://docs.agentcaller.io" className="text-[#c6ff4a]">
-              DOCS ↗
-            </Link>
-            <form action="/auth/signout" method="post">
-              <button aria-label="Sign out">
-                <LogOut size={16} />
-              </button>
-            </form>
-          </div>
-        </header>
-        <section className="py-10">
-          <Link
-            href="/app/connections"
-            className="inline-flex min-h-11 items-center underline underline-offset-4"
-          >
-            Manage connected integrations
-          </Link>
-          <Link
-            href="/app/billing"
-            className="inline-flex min-h-11 items-center underline underline-offset-4"
-          >
-            Manage billing
-          </Link>
-          <p className="label">Developer control room / {profile.name}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-.08em]">
-            CALL OPERATIONS.
-          </h1>
-        </section>
-        <section className="grid gap-px border border-[#273129] bg-[#273129] md:grid-cols-3">
-          {[
-            [Phone, "ACTIVE", String(active)],
-            [Activity, "TOTAL CALLS", String(rows.length)],
-            [Gauge, "THROTTLE", `${profile.callsPerMinute}/min`],
-          ].map(([Icon, label, value]) => {
-            const CardIcon = Icon as typeof Phone;
-            return (
-              <div key={label as string} className="bg-[#0d1117] p-6">
-                <CardIcon size={19} className="text-[#c6ff4a]" />
-                <p className="label mt-8">{label as string}</p>
-                <p className="mt-2 text-3xl font-black tracking-[-.08em]">
-                  {value as string}
-                </p>
-              </div>
-            );
-          })}
-        </section>
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_.55fr]">
-          <div className="signal-border bg-[#0d1117]">
-            <div className="flex items-center justify-between border-b border-[#273129] p-5">
-              <div>
-                <p className="label">Call ledger</p>
-                <h2 className="mt-1 text-lg font-bold tracking-tight">
-                  LATEST DISPATCHES
-                </h2>
-              </div>
-              <Link
-                href="https://docs.agentcaller.io"
-                className="text-xs text-[#c6ff4a]"
-              >
-                API REFERENCE <ArrowUpRight className="inline" size={13} />
-              </Link>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="text-[#8c9a92]">
-                  <tr>
-                    <th className="px-5 py-4 font-normal">DESTINATION</th>
-                    <th className="px-5 py-4 font-normal">TASK</th>
-                    <th className="px-5 py-4 font-normal">STATE</th>
-                    <th className="px-5 py-4 font-normal">CREATED</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.length ? (
-                    rows.map((call) => (
-                      <tr
-                        key={call.id}
-                        className="border-t border-[#273129] text-[#c7d4ca]"
-                      >
-                        <td className="px-5 py-4">{call.destination}</td>
-                        <td className="px-5 py-4 uppercase">
-                          {(call.task as { type?: string }).type ?? "—"}
-                        </td>
-                        <td
-                          className={`px-5 py-4 font-bold uppercase ${stateTone(call.state)}`}
-                        >
-                          {call.state}
-                          {(call.task as { type?: string }).type ===
-                            "connect_me" && (
-                            <div className="mt-2 text-xs normal-case">
-                              <p>
-                                {(
-                                  call.outcome as { reason?: string } | null
-                                )?.reason?.replaceAll("_", " ")}
-                              </p>
-                              {!call.endedAt && (
-                                <form action={cancelConnectJob}>
-                                  <input
-                                    type="hidden"
-                                    name="callId"
-                                    value={call.id}
-                                  />
-                                  <button className="text-[#ff7a45]">
-                                    Cancel connection
-                                  </button>
-                                </form>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-[#8c9a92]">
-                          {call.createdAt.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="px-5 py-12 text-[#8c9a92]" colSpan={4}>
-                        No calls yet. Authenticate an API request and submit a
-                        paid dispatch.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <form
-            action={updateControls}
-            className="signal-border bg-[#0d1117] p-6"
-          >
-            <BellRing size={19} className="text-[#c6ff4a]" />
-            <p className="label mt-7">Client controls</p>
-            <h2 className="mt-1 text-lg font-bold tracking-tight">
-              WEBHOOK & THROTTLE
-            </h2>
-            <label className="label mt-7 block">Webhook endpoint</label>
+        <label className="grid gap-2">
+          Webhook endpoint
+          <input
+            className={field}
+            name="webhookUrl"
+            type="url"
+            defaultValue={profile.webhookUrl ?? ""}
+            placeholder="https://agent.example/events"
+          />
+        </label>
+        <label className="grid gap-2">
+          Signing secret
+          <input
+            className={`${field} font-mono text-sm text-(--muted)`}
+            readOnly
+            value={profile.webhookSecret ?? ""}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="grid gap-2">
+            Calls per minute
             <input
-              name="webhookUrl"
-              type="url"
-              defaultValue={profile.webhookUrl ?? ""}
-              placeholder="https://agent.example/events"
-              className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-xs outline-none focus:border-[#c6ff4a]"
+              className={field}
+              name="callsPerMinute"
+              type="number"
+              min="1"
+              max="60"
+              defaultValue={profile.callsPerMinute}
             />
-            <label className="label mt-5 block">Signing secret</label>
+          </label>
+          <label className="grid gap-2">
+            Active calls
             <input
-              readOnly
-              value={profile.webhookSecret ?? ""}
-              className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 font-mono text-[.65rem] text-[#8c9a92] outline-none"
+              className={field}
+              name="maxConcurrentCalls"
+              type="number"
+              min="1"
+              max="20"
+              defaultValue={profile.maxConcurrentCalls}
             />
-            <div className="mt-5 grid grid-cols-2 gap-4">
-              <label className="label">
-                Calls / minute
-                <input
-                  name="callsPerMinute"
-                  type="number"
-                  min="1"
-                  max="60"
-                  defaultValue={profile.callsPerMinute}
-                  className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-sm text-[#ecf5eb] outline-none focus:border-[#c6ff4a]"
-                />
-              </label>
-              <label className="label">
-                Active calls
-                <input
-                  name="maxConcurrentCalls"
-                  type="number"
-                  min="1"
-                  max="20"
-                  defaultValue={profile.maxConcurrentCalls}
-                  className="mt-2 w-full border border-[#273129] bg-[#080a0d] px-3 py-3 text-sm text-[#ecf5eb] outline-none focus:border-[#c6ff4a]"
-                />
-              </label>
-            </div>
-            <button className="mt-6 w-full bg-[#c6ff4a] px-4 py-3 text-xs font-bold text-[#080a0d] transition hover:bg-[#ecf5eb]">
-              SAVE CONTROLS
-            </button>
-            <p className="mt-4 text-[.68rem] leading-5 text-[#8c9a92]">
-              Every dispatch still supplies its own USDC and duration ceiling.
-            </p>
-          </form>
-        </section>
-      </div>
-    </main>
+          </label>
+        </div>
+        <button className="min-h-12 rounded-md bg-(--signal) px-4 py-3 font-semibold text-(--void) hover:bg-(--ink)">
+          Save
+        </button>
+      </form>
+      <Link
+        href="https://docs.agentcaller.io"
+        className="mt-6 inline-flex min-h-12 items-center gap-1 underline underline-offset-4 hover:text-(--signal)"
+      >
+        API documentation
+        <ArrowUpRight size={16} aria-hidden="true" />
+      </Link>
+    </>
   );
 }

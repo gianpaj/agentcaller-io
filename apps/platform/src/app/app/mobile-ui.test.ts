@@ -86,6 +86,7 @@ describe("mobile call navigation", () => {
     ["/app", "/app"],
     ["/app/calls/new", "/app/calls/new"],
     ["/app/calls/example", "/app"],
+    ["/app/billing", "/app/billing"],
     ["/app/settings", "/app/settings"],
   ])("marks the correct destination at %s", (pathname, expectedHref) => {
     mocks.pathname = pathname;
