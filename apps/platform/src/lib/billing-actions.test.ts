@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   find: vi.fn(),
   ensure: vi.fn(),
   invoice: vi.fn(),
+  portal: vi.fn(),
   redirect: vi.fn(),
 }));
 vi.mock("./portal", () => ({
@@ -15,11 +16,12 @@ vi.mock("./billing-invoices", () => ({
   humanInvoiceUrl: state.invoice,
   syncInvoiceCollection: vi.fn(),
 }));
+vi.mock("./billing-portal", () => ({ humanBillingPortalUrl: state.portal }));
 vi.mock("./database", () => ({ database: vi.fn() }));
 vi.mock("./connect-scheduler", () => ({ cleanupConnectRooms: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: state.redirect }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-import { openInvoice } from "../app/app/billing/actions";
+import { openBillingPortal, openInvoice } from "../app/app/billing/actions";
 const user = "11111111-1111-4111-8111-111111111111";
 const invoiceId = "22222222-2222-4222-8222-222222222222";
 function form() {
@@ -44,5 +46,18 @@ describe("billing actions", () => {
     await expect(openInvoice(form())).rejects.toThrow("No billing account");
     expect(state.ensure).not.toHaveBeenCalled();
     expect(state.invoice).not.toHaveBeenCalled();
+  });
+  it("open the billing portal for the signed-in human's profile", async () => {
+    state.portal.mockResolvedValue("https://billing.stripe.com/p/session/x");
+    await openBillingPortal();
+    expect(state.portal).toHaveBeenCalledWith("own-profile");
+    expect(state.redirect).toHaveBeenCalledWith(
+      "https://billing.stripe.com/p/session/x",
+    );
+  });
+  it("never open a portal without a profile", async () => {
+    state.find.mockResolvedValue(null);
+    await expect(openBillingPortal()).rejects.toThrow("No billing account");
+    expect(state.portal).not.toHaveBeenCalled();
   });
 });

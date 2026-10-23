@@ -18,6 +18,7 @@ import {
 import { createBillingSetup } from "@/lib/billing-setup";
 import { humanInvoiceUrl, syncInvoiceCollection } from "@/lib/billing-invoices";
 import { cleanupConnectRooms } from "@/lib/connect-scheduler";
+import { humanBillingPortalUrl } from "@/lib/billing-portal";
 
 async function owner() {
   const { user } = await requireHumanSession();
@@ -106,4 +107,8 @@ export async function openInvoice(form: FormData) {
   redirect(
     await humanInvoiceUrl(profile.id, z.uuid().parse(form.get("invoiceId"))),
   );
+}
+export async function openBillingPortal() {
+  const { profile } = await owner();
+  redirect(await humanBillingPortalUrl(profile.id));
 }
