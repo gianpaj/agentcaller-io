@@ -219,6 +219,13 @@ request/response bodies, task contents, and raw exception messages. A dispatch
 failure never causes an immediate redispatch; lease expiry and cleanup retain
 ownership of an uncertain attempt.
 
+Callbacks taking at least one second log `Slow connect operation` with the action,
+call and attempt IDs, total time, funding authorization time, command time, HTTP
+status and permission result when available. A separate transaction timing splits
+connection acquisition plus the `BEGIN` round trip (`transactionStartMs`) from
+transaction execution and commit (`transactionMs`). These timings help distinguish
+connection contention from slow database work without logging callback contents.
+
 The worker uses the pinned SDK's `waitUntilAnswered`, `ringingTimeout` and
 `maxCallDuration` on each SIP leg. These are **LiveKit SIP service limits**, not
 Telnyx carrier-enforced guarantees. The upstream SIP service starts its duration
@@ -226,8 +233,12 @@ budget during dialing, so ringing can reduce remaining conversation time.
 Application phase timers and repeated room deletion provide additional cleanup.
 The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/sip/outbound.go)
 provides the duration timeout independently of the voice worker.
-Unknown/cancelled attempts remain eligible for repeated cleanup until operator
-reconciliation; absence from a room is not proof that an in-flight dial failed.
+LiveKit's explicit room-not-found response counts as a successful deletion;
+other deletion failures remain visible and retryable. Attempts ending in
+`dial_unknown`, `worker_lost`, `cancelled` or `configuration_error` keep repeated
+cleanup through the later of their cleanup deadline or 15 minutes after ending,
+even when rooms are absent. Room absence does not prove an in-flight dial failed
+or resolve provider reconciliation.
 The website permits a fresh manual submission after cancellation or a
 configuration failure only when the call is terminal and none of its attempts
 has a recorded dial leg. A recorded leg preserves the reconciliation block even

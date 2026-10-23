@@ -54,7 +54,11 @@ export async function cleanupConnectRooms(callId?: string) {
         );
     });
     failedRooms += failed.length;
-    if (failed.length === 0)
+    // An absent room cannot rule out an in-flight dial completing later.
+    if (
+      failed.length === 0 &&
+      !UNCERTAIN_CLEANUP.includes(attempt.reason ?? "")
+    )
       await database()
         .update(callAttempts)
         .set({ roomsCleanedAt: new Date() })

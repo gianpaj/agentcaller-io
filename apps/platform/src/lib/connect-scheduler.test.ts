@@ -26,6 +26,7 @@ const attempt = {
   callId: "call-id",
   businessRoom: "business-room",
   callbackRoom: "callback-room",
+  reason: "connected",
 };
 let errors: ReturnType<typeof vi.spyOn>;
 let query: any;
@@ -134,3 +135,21 @@ it("logs configuration failures without dumping validation values", () => {
     failure: "invalid_configuration",
   });
 });
+
+it.each(["dial_unknown", "worker_lost", "cancelled", "configuration_error"])(
+  "repeats successful room deletion for %s attempts without declaring reconciliation complete",
+  async (reason) => {
+    query.limit.mockResolvedValue([{ ...attempt, reason }]);
+    expect(await cleanupConnectRooms()).toEqual({
+      attempts: 1,
+      failedRooms: 0,
+    });
+    expect(await cleanupConnectRooms()).toEqual({
+      attempts: 1,
+      failedRooms: 0,
+    });
+    expect(mocks.stop).toHaveBeenCalledTimes(4);
+    expect(query.update).not.toHaveBeenCalled();
+    expect(errors).not.toHaveBeenCalled();
+  },
+);

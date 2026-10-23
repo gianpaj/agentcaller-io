@@ -22,6 +22,7 @@ import { ApiError } from "./auth";
 import { lockCallBillingAccount } from "./billing-store";
 import { stripeCallAuthority } from "./billing-authority";
 import { attemptReserve, quotedCost } from "./connect-policy";
+import { logConnectTiming } from "./connect-log";
 
 type DB = ReturnType<typeof database>;
 type TX = Parameters<Parameters<DB["transaction"]>[0]>[0];
@@ -67,7 +68,10 @@ export async function connectCommand(
   db = database(),
   now = new Date(),
 ) {
-  return db.transaction(async (tx) => {
+  const startedAt = performance.now();
+  let transactionStartedAt: number | undefined;
+  const operation = db.transaction(async (tx) => {
+    transactionStartedAt = performance.now();
     await lockCallBillingAccount(tx, callId);
     const [call] = await tx
       .select()
@@ -369,6 +373,23 @@ export async function connectCommand(
       .insert(connectReceipts)
       .values({ eventId: event.eventId, attemptId: attempt.id, response });
     return response;
+  });
+  return operation.finally(() => {
+    const finishedAt = performance.now();
+    logConnectTiming(
+      "transaction",
+      { callId, attemptId: event.attemptId, action: event.action },
+      {
+        totalMs: Math.round(finishedAt - startedAt),
+        // Starting a transaction includes connection acquisition and the BEGIN round trip.
+        transactionStartMs: Math.round(
+          (transactionStartedAt ?? finishedAt) - startedAt,
+        ),
+        ...(transactionStartedAt === undefined
+          ? {}
+          : { transactionMs: Math.round(finishedAt - transactionStartedAt) }),
+      },
+    );
   });
 }
 
