@@ -9,7 +9,7 @@ import {
 } from "@agentcaller/database";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { database } from "@/lib/database";
-import { requireHumanSession, ensureClientProfileForUser } from "@/lib/portal";
+import { requireHumanSession, findClientProfileForUser } from "@/lib/portal";
 import { isStripeBillingEnabled } from "@/lib/env";
 import {
   changeBillingLimits,
@@ -68,14 +68,17 @@ export default async function BillingPage({
   searchParams: Promise<{ collection?: string }>;
 }) {
   const { user } = await requireHumanSession(),
-    profile = await ensureClientProfileForUser(user.id),
+    profile = await findClientProfileForUser(user.id),
     db = database();
-  const [account] = await db
-    .select()
-    .from(billingAccounts)
-    .where(eq(billingAccounts.clientId, profile.id));
+  // Viewing billing must never provision a profile.
+  const [account] = profile
+    ? await db
+        .select()
+        .from(billingAccounts)
+        .where(eq(billingAccounts.clientId, profile.id))
+    : [];
   const query = await searchParams;
-  if (!account)
+  if (!profile || !account)
     return (
       <section className="grid gap-5">
         <h1 className="text-3xl font-semibold">Billing</h1>

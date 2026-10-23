@@ -6,7 +6,8 @@ import { agentConnections, billingAccounts } from "@agentcaller/database";
 import { agentOperations } from "@agentcaller/contracts";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireHumanSession, ensureClientProfileForUser } from "@/lib/portal";
+import { ApiError } from "@/lib/auth";
+import { requireHumanSession, findClientProfileForUser } from "@/lib/portal";
 import { database } from "@/lib/database";
 import {
   linkBillingApiKey,
@@ -20,7 +21,10 @@ import { cleanupConnectRooms } from "@/lib/connect-scheduler";
 
 async function owner() {
   const { user } = await requireHumanSession();
-  return { user, profile: await ensureClientProfileForUser(user.id) };
+  // Billing acts on an existing profile; it must never provision one.
+  const profile = await findClientProfileForUser(user.id);
+  if (!profile) throw new ApiError(403, "No billing account for this user");
+  return { user, profile };
 }
 export async function changeBillingLimits(form: FormData) {
   const { user, profile } = await owner();
