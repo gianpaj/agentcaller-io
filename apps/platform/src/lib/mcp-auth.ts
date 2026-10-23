@@ -10,6 +10,9 @@ import { ApiError } from "./auth";
 import { database } from "./database";
 import { getMcpConfig, type McpConfig } from "./mcp-config";
 
+/** Issuer and app clocks differ; exact `iat` comparisons fail intermittently. */
+const clockSkewSeconds = 60;
+
 let keys: { url: string; resolver: JWTVerifyGetKey } | undefined;
 function issuerKeys(config: McpConfig) {
   if (keys?.url !== config.jwksUrl)
@@ -46,7 +49,7 @@ export async function verifyMcpToken(
           .number()
           .int()
           .nonnegative()
-          .max(Math.floor(now.getTime() / 1000)),
+          .max(Math.floor(now.getTime() / 1000) + clockSkewSeconds),
       })
       .parse(payload);
   } catch {
@@ -87,7 +90,8 @@ export async function authenticateMcpPrincipal(
   if (
     !connection?.consentedAt ||
     connection.revokedAt ||
-    claims.iat < Math.floor(connection.consentedAt.getTime() / 1000)
+    claims.iat + clockSkewSeconds <
+      Math.floor(connection.consentedAt.getTime() / 1000)
   )
     throw new ApiError(
       403,

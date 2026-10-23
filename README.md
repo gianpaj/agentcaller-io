@@ -137,6 +137,18 @@ rather than a working MVP.
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
 | Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
 
+Remote MCP supports protected-resource discovery, human tool consent, first-time
+profiles and connection revocation. Six tools cover billing setup, readiness,
+quotes, reservations, call status and usage. Saved-card enrollment, spending
+controls and monthly Stripe Invoicing are implemented and tested offline.
+**Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
+acceptance checks pass. Existing x402/operator behavior retains its own gates.
+
+See the [MCP guide](apps/docs/content/docs/mcp.mdx),
+[billing guide](apps/docs/content/docs/billing.mdx) and
+[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
+for configuration, invariants and remaining release checks.
+
 The most important provider mismatches are documented upstream:
 
 - x402 describes `upto` as the usage-based authorization scheme and
@@ -172,18 +184,6 @@ These links provide context, not legal advice.
    capped pilot.
 
 ## Local development
-
-Remote MCP supports protected-resource discovery, human tool consent, first-time
-profiles and connection revocation. Six tools cover billing setup, readiness,
-quotes, reservations, call status and usage. Saved-card enrollment, spending
-controls and monthly Stripe Invoicing are implemented and tested offline.
-**Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
-acceptance checks pass. Existing x402/operator behavior retains its own gates.
-
-See the [MCP guide](apps/docs/content/docs/mcp.mdx),
-[billing guide](apps/docs/content/docs/billing.mdx) and
-[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-for configuration, invariants and remaining release checks.
 
 ### Prerequisites
 

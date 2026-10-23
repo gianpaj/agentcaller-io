@@ -17,7 +17,9 @@ The canonical MCP resource is that origin plus `/mcp`.
 
 Configure Supabase's OAuth server with authorization path `/oauth/consent`.
 Use authorization code with PKCE and the target host's supported client registration.
-The issuer owns registered redirects, code exchange and refresh tokens. See
+The issuer owns registered redirects, code exchange and refresh tokens. Consent
+accepts only HTTPS or loopback HTTP redirect URIs, so native clients that
+register a custom scheme such as `cursor://` cannot connect. See
 [Supabase OAuth setup](https://supabase.com/docs/guides/auth/oauth-server/getting-started).
 
 The platform requires asymmetrically signed ES256/RS256 access tokens with the
@@ -48,8 +50,10 @@ Delegated OAuth tokens cannot authorize human portal settings or consent actions
 
 The human can disconnect an integration under **Settings → Manage connected
 integrations**. Subsequent requests are denied even while a token remains valid.
-Refresh and repeated issuer consent cannot restore a revoked connection. Spending can be revoked separately under **Settings → Manage billing**. Both
-revocation paths block further worker permissions and cancel outstanding calls.
+Disconnecting also revokes the issuer grant and its refresh tokens. Refresh and
+repeated issuer consent cannot restore a revoked connection. Spending can be
+revoked separately under **Settings → Manage billing**. Both revocation paths
+block further worker permissions and cancel outstanding calls.
 Human reauthorization of revoked connections is a separate workflow.
 
 ## Verification

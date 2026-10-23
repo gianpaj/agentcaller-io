@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { generateKeyPair, SignJWT, type JWTPayload } from "jose";
 import {
   getMcpConfig,
@@ -28,6 +28,9 @@ let keys: Awaited<ReturnType<typeof generateKeyPair>>;
 beforeAll(async () => {
   keys = await generateKeyPair("ES256");
 });
+afterEach(() => {
+  vi.useRealTimers();
+});
 async function token(overrides: JWTPayload = {}) {
   return new SignJWT({ ...claims, ...overrides })
     .setProtectedHeader({ alg: "ES256" })
@@ -49,7 +52,7 @@ describe("MCP OAuth resource boundary", () => {
     { client_id: undefined },
     { client_id: "claimed-client" },
     { sub: "claimed-human" },
-    { iat: timestamp + 1 },
+    { iat: timestamp + 61 },
     { iat: undefined },
     { role: "service_role" },
     { nbf: timestamp + 30 },
@@ -58,6 +61,52 @@ describe("MCP OAuth resource boundary", () => {
       verifyMcpToken(await token(overrides), config, () => keys.publicKey, now),
     ).rejects.toMatchObject({ status: 401 });
   });
+  it("tolerates small issuer clock skew in the issue time", async () => {
+    expect(
+      await verifyMcpToken(
+        await token({ iat: timestamp + 30 }),
+        config,
+        () => keys.publicKey,
+        now,
+      ),
+    ).toMatchObject({ sub: claims.sub });
+  });
+  it.each([
+    [30, true],
+    [90, false],
+  ])(
+    "compares issue time to consent with skew tolerance (consent %is later)",
+    async (consentDelay, accepted) => {
+      vi.useFakeTimers({ toFake: ["Date"], now });
+      const connection = {
+        id: "connection",
+        clientId: "own-profile",
+        operations: ["billing:read"],
+        revokedAt: null,
+        consentedAt: new Date((claims.iat + consentDelay) * 1000),
+      };
+      const chain = {
+        select: () => chain,
+        from: () => chain,
+        innerJoin: () => chain,
+        where: () => chain,
+        limit: async () => [{ connection }],
+      };
+      const result = authenticateMcpPrincipal(
+        new Request(config.resource, {
+          headers: { authorization: `Bearer ${await token()}` },
+        }),
+        config,
+        chain as never,
+        () => keys.publicKey,
+      );
+      if (accepted)
+        await expect(result).resolves.toMatchObject({
+          connectionId: "connection",
+        });
+      else await expect(result).rejects.toMatchObject({ status: 403 });
+    },
+  );
   it("rejects a token signed by another key", async () => {
     const other = await generateKeyPair("ES256");
     await expect(

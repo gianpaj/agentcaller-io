@@ -1,16 +1,18 @@
 import { agentConnections } from "@agentcaller/database";
 import { eq } from "drizzle-orm";
 import { database } from "@/lib/database";
-import { ensureClientProfileForUser, requireHumanSession } from "@/lib/portal";
+import { findClientProfileForUser, requireHumanSession } from "@/lib/portal";
 import { disconnectAgent } from "./actions";
 
 export default async function ConnectionsPage() {
   const { user } = await requireHumanSession();
-  const profile = await ensureClientProfileForUser(user.id);
-  const connections = await database()
-    .select()
-    .from(agentConnections)
-    .where(eq(agentConnections.clientId, profile.id));
+  const profile = await findClientProfileForUser(user.id);
+  const connections = profile
+    ? await database()
+        .select()
+        .from(agentConnections)
+        .where(eq(agentConnections.clientId, profile.id))
+    : [];
   return (
     <section className="grid gap-6">
       <h1 className="text-3xl font-semibold">Connected integrations</h1>

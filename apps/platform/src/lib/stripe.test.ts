@@ -21,6 +21,7 @@ const reference = {
   cardGeneration: 0,
   customerId: "cus_offline",
 };
+const now = new Date("2026-10-18T12:00:00Z");
 const expires = new Date("2026-10-18T12:30:00Z");
 const expected = { ...reference, sessionId: "cs_offline", livemode: false };
 function setup() {
@@ -28,6 +29,7 @@ function setup() {
     reference,
     "https://agentcaller.example",
     expires,
+    now,
   );
   return {
     id: "cs_offline",
@@ -97,6 +99,7 @@ describe("hosted enrollment API contract", () => {
       reference,
       "https://agentcaller.example",
       expires,
+      now,
     );
     expect(params).toMatchObject({
       mode: "setup",
@@ -132,7 +135,28 @@ describe("hosted enrollment API contract", () => {
       "http://public.example",
       "https://agentcaller.example/?request=secret",
     ])
-      expect(() => cardSetupParams(reference, origin, expires)).toThrow();
+      expect(() => cardSetupParams(reference, origin, expires, now)).toThrow();
+  });
+  it("rejects Checkout expiry outside Stripe's 30 minute to 24 hour window", () => {
+    const origin = "https://agentcaller.example";
+    for (const minutes of [29, 24 * 60 + 1, Number.NaN])
+      expect(() =>
+        cardSetupParams(
+          reference,
+          origin,
+          new Date(now.getTime() + minutes * 60_000),
+          now,
+        ),
+      ).toThrow("Invalid Checkout expiry");
+    for (const minutes of [30, 24 * 60])
+      expect(
+        cardSetupParams(
+          reference,
+          origin,
+          new Date(now.getTime() + minutes * 60_000),
+          now,
+        ).expires_at,
+      ).toBe(now.getTime() / 1000 + minutes * 60);
   });
   it("requires a complete owner-bound intent and attached card", () => {
     expect(verify(setup())).toEqual({

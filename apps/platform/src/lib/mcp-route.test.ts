@@ -1,6 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  CLIENT_CAPABILITIES_META_KEY,
+  CLIENT_INFO_META_KEY,
+  PROTOCOL_VERSION_META_KEY,
+} from "@modelcontextprotocol/server";
 const state = vi.hoisted(() => ({ authenticate: vi.fn() }));
 vi.mock("./mcp-auth", () => ({ authenticateMcpPrincipal: state.authenticate }));
+vi.mock("./billing-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./billing-usage")>();
+  return {
+    ...actual,
+    getBillingStatus: vi.fn(async () => ({
+      status: "disabled",
+      reason: "paid_calling_disabled",
+    })),
+  };
+});
 import { ApiError } from "./auth";
 import { POST, GET, OPTIONS } from "../app/mcp/route";
 import { GET as metadata } from "../app/.well-known/oauth-protected-resource/mcp/route";
@@ -56,6 +71,48 @@ describe("MCP HTTP boundary", () => {
         )
       ).status,
     ).toBe(403);
+  });
+  it("returns a complete tool result after the handler is closed", async () => {
+    configure();
+    state.authenticate.mockResolvedValue({
+      clientId: "test-account",
+      connectionId: "test-connection",
+      credentialId: "test-client",
+      credentialKind: "oauth",
+      operations: ["billing:read"],
+    });
+    const response = await POST(
+      new Request("https://agentcaller.example/mcp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "MCP-Protocol-Version": "2026-07-28",
+          "MCP-Method": "tools/call",
+          "Mcp-Name": "get_billing_status",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "get_billing_status",
+            arguments: {},
+            _meta: {
+              [PROTOCOL_VERSION_META_KEY]: "2026-07-28",
+              [CLIENT_INFO_META_KEY]: { name: "offline-test", version: "1" },
+              [CLIENT_CAPABILITIES_META_KEY]: {},
+            },
+          },
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect((await response.json()).result.structuredContent).toMatchObject({
+      reason: "paid_calling_disabled",
+    });
   });
   it("stays disabled without feature configuration", async () => {
     vi.stubEnv("MCP_ENABLED", "false");
