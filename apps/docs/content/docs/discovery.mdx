@@ -1,0 +1,56 @@
+---
+title: Agent discovery
+description: Find the API contract and credential provisioning instructions.
+---
+
+AgentCaller publishes discovery resources from the platform at
+`https://agentcaller.io`:
+
+| Resource                   | Purpose                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `/robots.txt`              | Allows public crawling and excludes portal, authentication, and API paths         |
+| `/sitemap.xml`             | Lists canonical, indexable public pages on this host                              |
+| `/.well-known/api-catalog` | Links the call API to its OpenAPI description, documentation, and health endpoint |
+| `/openapi.json`            | Describes the active call API                                                     |
+| `/auth.md`                 | Explains operator provisioning and bearer API-key use                             |
+
+The homepage returns `Link` headers with the `api-catalog`, `service-desc`,
+`service-doc`, and `describedby` relations. Discovery documents are public and
+do not require a database connection or provider credentials.
+
+## Credentials
+
+The call API requires an enabled client profile and an operator-provisioned
+`ac_` API key in the `Authorization: Bearer` header. Portal login does not issue
+API keys. There is no public registration endpoint or OAuth authorization
+server for the call API. Read `/auth.md` for the credential workflow.
+
+## Maintenance
+
+Add or remove entries in `apps/platform/src/app/sitemap.ts` when indexable public
+platform pages change. Keep portal pages, login, password recovery, and tenant
+data out of the sitemap. Documentation on a different host belongs in that
+host's sitemap.
+
+Keep `/openapi.json` aligned with the public route handlers and shared contracts.
+The legacy root `openapi.yaml` describes the waitlist API and is not the
+platform's API description.
+
+## Validation
+
+Check the deployed responses for HTTP 200 and their media types: `text/plain`
+for robots, XML for the sitemap, `application/linkset+json` for the catalog,
+JSON for OpenAPI, and `text/markdown` for authentication instructions.
+
+Run the public scanner after deployment:
+
+```bash
+curl --fail-with-body https://isitagentready.com/api/scan \
+  -H 'Content-Type: application/json' \
+  --data '{"url":"https://agentcaller.io"}'
+```
+
+Expect `pass` for `checks.discoverability.robotsTxt`,
+`checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`,
+`checks.discovery.apiCatalog`, and `checks.discovery.authMd`. A passing
+discovery check does not establish readiness to place or bill calls.

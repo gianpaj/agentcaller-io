@@ -99,6 +99,16 @@ belong to the earlier Vite waitlist application. Turbo does not build that
 surface, and its OpenAPI document does not describe the active call API. Treat it
 as legacy until it is removed or deliberately restored.
 
+## Agent discovery
+
+The platform publishes `/robots.txt`, `/sitemap.xml`,
+`/.well-known/api-catalog`, `/openapi.json`, and `/auth.md`. Homepage `Link`
+headers point agents to the catalog, API description, documentation, and
+credential provisioning instructions. The API uses operator-provisioned bearer
+keys; discovery does not enable automatic registration or OAuth.
+
+See [discovery maintenance and validation](apps/docs/content/docs/discovery.mdx).
+
 ## Architecture
 
 The overall split is appropriate for the product:

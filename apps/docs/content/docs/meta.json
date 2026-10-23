@@ -1,4 +1,4 @@
 {
   "title": "AgentCaller API",
-  "pages": ["index", "dispatch", "events", "retention"]
+  "pages": ["index", "discovery", "dispatch", "events", "retention"]
 }
