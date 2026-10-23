@@ -36,4 +36,18 @@ Lint reports the existing unresolved shadcn UI alias warning.
 
 The advertised `docs.agentcaller.io` host fails DNS resolution. The catalog keeps
 the documentation app's configured URL; DNS repair is outside this change.
-Public deployment and scanner verification are pending.
+
+## Public verification
+
+Vercel production deployment `dpl_2Tt7PxymCy7fKGFakEA1qXxgGyHV` serves the
+platform at `https://agentcaller.io`. Direct public HTTP checks pass for all
+discovery responses and homepage Link relations.
+
+The public scan at `2026-10-23T21:22:53.245Z` passes robots, sitemap, Link headers,
+and API catalog. Auth.md returns HTTP 200 Markdown, but the scanner reports
+`registrationMissing` for the documented manual provisioning method. No callable
+registration or OAuth issuance endpoint exists. The
+[current protocol guide](https://workos.com/auth-md/docs/apps) requires live
+registration and OAuth endpoints; adding those is a separate authentication
+change. [Issue 16](https://github.com/workos/auth.md/issues/16) reports the same
+scanner outcome for self-contained documents without registration endpoints.

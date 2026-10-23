@@ -51,6 +51,16 @@ curl --fail-with-body https://isitagentready.com/api/scan \
 ```
 
 Expect `pass` for `checks.discoverability.robotsTxt`,
-`checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`,
-`checks.discovery.apiCatalog`, and `checks.discovery.authMd`. A passing
-discovery check does not establish readiness to place or bill calls.
+`checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`, and
+`checks.discovery.apiCatalog`.
+
+The scanner reports `registrationMissing` for `checks.discovery.authMd` even
+though the document is reachable and explains manual provisioning. AgentCaller
+has no automated registration endpoint. The
+[Auth.md implementation guide](https://workos.com/auth-md/docs/apps) describes
+live registration and OAuth credential endpoints; publishing discovery does not
+implement those capabilities. A
+[reported scanner limitation](https://github.com/workos/auth.md/issues/16)
+covers self-contained documents without registration endpoints.
+
+A passing discovery check does not establish readiness to place or bill calls.
