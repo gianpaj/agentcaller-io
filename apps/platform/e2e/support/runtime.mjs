@@ -56,6 +56,7 @@ export async function startRuntime({ signal } = {}) {
       HOME: process.env.HOME,
       LANG: "C.UTF-8",
       NODE_ENV: "development",
+      CI: "true",
       NEXT_TELEMETRY_DISABLED: "1",
       DATABASE_URL: pg.url,
       NEXT_PUBLIC_APP_URL: appUrl,
@@ -88,6 +89,8 @@ export async function startRuntime({ signal } = {}) {
     const preload = fileURLToPath(
       new URL("./server-preload.mjs", import.meta.url),
     );
+    env.NODE_OPTIONS =
+      "--import=" + new URL("./server-preload.mjs", import.meta.url).href;
     let output = "";
     child = spawn(
       process.execPath,
@@ -98,7 +101,7 @@ export async function startRuntime({ signal } = {}) {
         "dev",
         "--webpack",
         "--hostname",
-        "127.0.0.1",
+        "localhost",
         "--port",
         String(port),
       ],
@@ -134,6 +137,8 @@ export async function startRuntime({ signal } = {}) {
         throw new Error("E2E Next readiness timed out: " + output);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
+    if (coordinator.state().violations.length)
+      throw new Error("Unexpected outbound traffic during E2E startup");
     return { env, appUrl, coordinator, sql, stop, diagnostics: () => output };
   } catch (error) {
     await stop();
