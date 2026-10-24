@@ -7,16 +7,45 @@ import { queueWebhook } from "./webhooks";
 
 type CallRow = typeof calls.$inferSelect;
 
-/** Charges the connection fee plus every started minute, never more than the client's ceiling. */
+/**
+ * What the telephony leg did. Only a ringing leg nobody answered or an answered leg is billable;
+ * a call that never rang (cancelled first, routing or platform failure) costs nothing.
+ */
+export type CallUsage =
+  | { kind: "not_dialed" }
+  | { kind: "unanswered" }
+  | { kind: "connected"; seconds: number };
+
+const UNANSWERED_REASONS = ["busy", "no_answer"];
+
+/** Classifies a terminal agent report. `answered` is the worker's SIP answer signal. */
+export function usageFromReport(report: {
+  answered: boolean;
+  durationSeconds?: number;
+  reason?: unknown;
+}): CallUsage {
+  if (report.answered)
+    return { kind: "connected", seconds: report.durationSeconds ?? 0 };
+  return UNANSWERED_REASONS.includes(String(report.reason))
+    ? { kind: "unanswered" }
+    : { kind: "not_dialed" };
+}
+
+/**
+ * An unanswered leg pays the connection fee; an answered leg adds every started minute.
+ * Never more than the client's ceiling.
+ */
 export function chargeableMicros(
   call: Pick<CallRow, "maxAmountMicros">,
   rate: Pick<
     typeof rateCards.$inferSelect,
     "connectionFeeMicros" | "startedMinuteFeeMicros"
   >,
-  durationSeconds: number | undefined,
+  usage: CallUsage,
 ) {
-  const startedMinutes = Math.max(1, Math.ceil((durationSeconds ?? 0) / 60));
+  if (usage.kind === "not_dialed") return 0;
+  const startedMinutes =
+    usage.kind === "connected" ? Math.ceil(usage.seconds / 60) : 0;
   return Math.min(
     call.maxAmountMicros,
     rate.connectionFeeMicros + startedMinutes * rate.startedMinuteFeeMicros,
@@ -30,10 +59,7 @@ export function chargeableMicros(
  *
  * Returns false when another caller already owns (or completed) settlement.
  */
-export async function settleCallOnce(
-  call: CallRow,
-  durationSeconds: number | undefined,
-) {
+export async function settleCallOnce(call: CallRow, usage: CallUsage) {
   if (call.fundingSource === "operator") return false;
   if ((call.task as { type?: string }).type === "connect_me")
     throw new ApiError(
@@ -60,14 +86,23 @@ export async function settleCallOnce(
   if (!settlement || !rate || !settlement.paymentPayload)
     throw new ApiError(500, "Call settlement cannot be resolved");
 
-  const actualMicros = chargeableMicros(call, rate, durationSeconds);
+  const actualMicros = chargeableMicros(call, rate, usage);
 
   try {
-    const settled = await settlePayment(
-      settlement.paymentPayload,
-      paymentRequirements(settlement.authorizedMicros),
-      actualMicros,
-    );
+    // Nothing to capture: let the payment authorization lapse instead of settling zero.
+    const settled =
+      actualMicros === 0
+        ? {
+            success: true,
+            transaction: undefined,
+            payer: undefined,
+            errorReason: undefined,
+          }
+        : await settlePayment(
+            settlement.paymentPayload,
+            paymentRequirements(settlement.authorizedMicros),
+            actualMicros,
+          );
     if (!settled.success)
       throw new Error(settled.errorReason ?? "Settlement was rejected");
     await database()
@@ -106,13 +141,10 @@ export async function settleCallOnce(
   return true;
 }
 
-/** Elapsed wall-clock for a call we are ending ourselves, used when the agent reports no duration. */
-export function elapsedSeconds(
-  call: Pick<CallRow, "createdAt">,
-  endedAt: Date,
-) {
+/** Whole seconds between the answer signal and the end; never negative when clocks disagree. */
+export function connectedSeconds(answeredAt: Date, endedAt: Date) {
   return Math.max(
     0,
-    Math.round((endedAt.getTime() - call.createdAt.getTime()) / 1000),
+    Math.round((endedAt.getTime() - answeredAt.getTime()) / 1000),
   );
 }

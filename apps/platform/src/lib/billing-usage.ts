@@ -669,22 +669,26 @@ export async function finalizeStripeUsage(
       (attempt) => !!attempt.endedAt && !!attempt.roomsCleanedAt,
     );
     const evidence: LegUsageEvidence[] = legs.map((leg) => {
+      const rate =
+        leg.kind === "business" ? usage.businessRate : usage.callbackRate;
       if (leg.connectedAt && leg.endedAt && leg.endedAt >= leg.connectedAt)
         return {
           state: "connected",
           connectedAt: leg.connectedAt,
           endedAt: leg.endedAt,
-          rate:
-            leg.kind === "business" ? usage.businessRate : usage.callbackRate,
+          rate,
         };
       const attempt = attempts.find((attempt) => attempt.id === leg.attemptId)!;
+      // The worker reports an unanswered callback (busy, no answer, or ringing past the
+      // handoff bound) as callback_timeout.
+      const unanswered =
+        leg.kind === "business" ? ["busy", "no_answer"] : ["callback_timeout"];
       if (
         !leg.connectedAt &&
-        leg.kind === "business" &&
-        ["busy", "no_answer"].includes(attempt.reason ?? "") &&
+        unanswered.includes(attempt.reason ?? "") &&
         attempt.endedAt
       )
-        return { state: "unanswered" };
+        return { state: "unanswered", rate };
       return { state: "unknown" };
     });
     const noDialIntent = legs.length === 0 && cleaned;

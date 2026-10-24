@@ -4,12 +4,12 @@ import { billingErrorResponse } from "@/lib/billing-policy";
 import { finalizeStripeUsage } from "@/lib/billing-usage";
 import { lockAgentConnection } from "@/lib/billing-store";
 import { calls, callEvents } from "@agentcaller/database";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { authenticateApiRequest, ApiError } from "@/lib/auth";
 import { database } from "@/lib/database";
 import { errorResponse } from "@/lib/http";
 import { roomNameForCall, stopCall } from "@/lib/livekit";
-import { elapsedSeconds, settleCallOnce } from "@/lib/settlement";
+import { connectedSeconds, settleCallOnce } from "@/lib/settlement";
 import { queueWebhook } from "@/lib/webhooks";
 
 import { cancelConnect } from "@/lib/connect-me";
@@ -103,9 +103,32 @@ export async function POST(
 
     // The agent's terminal event is ignored once a call is terminal, so cancel owns settlement
     // for whatever the call already consumed. Otherwise the authorization is never captured.
+    // Only an answered call is billable here, measured from the in_progress (answer) report.
+    const [answered] =
+      call.state === "in_progress"
+        ? await database()
+            .select({ at: callEvents.occurredAt })
+            .from(callEvents)
+            .where(
+              and(
+                eq(callEvents.callId, call.id),
+                eq(callEvents.type, "call.in_progress"),
+              ),
+            )
+            .orderBy(asc(callEvents.occurredAt))
+            .limit(1)
+        : [];
     await settleCallOnce(
       cancelled,
-      elapsedSeconds(call, cancelled.endedAt ?? new Date()),
+      call.state === "in_progress"
+        ? {
+            kind: "connected",
+            seconds: connectedSeconds(
+              answered?.at ?? call.updatedAt,
+              cancelled.endedAt ?? new Date(),
+            ),
+          }
+        : { kind: "not_dialed" },
     );
     return Response.json({ data: cancelled });
   } catch (error) {

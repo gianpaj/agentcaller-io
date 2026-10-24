@@ -55,10 +55,11 @@ export default async function BillingConnect({
       ) : (
         <>
           <p>
-            Calls are billed in USD at the end of each UTC calendar month. We
-            charge when the business answers, even if the task is unsuccessful.
-            Both connected phone legs and each started minute count. We round
-            the combined call total up to a cent once.
+            Calls are billed in USD at the end of each UTC calendar month. Each
+            phone leg that rings costs its connection fee, even when nobody
+            answers. An answered leg also costs each started minute, even if the
+            task is unsuccessful. We round the combined call total up to a cent
+            once.
           </p>
           <p>
             There is no subscription or upfront charge. Unpaid usage and
@@ -75,7 +76,7 @@ export default async function BillingConnect({
             {rates.map((rate) => (
               <li key={rate.id}>
                 {rate.country}: ${(rate.connectionFeeMicros / 1e6).toFixed(4)}{" "}
-                per connected leg + $
+                per dialed leg + $
                 {(rate.startedMinuteFeeMicros / 1e6).toFixed(4)} per started
                 minute.
               </li>

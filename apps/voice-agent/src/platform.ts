@@ -16,6 +16,7 @@ export type TranscriptEntry = { speaker: string; text: string; at: string };
 
 export type CallEvent = {
   type: "call.dialing" | "call.in_progress" | "call.completed" | "call.failed";
+  answered?: boolean;
   durationSeconds?: number;
   outcome?: Record<string, unknown>;
   transcript?: TranscriptEntry[];
