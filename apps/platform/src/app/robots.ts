@@ -4,7 +4,8 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      // The API catalog advertises /api/health as its status link.
+      allow: ["/", "/api/health"],
       disallow: [
         "/app$",
         "/app/",

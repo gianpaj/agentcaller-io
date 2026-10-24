@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 import { GET as getCatalog } from "@/app/.well-known/api-catalog/route";
 import { GET as getOpenapi } from "@/app/openapi.json/route";
+import robots from "@/app/robots";
 
 describe("API discovery", () => {
   it("serves a Linkset with public API description, documentation, and health links", async () => {
@@ -32,6 +33,13 @@ describe("API discovery", () => {
         { href: "https://agentcaller.io/api/health", type: "application/json" },
       ],
     });
+  });
+
+  it("lets crawlers reach the advertised status link", () => {
+    const { rules } = robots();
+    const rule = Array.isArray(rules) ? rules[0] : rules;
+    expect(rule.allow).toContain("/api/health");
+    expect(rule.disallow).toContain("/api/");
   });
 
   it("adds all four discovery relations to the homepage response", async () => {
