@@ -1,6 +1,9 @@
 # Automated Stripe journey with mocked providers
 
-Status: proposed implementation plan. No E2E harness is implemented by this document.
+Status: implemented for mocked application acceptance. See the
+[runtime guide](../docs/testing/stripe-e2e.md) and
+[verification evidence](../.agents/notes/implemented/testing/2026-10-24-stripe-mocked-e2e.md).
+Hosted provider and production release acceptance remain separate.
 
 ## Outcome and scope
 
@@ -170,8 +173,8 @@ Owner: foundation/integration. Finish before parallel feature work depends on it
 - Review the Stripe skills and version-specific request/event references before
   freezing the fake's shared object builders and lifecycle contract.
 
-Exit: runnable boundary checks and a shared fixture contract. MSW preloading is a
-proposed mechanism until this passes. If incompatible with Next, resolve one narrow
+Exit: runnable boundary checks and a shared fixture contract. MSW preloading is verified in the running Next process and inherited by the
+Node test processes. If incompatible with Next, resolve one narrow
 test-only loading/interception alternative before distributing dependent work;
 do not silently replace the server with mocked route handlers.
 
@@ -190,7 +193,7 @@ Owner: foundation/integration.
 
 Exit: one command starts a clean runtime, checks discovery, demonstrates rejected
 external traffic and cleans up. A failed prerequisite fails rather than skipping
-the suite. No new E2E command is documented as available before implementation.
+the suite. The implemented command and prerequisites are documented in the runtime guide.
 
 ### Phase 2 — Implement three lanes in parallel
 
@@ -344,7 +347,7 @@ Use separate worktrees based on the shared foundation, with branches such as
 phase/lane. Parallel development does not require parallel test workers initially.
 
 Record implementation decisions and seam proofs in the
-[testing note](../.agents/notes/proposed/testing/2026-10-24-stripe-mocked-e2e.md).
+[testing note](../.agents/notes/implemented/testing/2026-10-24-stripe-mocked-e2e.md).
 Keep open work and evidence status in release readiness; this plan supplies the
 procedure and ownership. Passing mocks closes only the corresponding application
 test gaps. Hosted OAuth, Stripe, carrier and cost reconciliation checks remain open.

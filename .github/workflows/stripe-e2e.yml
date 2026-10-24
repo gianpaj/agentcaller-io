@@ -38,6 +38,8 @@ jobs:
         with:
           node-version: 24.15.0
           cache: pnpm
+      - name: Prepare the pinned runner before network isolation
+        run: corepack prepare pnpm@10.16.1 --activate
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium and system libraries
         run: pnpm --filter @agentcaller/platform exec playwright install --with-deps chromium
