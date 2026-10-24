@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
@@ -12,6 +12,26 @@ import {
 } from "./database.mjs";
 import { startCoordinator } from "./coordinator.mjs";
 
+export async function assertNoLocalEnvFiles(
+  directory = fileURLToPath(new URL("../..", import.meta.url)),
+) {
+  const nextEnvFiles = new Set([
+    ".env",
+    ".env.local",
+    ".env.development",
+    ".env.development.local",
+  ]);
+  const present = (await readdir(directory)).filter((name) =>
+    nextEnvFiles.has(name),
+  );
+  if (present.length)
+    throw new Error(
+      "Mocked E2E requires a worktree without apps/platform/" +
+        present.join(", apps/platform/") +
+        "; Next would load local configuration alongside synthetic credentials",
+    );
+}
+
 async function freePort() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -20,6 +40,7 @@ async function freePort() {
   return port;
 }
 export async function startRuntime({ signal } = {}) {
+  await assertNoLocalEnvFiles();
   const artifactDir = await mkdtemp(join(tmpdir(), "agentcaller-e2e-"));
   let pg, coordinator, child, sql;
   const abort = () => child?.kill("SIGTERM");

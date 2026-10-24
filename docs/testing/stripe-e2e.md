@@ -9,6 +9,11 @@ pnpm test:stripe-e2e stripe-journey.spec.mjs
 pnpm test:stripe-e2e admission.spec.mjs billing.spec.mjs
 ```
 
+Use a worktree without `.env`, `.env.local`, `.env.development` or
+`.env.development.local` under `apps/platform`. The launcher rejects these before
+starting resources because Next would merge local configuration into the synthetic
+environment. `.env.example` is allowed.
+
 Docker must be running. The launcher owns PostgreSQL, a loopback provider
 coordinator and a Next development server. It applies all migrations and supplies
 synthetic credentials. No provider account or payment credential is required.
