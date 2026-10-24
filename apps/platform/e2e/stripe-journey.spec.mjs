@@ -147,6 +147,8 @@ test("a new human and agent complete calls, inspect usage and collect one monthl
   console.info(
     JSON.stringify({
       scenario: "fresh-user-agent-monthly-collection",
+      version: process.env.E2E_SOURCE_REVISION,
+      environment: "mocked",
       calls: 2,
       invoices: 1,
       expectedCents: 120,

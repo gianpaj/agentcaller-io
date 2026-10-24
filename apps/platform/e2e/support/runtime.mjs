@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -65,6 +65,10 @@ export async function startRuntime({ signal } = {}) {
       E2E_CONTROL_URL: coordinator.origin,
       E2E_CONTROL_TOKEN: coordinator.token,
       E2E_OUTPUT_DIR: artifactDir,
+      E2E_SOURCE_REVISION: execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: fileURLToPath(new URL("../../../..", import.meta.url)),
+        encoding: "utf8",
+      }).trim(),
       API_KEY_PEPPER: "e2e-api-pepper-000000000000000000000000",
       CRON_SECRET: "e2e-cron-secret-0000000000000000000000",
       AGENT_CALLBACK_SECRET: "e2e-worker-secret-00000000000000000000",
