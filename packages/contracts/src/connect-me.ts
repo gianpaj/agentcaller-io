@@ -13,7 +13,8 @@ const timezone = z
     } catch {
       return false;
     }
-  }, "Use an IANA timezone");
+  }, "Use an IANA timezone")
+  .describe("IANA timezone");
 
 const callingWindowObjectSchema = z
   .object({
