@@ -144,7 +144,6 @@ not automatically approved. Keep `STRIPE_BILLING_ENABLED=false`.
 Signed raw webhooks enter `/api/stripe/webhook`; storage retains routing IDs and
 safe processing codes, not payment payloads. The authenticated minute cron at
 `/api/internal/billing/drain` processes events, usage, periods and invoices.
-Without `STRIPE_SECRET_KEY` it returns `{"skipped":"stripe_not_configured"}`.
 Leases and stable keys recover API delivery failures; they do not retry payments.
 Webhook ingestion and accounting remain available when admission is disabled.
 
