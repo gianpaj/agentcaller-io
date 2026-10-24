@@ -1,6 +1,7 @@
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import {
   createStripeCallSchema,
+  callInputJsonSchema,
   quoteStripeCallSchema,
   type AgentPrincipal,
   type AgentOperation,
@@ -32,7 +33,15 @@ export function createAgentMcpServer(principal: AgentPrincipal) {
       name,
       {
         description,
-        inputSchema: schema,
+        inputSchema: {
+          "~standard": {
+            ...schema["~standard"],
+            jsonSchema: {
+              input: () => callInputJsonSchema(schema),
+              output: () => callInputJsonSchema(schema),
+            },
+          },
+        },
         annotations: {
           readOnlyHint: readOnly,
           destructiveHint: false,

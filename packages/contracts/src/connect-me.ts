@@ -28,6 +28,11 @@ const callingWindowObjectSchema = z
     "Window must end on the same day after its start",
   );
 
+export const callingWindowInputSchema = z.union([
+  z.literal("now"),
+  callingWindowObjectSchema,
+]);
+
 export const connectMeTaskSchema = z
   .object({
     type: z.literal("connect_me"),

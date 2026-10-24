@@ -77,3 +77,12 @@ work in [release readiness](../../../../docs/release-readiness.md).
 See the [runtime guide](../../../../docs/testing/stripe-e2e.md) for commands and
 the shared fixture contract. This note remains proposed until the composed
 journey and its acceptance evidence are complete.
+
+## Agent discovery regression
+
+Full-permission MCP `tools/list` failed because Zod's custom calling-window
+validator cannot describe itself as JSON Schema. A simple union would lose the
+nested error paths required by the existing contract tests. The runtime validator
+therefore retains its field-level errors; a shared descriptor generated from the
+same window object describes both MCP and OpenAPI. Actual tool listing is covered
+for both supported protocol eras, including all six tools.
