@@ -91,8 +91,10 @@ responses. Use it to tie a call to your own records.
 
 `connect_me` can be funded by a [saved card](/billing) or by an operator.
 Saved-card paid calling stays disabled until its release checks pass. x402
-cannot fund `connect_me`, because a job that can retry over several days has no
-fixed price to authorize up front; such a request returns `503`. Operator
+cannot fund `connect_me`: an x402 authorization covers one capture within an
+hour, while a `connect_me` job is billed across two legs and can span several
+attempts and days. Any `connect_me` request funded by x402 returns `503`,
+including Call now. Operator
 funding is reserved for platform testing. The platform pays the call itself,
 and the call reports `paymentState: "not_required"`.
 
