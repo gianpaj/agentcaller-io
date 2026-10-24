@@ -13,7 +13,8 @@
     "test": "node --test scripts/dev-connect-scheduler.test.mjs && turbo test",
     "format:check": "prettier --check .",
     "test:connect-db": "node scripts/test-connect-db.mjs",
-    "test:billing-db": "node scripts/test-billing-db.mjs"
+    "test:billing-db": "node scripts/test-billing-db.mjs",
+    "test:stripe-e2e": "node scripts/test-stripe-e2e.mjs"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
