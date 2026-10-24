@@ -71,7 +71,7 @@ public.
 
 ### 4. Verify the first production deployment
 
-Before adding the domain, open `agentcaller-docs.vercel.app/docs` and
+Before adding the domain, open `agentcaller-docs.vercel.app` and
 check every page in the sidebar.
 
 ### 5. Add the domain
@@ -86,8 +86,9 @@ check every page in the sidebar.
 ### 6. Verify
 
 ```bash
-curl -sI https://docs.agentcaller.io           # 307 → /docs
-curl -sI https://docs.agentcaller.io/docs      # 200
+curl -sI https://docs.agentcaller.io                # 200
+curl -sI https://docs.agentcaller.io/dispatch       # 200
+curl -sI https://docs.agentcaller.io/docs/dispatch  # 308 → /dispatch
 ```
 
 Then click the Docs links on `agentcaller.io` and in the portal settings
