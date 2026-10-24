@@ -161,6 +161,16 @@ These are not prerequisites for the bounded saved-card pilot:
   Recording, consent capture, redaction and retention across any additional
   storage/providers require implementation before those features are enabled.
 
+## Retired waitlist data
+
+- [ ] Locate the Neon waitlist database and record verified absence or execute an
+      explicit retention, export or deletion decision. Include backups in that
+      decision. Database access is required to verify the table and stored data.
+
+The Vercel projects connected to this repository build `apps/platform` and
+`apps/docs`. Neither project defines `DATABASE_URL`; the platform's database
+variables belong to its active Supabase integration.
+
 ## Maintaining this checklist
 
 Keep open/closed work here. Keep detailed acceptance procedures in the plan,
