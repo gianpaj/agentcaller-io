@@ -10,11 +10,15 @@ and [billing decisions](../.agents/notes/proposed/billing/2026-10-18-stripe-impl
 
 ## Next task
 
-Prove resource-bound OAuth issuance and one target MCP host's connection flow in
-an isolated deployment. Start with a human who has no AgentCaller profile and
-use ordinary setup links and polling. Keep paid admission disabled while proving
-identity and tool consent. An incompatible issuer or host blocks the customer
-onboarding path before any optional integration work is useful.
+Build the [automated Stripe journey with mocked providers](../plans/2026-10-24-stripe-mocked-e2e.md),
+starting with the shared runtime and boundary proofs before parallel identity,
+billing and voice test work. The journey starts with a human who has no
+AgentCaller profile and ends with reconciled simulated monthly collection.
+
+Separately prove resource-bound OAuth issuance and one target MCP host's connection
+flow in an isolated deployment, using ordinary setup links and polling. Keep paid
+admission disabled while proving identity and tool consent. Mocked tests cannot
+establish issuer or host compatibility.
 
 ## Required for the paid connect_me pilot
 
@@ -55,7 +59,10 @@ and named merchant/operator responsibilities.
       or host closure. Browser return and opening a link must not grant spending.
 
 Close with automated browser results. Static markup and mocked server-action
-tests do not cover the complete human workflow.
+tests do not cover the complete human workflow. The
+[mocked E2E plan](../plans/2026-10-24-stripe-mocked-e2e.md) defines the shared runtime,
+parallel work areas and complete application journey; hosted provider acceptance
+remains separate.
 
 ### 4. Complete hosted Stripe acceptance
 
