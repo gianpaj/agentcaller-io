@@ -11,6 +11,7 @@ const allowed = new Set([control, process.env.NEXT_PUBLIC_APP_URL]);
 const guard = Symbol.for("agentcaller.e2e.networkGuard");
 if (!process[guard]) {
   process[guard] = true;
+  const nativeFetch = globalThis.fetch;
   const server = setupServer(
     http.all("*", async ({ request }) => {
       const url = new URL(request.url);
@@ -38,13 +39,21 @@ if (!process[guard]) {
         headers: { "content-type": "application/json", "x-e2e-token": token },
         body: JSON.stringify({ origin: url.origin }),
       });
-      return HttpResponse.json(
-        { error: "Blocked unexpected E2E outbound origin" },
-        { status: 599 },
-      );
+      return new HttpResponse(null, { status: 599 });
     }),
   );
   server.listen({ onUnhandledRequest: "error" });
+  const interceptedFetch = globalThis.fetch;
+  // Native local responses preserve stream cancellation used by worker retries.
+  globalThis.fetch = (input, init) => {
+    const target = new URL(
+      typeof input === "object" && "url" in input ? input.url : String(input),
+    );
+    return (allowed.has(target.origin) ? nativeFetch : interceptedFetch)(
+      input,
+      init,
+    );
+  };
 
   // Named ESM imports of node:http(s) must see the intercepted exports too.
   syncBuiltinESMExports();

@@ -13,6 +13,8 @@ on:
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
+      - tsconfig.base.json
+      - turbo.json
       - .github/workflows/stripe-e2e.yml
   push:
     branches: [main]
@@ -39,8 +41,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium and system libraries
         run: pnpm --filter @agentcaller/platform exec playwright install --with-deps chromium
+      - name: Generate documentation types
+        run: pnpm --filter @agentcaller/docs exec fumadocs-mdx
       - name: Check contracts and application types
         run: pnpm --filter @agentcaller/contracts test && pnpm typecheck
+      - name: Check the E2E result gate
+        run: node --test scripts/e2e/*.test.mjs
       - name: Run mocked browser, worker and accounting journey
         run: pnpm test:stripe-e2e
       # Raw browser diagnostics can contain setup links and cookies; do not upload them.

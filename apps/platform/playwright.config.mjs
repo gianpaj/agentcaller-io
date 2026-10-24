@@ -12,7 +12,7 @@ export default defineConfig({
   retries: 0,
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  reporter: [["list"]],
+  reporter: [["list"], ["./e2e/support/reporter.mjs"]],
   use: {
     baseURL: process.env.NEXT_PUBLIC_APP_URL,
     browserName: "chromium",

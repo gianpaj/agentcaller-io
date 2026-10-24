@@ -22,8 +22,10 @@ test("runner fetch, API requests and browser WebSockets cannot escape the allowl
   try {
     const direct = await fetch(origin + "/runner-fetch");
     expect(direct.status).toBe(599);
-    await direct.body?.cancel();
-    const api = await context.request.get(origin + "/api-request");
+    await direct.text();
+    const api = await context.request.get(origin + "/api-request", {
+      timeout: 5000,
+    });
     expect(api.status()).toBe(599);
     await api.dispose();
 
