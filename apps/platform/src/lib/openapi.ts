@@ -250,8 +250,13 @@ export const openapi = {
         description:
           "OAuth cancellation is restricted to its integration's saved-card calls and requires calls:create and calls:read permissions.",
         responses: {
-          "200": { description: "Cancelled call or connection job in data" },
-          "409": { description: "Call is already terminal" },
+          "200": {
+            description:
+              "Cancelled call or connection job in data. Cancelling an ended connect_me job returns its existing state.",
+          },
+          "409": {
+            description: "A call other than connect_me is already terminal",
+          },
           ...missingCall,
           ...errors,
           ...billingErrors,
