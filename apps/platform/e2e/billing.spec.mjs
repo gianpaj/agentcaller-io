@@ -347,6 +347,64 @@ test("lost invoice creation and finalization responses recover the same provider
   ).toBe(60);
 });
 
+test("human card replacement keeps customer ownership and the existing spending grant", async ({
+  page,
+  db,
+}) => {
+  const agent = await connectFreshAgent(page);
+  const original = await enrollBilling(page, agent.token);
+  const [before] = await db`select version from billing_authorizations`;
+  await page.goto("/app/billing");
+  await page
+    .getByRole("button", {
+      name: "Replace saved card or renew collection consent",
+    })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Authorize monthly billing" }),
+  ).toBeVisible();
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Agree and save a card with Stripe" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Simulated Stripe Checkout" }),
+  ).toBeVisible();
+  const session = (await stripeState()).objects.find(
+    (object) =>
+      object.object === "checkout.session" && object.id !== original.sessionId,
+  );
+  expect(session.customer).toBe(original.customerId);
+  await page
+    .getByRole("button", { name: "Complete simulated card setup" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Checking your card" }),
+  ).toBeVisible();
+  const replacement = await stripeCommand("complete-checkout", {
+    sessionId: session.id,
+  });
+  expect(
+    (await deliverStripeEvent("checkout.session.completed", session.id)).status,
+  ).toBe(200);
+  await drainBillingHttp();
+  const [account] =
+    await db`select stripe_customer_id,payment_method_id from billing_accounts`;
+  expect(account).toMatchObject({
+    stripe_customer_id: original.customerId,
+    payment_method_id: replacement.paymentMethodId,
+  });
+  expect(account.payment_method_id).not.toBe(original.paymentMethodId);
+  expect(
+    (await db`select status,version from billing_authorizations`)[0],
+  ).toEqual({ status: "active", version: before.version });
+  expect(
+    (await stripeState()).objects.filter(
+      (object) => object.object === "charge",
+    ),
+  ).toEqual([]);
+});
+
 test("authentication-required collection stays blocked and later payment cannot revive revoked spending", async ({
   page,
   db,
