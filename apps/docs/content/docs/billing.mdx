@@ -41,13 +41,42 @@ OAuth tokens require the resource-bound audience described in the MCP guide.
 | `POST /api/v1/calls`             | Reserve with `X-AgentCaller-Funding: stripe_postpaid` |
 
 Resource-bound OAuth can read or cancel its own integration’s calls through the
-existing call detail/cancel routes. Legacy API keys retain tenant-wide scope.
+existing call detail/cancel routes. An OAuth cancel finalizes usage
+immediately. OAuth tokens cannot delete calls or read transcripts. Legacy API
+keys retain tenant-wide scope.
 
 Card requests use integer `maxAmountCents`, the accepted `quoteVersion` and an
 optional offset-resolved `scheduledFor`. Use a fresh quote before submitting;
 quotes expire at the next five-minute UTC boundary. Never combine card funding
 with `PAYMENT-SIGNATURE`. Existing omitted-header x402 and operator requests keep
 their separate behavior and dollar inputs.
+
+| Field              | Rule                                           |
+| ------------------ | ---------------------------------------------- |
+| `task.type`        | `connect_me` only; unknown fields are rejected |
+| `maxAmountCents`   | Integer, 1–50,000                              |
+| `task.maxAttempts` | 1–6; exactly 1 when `callingWindow` is `"now"` |
+| Each leg           | At most 1,800 seconds                          |
+| `scheduledFor`     | Optional; the job must fit within seven days   |
+
+The business leg uses the destination country's rate. The callback leg always
+uses the Spanish (`ES`) rate. Both must be approved USD rates for the current
+pricing version, otherwise the request returns `503`.
+
+The quote returns `maximumCents`, `quoteVersion`, `pricingVersion`,
+`scheduledFor`, `periodStartsAt`, `periodEndsAt` and `expiresAt`. An accepted
+call returns `201` with `{ "data": { id, state, paymentState, fundingSource,
+usageState, reservedCents, finalCents, scheduledFor } }`.
+
+| Status | Meaning                                                                                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `403`  | No current spending authority                                                                                                                                                   |
+| `409`  | `billing_setup_required`, a changed quote, a per-call ceiling, a closing billing period, the monthly allowance or the shared exposure limit, or a reused key with changed input |
+| `422`  | Invalid input, a voice that is not enabled, or card funding combined with a `PAYMENT-SIGNATURE` or `X-Payment` header                                                           |
+| `429`  | Call rate or outstanding-call limit reached                                                                                                                                     |
+| `503`  | Paid calling is disabled, or approved tariffs are unavailable                                                                                                                   |
+
+Usage lists return 50 rows per page with a `nextCursor`; pass it as `before`.
 
 A request needing enrollment returns `409` with `billing_setup_required`, a setup
 request ID and an AgentCaller URL. It creates no call or reservation. Retry the
@@ -63,9 +92,11 @@ The available amount is bounded by the account month, integration month,
 per-call ceilings and **USD 10 shared unpaid usage plus reservations** across
 all integrations and months. This is an exposure ceiling, not prepaid balance.
 
-Usage starts at confirmed telephony connection. A business answer is billable
-even when the callback or handoff fails. Each connected leg incurs its connection
-fee and started minutes; the combined call is rounded up to a cent once. Customer
+Usage is measured from telephony signals. Each dialed leg that rings incurs its
+connection fee, even when nobody answers (busy, no answer, or a callback that is
+not picked up). A connected leg also incurs its started minutes from the answer.
+A business answer is billable even when the callback or handoff fails. The
+combined call is rounded up to a cent once. Customer
 usage cannot exceed its reservation. Provider overruns block service for review.
 Unknown timing keeps a hold. A terminal job with confirmed cleanup and no dial
 intent releases its reservation without inventing a charge.
@@ -92,8 +123,8 @@ invoice cannot restore a revoked spending grant.
 **Billing** in the portal navigation shows card details, periods, invoices and grants.
 Limit reductions cannot undercut committed usage or reservations. Revoking
 spending cancels outstanding calls and blocks further worker permissions.
-Withdrawing automatic collection blocks new calls and pauses Stripe automation
-on unpaid invoices. A payment already in flight can complete; incurred usage
+Withdrawing automatic collection blocks new calls, cancels open saved-card
+calls and pauses Stripe automation on unpaid invoices. A payment already in flight can complete; incurred usage
 remains due. Private hosted invoice URLs are available only to the verified human.
 
 When `STRIPE_PORTAL_CONFIGURATION_ID` is set, the billing page also links to the
