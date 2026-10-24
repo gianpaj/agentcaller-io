@@ -27,7 +27,13 @@ const list = (data, path) => ({
 });
 
 export function createStripeFake() {
-  let requests, objects, idempotency, events, losses, unsupported;
+  let requests,
+    objects,
+    idempotency,
+    events,
+    losses,
+    unsupported,
+    setupMetadata;
   const id = (prefix) => prefix + "_" + randomUUID().replaceAll("-", "");
   const put = (object) => {
     objects.set(object.id, object);
@@ -48,6 +54,7 @@ export function createStripeFake() {
     events = new Map();
     losses = [];
     unsupported = [];
+    setupMetadata = new Map();
   }
   reset();
 
@@ -97,7 +104,7 @@ export function createStripeFake() {
         usage: "off_session",
         livemode: false,
         customer: input.intentCustomerId ?? session.customer,
-        metadata: copy(session.setup_intent_metadata),
+        metadata: copy(setupMetadata.get(session.id)),
         payment_method: method.id,
       });
       session.status = "complete";
@@ -114,6 +121,12 @@ export function createStripeFake() {
   }
   function invoiceOutcome(input) {
     const invoice = get(input.invoiceId, "invoice");
+    if (
+      !["paid", "failed", "action_required", "paid_without_cash"].includes(
+        input.outcome,
+      )
+    )
+      throw new Error("Unsupported simulated collection outcome");
     if (invoice.status === "draft")
       throw new Error("Finalize an invoice before simulating collection");
     invoice.attempted = true;
@@ -206,6 +219,10 @@ export function createStripeFake() {
       if (params.get("mode") !== "setup" || params.get("currency") !== "usd")
         throw new Error("Only USD setup mode is modeled");
       const sessionId = id("cs");
+      setupMetadata.set(
+        sessionId,
+        metadata(params, "setup_intent_data[metadata]"),
+      );
       return put({
         id: sessionId,
         object: "checkout.session",
@@ -219,7 +236,6 @@ export function createStripeFake() {
         setup_intent: null,
         client_reference_id: params.get("client_reference_id"),
         metadata: metadata(params),
-        setup_intent_metadata: metadata(params, "setup_intent_data[metadata]"),
         expires_at: Number(params.get("expires_at")),
         success_url: params.get("success_url"),
         cancel_url: params.get("cancel_url"),
