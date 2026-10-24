@@ -1,29 +1,46 @@
 ---
 title: Agent discovery
-description: Find the API contract and credential provisioning instructions.
+description: Find the API contract, API-key instructions, and conditional MCP OAuth discovery.
 ---
 
 AgentCaller publishes discovery resources from the platform at
 `https://agentcaller.io`:
 
-| Resource                   | Purpose                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| `/robots.txt`              | Allows public crawling and excludes portal, authentication, and API paths         |
-| `/sitemap.xml`             | Lists canonical, indexable public pages on this host                              |
-| `/.well-known/api-catalog` | Links the call API to its OpenAPI description, documentation, and health endpoint |
-| `/openapi.json`            | Describes the active call API                                                     |
-| `/auth.md`                 | Explains operator provisioning and bearer API-key use                             |
+| Resource                                    | Purpose                                                                           |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `/robots.txt`                               | Allows public crawling and excludes portal, authentication, and API paths         |
+| `/sitemap.xml`                              | Lists canonical, indexable public pages on this host                              |
+| `/.well-known/api-catalog`                  | Links the call API to its OpenAPI description, documentation, and health endpoint |
+| `/openapi.json`                             | Describes the active call API                                                     |
+| `/auth.md`                                  | Explains API-key provisioning and conditional human-approved OAuth access         |
+| `/.well-known/oauth-protected-resource/mcp` | Advertises the MCP resource and configured OAuth issuer when MCP is enabled       |
 
 The homepage returns `Link` headers with the `api-catalog`, `service-desc`,
-`service-doc`, and `describedby` relations. Discovery documents are public and
-do not require a database connection or provider credentials.
+`service-doc`, and `describedby` relations. The static discovery documents are
+public and do not require a database connection or provider credentials. MCP
+metadata requires an enabled, configured deployment; it returns HTTP 503 when
+onboarding is disabled or unconfigured.
 
 ## Credentials
 
-The call API requires an enabled client profile and an operator-provisioned
-`ac_` API key in the `Authorization: Bearer` header. Portal login does not issue
-API keys. There is no public registration endpoint or OAuth authorization
-server for the call API. Read `/auth.md` for the credential workflow.
+API-key access uses an enabled client profile and an operator-provisioned `ac_`
+key in the `Authorization: Bearer` header. Portal login does not issue API keys.
+There is no public API-key issuance endpoint.
+
+[MCP onboarding](/docs/mcp) uses the configured Supabase OAuth issuer and human
+tool-access consent. It can provision the verified human's client profile without
+an operator-created profile. `MCP_ENABLED` defaults to `false`; when enabled,
+the resource metadata points to the issuer that owns client registration, code
+exchange, and refresh tokens. Access tokens must target the exact MCP resource
+audience. Generic browser tokens do not grant delegated API access.
+
+Resource-bound OAuth supports MCP, billing endpoints, call quotes,
+`stripe_postpaid` creation, and reading or cancelling the integration's own calls.
+Call listing, deletion, transcripts, recordings, and legacy x402 or operator-funded
+creation require API keys. API keys need an explicit integration link before
+they can spend. Read `/auth.md` for the credential workflows and
+[saved-card billing](/docs/billing) for separate human spending and card approval.
+Paid calling remains disabled pending release acceptance.
 
 ## Maintenance
 
@@ -54,13 +71,12 @@ Expect `pass` for `checks.discoverability.robotsTxt`,
 `checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`, and
 `checks.discovery.apiCatalog`.
 
-The scanner reports `registrationMissing` for `checks.discovery.authMd` even
-though the document is reachable and explains manual provisioning. AgentCaller
-has no automated registration endpoint. The
-[Auth.md implementation guide](https://workos.com/auth-md/docs/apps) describes
-live registration and OAuth credential endpoints; publishing discovery does not
-implement those capabilities. A
-[reported scanner limitation](https://github.com/workos/auth.md/issues/16)
-covers self-contained documents without registration endpoints.
+Auth.md scanner status has not been revalidated against these credential flows.
+AgentCaller supports human-approved OAuth access when configured; it does not
+offer autonomous agent registration, anonymous credential issuance, or an
+`agent_auth` registration extension. See the
+[Auth.md implementation guide](https://workos.com/auth-md/docs/apps) for the
+registration protocol. Re-run the scan after deployment and record the returned
+status; publishing OAuth discovery alone does not implement Auth.md registration.
 
 A passing discovery check does not establish readiness to place or bill calls.

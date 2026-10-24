@@ -106,7 +106,15 @@ The platform publishes `/robots.txt`, `/sitemap.xml`,
 `/.well-known/api-catalog`, `/openapi.json`, and `/auth.md`. Homepage `Link`
 headers point agents to the catalog, API description, documentation, and
 credential provisioning instructions. The API uses operator-provisioned bearer
-keys; discovery does not enable automatic registration or OAuth.
+keys with the `ac_` prefix. Optional MCP OAuth onboarding requires human sign-in
+and tool consent, and can create a first client profile. `MCP_ENABLED` defaults
+to `false`.
+
+When MCP is enabled and configured, `/.well-known/oauth-protected-resource/mcp`
+advertises the `/mcp` resource and configured Supabase authorization server.
+OAuth bearer credentials authorize the integration's granted billing and paid
+call operations. Paid Stripe calling retains its separate release gates and
+stays disabled by default.
 
 See [discovery maintenance and validation](apps/docs/content/docs/discovery.mdx).
 
