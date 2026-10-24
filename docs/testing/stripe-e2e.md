@@ -69,10 +69,12 @@ the application exposes no testing or time-travel endpoint.
   unsupported Stripe methods.
 
 `installBrowserGuards(context)` protects every additional browser context.
-Inherited Node preloading protects the application, driver, API client and workers.
-Only the exact application/coordinator origins can pass through. Stripe HTTPS
-requests and Next's development version lookup receive local responses; fake
-hosted pages retain Stripe's HTTPS origins and the application's URL validation.
+Inherited Node preloading intercepts `fetch` and `node:http`/`node:https` in the
+application, driver, API client and workers. For HTTP traffic, only the exact
+application/coordinator origins can pass through. Stripe HTTPS requests and Next's
+development version lookup receive local responses; fake hosted pages retain
+Stripe's HTTPS origins and the application's URL validation. Browser contexts
+also guard WebSockets. Raw Node sockets require separate network isolation.
 
 The voice bridge consumes actual dispatches and leaves `connectRequest` unmocked.
 Room movement/deletion produces both legs' disconnect observations. Application

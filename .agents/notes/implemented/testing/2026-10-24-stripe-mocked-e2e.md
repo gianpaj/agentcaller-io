@@ -34,6 +34,10 @@ allocated-payment relationships. The SDK supplies the fixture API version,
 checked against the application's pin. Indexed `expand[0]` queries are supported.
 
 One launcher owns each runtime's processes, ports, container and temporary files.
+Before allocating resources, it rejects Next development environment files in
+`apps/platform`; Next would otherwise merge developer configuration into the
+synthetic environment. Guarded children invoke the installed test CLIs with Node,
+so package-manager cache state cannot trigger a download inside the HTTP guard.
 Automatic per-test fixtures reset the database/providers and assert network and
 unsupported-method results. Tests run serially within a worktree. Independent
 worktrees provide development parallelism; tenants alone cannot isolate global
@@ -45,9 +49,13 @@ app/coordinator origins use native fetch, preserving cancellation of response
 streams used by worker retries. Other HTTP requests receive fake Stripe/version
 responses or a recorded 599 block. Browser contexts also guard HTTP/WebSockets.
 The app binds to localhost to match its callback and server-action origins.
+The Node allowlist covers fetch and HTTP(S); raw sockets require separate network
+isolation. Browser contexts also guard WebSockets.
 
-Worker scenarios use short positive real-time observations. Hangup follows the
-acknowledged bridge, and moved participants retain room membership so deletion
+Worker scenarios use short positive real-time observations. Revocation tests hold
+callback provider readiness until the human revocation commits, then release the
+prompt and DTMF. The real acceptance timer starts after provider readiness; call
+bounds remain active. Hangup follows the acknowledged bridge, and moved participants retain room membership so deletion
 emits both legs' end observations. The actual scheduler confirms cleanup;
 no test fabricates successful call, cleanup, usage or collection fields in SQL.
 
