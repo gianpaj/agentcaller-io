@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { GET } from "./route";
 
-it("publishes self-contained API-key discovery without OAuth claims", async () => {
+it("publishes the API-key and conditional OAuth credential workflows", async () => {
   const response = GET();
   const markdown = await response.text();
 
@@ -12,10 +12,19 @@ it("publishes self-contained API-key discovery without OAuth claims", async () =
   expect(markdown).toMatch(/^# .*auth\.md$/m);
   expect(markdown).toContain("AI agents and applications");
   expect(markdown).toContain("manual provisioning");
-  expect(markdown).toContain(
-    "no public registration or API-key issuance endpoint",
-  );
+  expect(markdown).toContain("no public API-key issuance endpoint");
   expect(markdown).toContain("Authorization: Bearer");
   expect(markdown).toContain("https://agentcaller.io/api/v1/calls");
-  expect(markdown).toContain("does not implement OAuth access tokens");
+  expect(markdown).toContain("MCP_ENABLED=true");
+  expect(markdown).toContain("disabled by default");
+  expect(markdown).toContain("HTTP 503");
+  expect(markdown).toContain(
+    "https://agentcaller.io/.well-known/oauth-protected-resource/mcp",
+  );
+  expect(markdown).toContain("without an operator-created profile");
+  expect(markdown).toContain("exact MCP resource audience");
+  expect(markdown).toContain("does not approve spending");
+  expect(markdown).toContain("does not offer autonomous agent registration");
+  expect(markdown).toContain("https://docs.agentcaller.io/docs/mcp");
+  expect(markdown).toContain("https://docs.agentcaller.io/docs/billing");
 });
