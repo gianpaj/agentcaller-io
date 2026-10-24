@@ -1,4 +1,4 @@
-import { authorizeOperatorCall } from "./operator-funding";
+import { authorizeConnectFunding } from "./billing-authority";
 import { callAttempts } from "@agentcaller/database";
 import { and, eq, gt, isNotNull, isNull, or, inArray, asc } from "drizzle-orm";
 import { database } from "./database";
@@ -54,7 +54,11 @@ export async function cleanupConnectRooms(callId?: string) {
         );
     });
     failedRooms += failed.length;
-    if (failed.length === 0)
+    // An absent room cannot rule out an in-flight dial completing later.
+    if (
+      failed.length === 0 &&
+      !UNCERTAIN_CLEANUP.includes(attempt.reason ?? "")
+    )
       await database()
         .update(callAttempts)
         .set({ roomsCleanedAt: new Date() })
@@ -62,12 +66,12 @@ export async function cleanupConnectRooms(callId?: string) {
   }
   return { attempts: attempts.length, failedRooms };
 }
-/** Only durably authorized operator jobs may dispatch; paid connect jobs remain blocked. */
+/** Dispatch only with current durable funding authority and the matching release gate. */
 export async function drainConnectJobs(dispatch = dispatchConnectAttempt) {
   for (const { callId } of await dueConnectJobs()) {
     let permitted = true;
     try {
-      await authorizeOperatorCall(callId);
+      await authorizeConnectFunding(callId);
     } catch (error) {
       logConnectFailure("authorize", error, { callId });
       permitted = false;

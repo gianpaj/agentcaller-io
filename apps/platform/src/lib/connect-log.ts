@@ -21,3 +21,25 @@ export function logConnectFailure(
           : "request_failed",
   });
 }
+
+/** Milliseconds only; never pass callback bodies or provider errors to timing logs. */
+export function logConnectTiming(
+  stage: "callback" | "transaction",
+  ids: { callId: string; attemptId: string; action: string },
+  timings: {
+    totalMs: number;
+    authorizationMs?: number;
+    commandMs?: number;
+    transactionStartMs?: number;
+    transactionMs?: number;
+  },
+  result: { status?: number; allowed?: boolean } = {},
+) {
+  if (timings.totalMs < 1000) return;
+  console.warn("Slow connect operation", {
+    stage,
+    ...ids,
+    ...timings,
+    ...result,
+  });
+}

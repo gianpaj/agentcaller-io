@@ -1,3 +1,8 @@
+import { authenticateBillingPrincipal, isOAuthRequest } from "@/lib/agent-auth";
+import { getAgentCallStatus } from "@/lib/billing-agent";
+import { billingErrorResponse } from "@/lib/billing-policy";
+import { finalizeStripeUsage } from "@/lib/billing-usage";
+import { lockAgentConnection } from "@/lib/billing-store";
 import { calls, callEvents } from "@agentcaller/database";
 import { and, eq, isNull } from "drizzle-orm";
 import { authenticateApiRequest, ApiError } from "@/lib/auth";
@@ -14,6 +19,27 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  if (isOAuthRequest(request)) {
+    try {
+      const principal = await authenticateBillingPrincipal(request);
+      await database().transaction((tx) =>
+        lockAgentConnection(tx, principal, "calls:create"),
+      );
+      const call = await getAgentCallStatus(
+        principal,
+        (await context.params).id,
+      );
+      const cancelled = await cancelConnect(call.id, principal.clientId);
+      await cleanupConnectRooms(call.id);
+      await finalizeStripeUsage(call.id);
+      return Response.json(
+        { data: { id: call.id, state: cancelled.state } },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (error) {
+      return billingErrorResponse(error);
+    }
+  }
   try {
     const client = await authenticateApiRequest(request);
     const { id } = await context.params;

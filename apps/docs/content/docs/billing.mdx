@@ -1,0 +1,117 @@
+---
+title: Saved-card billing
+description: Enrollment, bounded reservations and monthly Stripe Invoicing
+---
+
+Saved-card billing supports human enrollment, atomic call reservations, confirmed
+connected usage and monthly Stripe Invoicing. **Paid calling remains disabled.**
+The code is tested offline; provider configuration and live acceptance remain
+release gates. There are no subscriptions or upfront payments.
+
+## Enroll through your agent
+
+1. Connect through [OAuth MCP onboarding](/docs/mcp) and approve tool access.
+2. Ask the agent to run `setup_billing` and open the returned AgentCaller link.
+3. Sign in as the same human who connected the integration. Review approved USD
+   tariffs, the name used to introduce your call, monthly and per-call limits,
+   and the monthly collection agreement.
+4. Approve spending and save a card in Stripe Checkout. The setup has no charge.
+5. Let the agent poll readiness and submit its call. Opening a setup link or
+   returning from Checkout cannot activate spending authority.
+
+The server verifies the retrieved Session, succeeded off-session SetupIntent,
+attached card, customer, environment and consent generations. Setup links expire
+in 24 hours; Checkout expires in 31 minutes. Links use a private continuation
+cookie after initial exchange. Share them only with the account owner.
+
+## Agent API
+
+MCP exposes `setup_billing`, `get_billing_status`, `quote_call`, `schedule_call`,
+`get_call_status` and `get_usage`. An API key must be explicitly linked to an
+owned integration under **Settings → Manage billing** before it can spend.
+OAuth tokens require the resource-bound audience described in the MCP guide.
+
+| Endpoint                         | Purpose                                               |
+| -------------------------------- | ----------------------------------------------------- |
+| `POST /api/v1/billing/setup`     | Create/reuse setup with an `Idempotency-Key`          |
+| `GET /api/v1/billing/setup/{id}` | Poll own integration's setup                          |
+| `GET /api/v1/billing/status`     | Read readiness and shared headroom                    |
+| `GET /api/v1/billing/usage`      | Read integration-scoped usage; paginate with `before` |
+| `POST /api/v1/calls/quote`       | Quote a validated `connect_me` job                    |
+| `POST /api/v1/calls`             | Reserve with `X-AgentCaller-Funding: stripe_postpaid` |
+
+Resource-bound OAuth can read or cancel its own integration’s calls through the
+existing call detail/cancel routes. Legacy API keys retain tenant-wide scope.
+
+Card requests use integer `maxAmountCents`, the accepted `quoteVersion` and an
+optional offset-resolved `scheduledFor`. Use a fresh quote before submitting;
+quotes expire at the next five-minute UTC boundary. Never combine card funding
+with `PAYMENT-SIGNATURE`. Existing omitted-header x402 and operator requests keep
+their separate behavior and dollar inputs.
+
+A request needing enrollment returns `409` with `billing_setup_required`, a setup
+request ID and an AgentCaller URL. It creates no call or reservation. Retry the
+same input/key after setup while the quote and schedule remain valid. For an
+accepted call, exact replay returns its existing state even after expiry;
+changed input with that key returns `409`.
+
+## Allowances and usage
+
+Admission reserves the full worst-case job, including both connected legs and
+all permitted attempts. The call, job, usage hold and counter commit together.
+The available amount is bounded by the account month, integration month,
+per-call ceilings and **USD 10 shared unpaid usage plus reservations** across
+all integrations and months. This is an exposure ceiling, not prepaid balance.
+
+Usage starts at confirmed telephony connection. A business answer is billable
+even when the callback or handoff fails. Each connected leg incurs its connection
+fee and started minutes; the combined call is rounded up to a cent once. Customer
+usage cannot exceed its reservation. Provider overruns block service for review.
+Unknown timing keeps a hold. A terminal job with confirmed cleanup and no dial
+intent releases its reservation without inventing a charge.
+
+A scheduled job belongs to its first-start UTC month. No new attempt starts after
+that month ends. Active calls can finish within their existing bounds. The worker
+uses the introduction name approved by the human and pinned when reserving. Period
+close waits for cleanup and final usage; unresolved holds prevent invoicing.
+
+## Monthly collection and controls
+
+Each closed positive month creates one held Stripe draft with one explicitly
+attached usage item. Unrelated pending items are excluded. The server verifies
+ownership, lines, currency and total before finalizing for automatic collection.
+Zero months create no invoice. Positive totals below the USD card minimum of
+50 cents are waived with an audit record, without customer balance debt.
+
+Stripe owns payment attempts, retries, reminders and hosted authentication.
+AgentCaller retrieves current invoices and allocated successful card payments
+before marking usage collected. An out-of-band paid flag, credits, partial
+payments, refunds, disputes, voids and mismatched totals require review. A paid
+invoice cannot restore a revoked spending grant.
+
+**Settings → Manage billing** shows card details, periods, invoices and grants.
+Limit reductions cannot undercut committed usage or reservations. Revoking
+spending cancels outstanding calls and blocks further worker permissions.
+Withdrawing automatic collection blocks new calls and pauses Stripe automation
+on unpaid invoices. A payment already in flight can complete; incurred usage
+remains due. Private hosted invoice URLs are available only to the verified human.
+
+## Configuration and acceptance
+
+Apply migrations in timestamp order, including the separate payment enum migration.
+Set independent server-only `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+`BILLING_SETUP_TOKEN_SECRET`. Set `STRIPE_PRICING_VERSION` to a reviewed tariff
+version and explicitly approve matching active USD `rate_cards`; legacy rows are
+not automatically approved. Keep `STRIPE_BILLING_ENABLED=false`.
+
+Signed raw webhooks enter `/api/stripe/webhook`; storage retains routing IDs and
+safe processing codes, not payment payloads. The authenticated minute cron at
+`/api/internal/billing/drain` processes events, usage, periods and invoices.
+Leases and stable keys recover API delivery failures; they do not retry payments.
+Webhook ingestion and accounting remain available when admission is disabled.
+
+Release requires approved prices and tax treatment, resource-bound Supabase
+issuance, target MCP host acceptance, carrier bounds/metering and Stripe test-mode
+end-to-end checks. Native URL elicitation is an additional host integration;
+ordinary setup links and polling work without it. Link Agent Wallet remains a
+future option subject to invoice compatibility checks in the repository plan.

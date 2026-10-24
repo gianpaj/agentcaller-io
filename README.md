@@ -42,7 +42,8 @@ press-1 handoff are implemented and tested offline. Operators can use the
 [operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
 without x402. It requires an enabled server-managed operator profile, an explicit
 funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5).
-**Paid connect-me requests remain blocked** by the unsupported payment scheme.
+**Paid connect-me requests remain disabled.** Stripe monthly invoicing has a
+separate release gate; the x402 scheme cannot fund these jobs.
 Operator jobs record their authorization and `paymentState: not_required`; they
 do not create a payment receipt or settle through x402.
 
@@ -138,13 +139,25 @@ rather than a working MVP.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Control plane           | Good foundation; authentication, idempotency, rate limits, state, and webhook delivery exist                           |
 | Voice path              | Worker owns dialing and waits for SIP answer; connect-me detection and handoff require live verification               |
-| Payment                 | Blocked; `batch-settlement` is used like variable capture, but that behavior belongs to x402 `upto`                    |
+| Payment                 | Saved-card monthly invoicing is tested offline and disabled; x402 variable capture remains blocked                     |
 | Task result             | Blocked; the worker returns a generic end reason instead of a schema-validated result                                  |
 | Hangup                  | Connect-me deletes both LiveKit rooms on every exit, including refusal, timeout, and cancellation                      |
 | Recording and retention | Incomplete; consent capture, recording creation, redaction, and scheduled expiry are not implemented                   |
 | Deployment              | Worker deploys to LiveKit Cloud from the repository root; provider limits require live verification                    |
 | Compliance              | Requires a launch review and enforceable destination, consent, disclosure, recording, and task policies                |
 | Verification            | Offline contracts, worker/provider mocks and PostgreSQL concurrency tests exist; real PSTN scenarios remain unverified |
+
+Remote MCP supports protected-resource discovery, human tool consent, first-time
+profiles and connection revocation. Six tools cover billing setup, readiness,
+quotes, reservations, call status and usage. Saved-card enrollment, spending
+controls and monthly Stripe Invoicing are implemented and tested offline.
+**Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
+acceptance checks pass. Existing x402/operator behavior retains its own gates.
+
+See the [MCP guide](apps/docs/content/docs/mcp.mdx),
+[billing guide](apps/docs/content/docs/billing.mdx) and
+[billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
+for configuration, invariants and remaining release checks.
 
 The most important provider mismatches are documented upstream:
 
@@ -336,6 +349,7 @@ Run the workspace checks from the repository root:
 pnpm typecheck
 pnpm test
 pnpm test:connect-db # isolated disposable PostgreSQL; requires Docker
+pnpm test:billing-db # isolated onboarding/migration PostgreSQL tests
 pnpm format:check
 pnpm build
 ```

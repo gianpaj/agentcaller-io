@@ -1,6 +1,8 @@
 type AuthRedirectEnv = Record<string, string | undefined>;
 
 const allowedAuthRedirects = new Set(["/app", "/reset-password"]);
+const authorizationId =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
 function toOrigin(value: string) {
   const url = new URL(
@@ -34,5 +36,22 @@ export function getPasswordRecoveryCallbackUrl(
 }
 
 export function getSafeAuthRedirect(value: string | null) {
-  return value && allowedAuthRedirects.has(value) ? value : "/app";
+  if (value && allowedAuthRedirects.has(value)) return value;
+  if (value === "/billing/connect") return value;
+  if (!value?.startsWith("/oauth/consent?")) return "/app";
+  const url = new URL(value, "https://agentcaller.invalid");
+  const id = url.searchParams.get("authorization_id");
+  if (
+    url.pathname !== "/oauth/consent" ||
+    url.hash ||
+    !id ||
+    !authorizationId.test(id) ||
+    [...url.searchParams.keys()].length !== 1
+  )
+    return "/app";
+  return `/oauth/consent?authorization_id=${id}`;
+}
+
+export function getLoginUrl(destination: string) {
+  return `/login?${new URLSearchParams({ next: getSafeAuthRedirect(destination) })}`;
 }

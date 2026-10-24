@@ -80,6 +80,18 @@ export default async function PortalPage() {
           </div>
         </header>
         <section className="py-10">
+          <Link
+            href="/app/connections"
+            className="inline-flex min-h-11 items-center underline underline-offset-4"
+          >
+            Manage connected integrations
+          </Link>
+          <Link
+            href="/app/billing"
+            className="inline-flex min-h-11 items-center underline underline-offset-4"
+          >
+            Manage billing
+          </Link>
           <p className="label">Developer control room / {profile.name}</p>
           <h1 className="mt-3 text-4xl font-black tracking-[-.08em]">
             CALL OPERATIONS.

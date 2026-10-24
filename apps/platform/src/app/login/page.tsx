@@ -3,18 +3,20 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LoginForm } from "./login-form";
 import { signInWithGithub } from "./actions";
+import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; next?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/app");
-  const { error, message } = await searchParams;
+  const { error, message, next: requestedNext } = await searchParams;
+  const next = getSafeAuthRedirect(requestedNext ?? null);
+  if (user) redirect(next);
   return (
     <main className="relative z-1 grid min-h-svh place-items-center bg-(--void) px-5 py-10 font-sans text-(--ink) antialiased selection:bg-(--signal) selection:text-(--void) sm:py-12 [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-4 [&_:focus-visible]:outline-(--signal)">
       <section
@@ -30,7 +32,7 @@ export default async function LoginPage({
             Your calling assistant
           </h1>
           <p className="text-base leading-relaxed text-(--muted)">
-            Sign in with your operator account.
+            Sign in to your AgentCaller account.
           </p>
         </header>
         {message === "password_updated" && (
@@ -51,7 +53,7 @@ export default async function LoginPage({
               : "The authentication link is invalid or has expired. Request a new password reset link."}
           </p>
         )}
-        <LoginForm />
+        <LoginForm next={next} />
         <Link
           href="/forgot-password"
           className="inline-flex min-h-11 items-center self-start text-sm underline underline-offset-4 hover:text-(--signal)"
@@ -63,13 +65,15 @@ export default async function LoginPage({
             Other sign-in options
           </summary>
           <form action={signInWithGithub} className="mt-3">
+            <input type="hidden" name="next" value={next} />
             <button className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center rounded-md border border-(--muted) px-4 py-3 text-base font-semibold hover:border-(--ink) hover:bg-(--void)">
               Continue with GitHub
             </button>
           </form>
         </details>
         <p className="text-sm leading-relaxed text-(--muted)">
-          Accounts are created by the operator.
+          Connecting an agent for the first time? Continue with GitHub to create
+          your account.
         </p>
       </section>
     </main>

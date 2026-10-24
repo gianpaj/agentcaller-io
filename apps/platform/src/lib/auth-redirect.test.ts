@@ -63,6 +63,28 @@ describe("getAuthCallbackUrl", () => {
 });
 
 describe("getSafeAuthRedirect", () => {
+  const consent =
+    "/oauth/consent?authorization_id=11111111-1111-4111-8111-111111111111";
+  it.each([consent, "/billing/connect"])(
+    "preserves a constrained onboarding continuation",
+    (path) => {
+      expect(getSafeAuthRedirect(path)).toBe(path);
+    },
+  );
+
+  it.each([
+    "/oauth/consent?authorization_id=not-a-request",
+    `${consent}&next=https://example.com`,
+    `${consent}&authorization_id=22222222-2222-4222-8222-222222222222`,
+    `${consent}#fragment`,
+    "/oauth/consent/../login?authorization_id=11111111-1111-4111-8111-111111111111",
+    "/billing/connect?request=secret",
+    "/billing/connect?next=https://example.com",
+    "/\\example.com",
+    "/%2fexample.com",
+  ])("rejects an unconstrained continuation: %s", (path) => {
+    expect(getSafeAuthRedirect(path)).toBe("/app");
+  });
   it.each(["/app", "/reset-password"])("allows %s", (path) => {
     expect(getSafeAuthRedirect(path)).toBe(path);
   });

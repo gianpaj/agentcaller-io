@@ -50,6 +50,48 @@ const r2Env = z.object({
   R2_BUCKET: z.string().min(1),
 });
 
+const stripeEnv = z.object({
+  STRIPE_SECRET_KEY: z.string().regex(/^sk_(test|live)_[A-Za-z0-9]+$/),
+});
+export function getStripeEnv(env: Environment = process.env) {
+  const parsed = stripeEnv.parse(env);
+  return {
+    ...parsed,
+    livemode: parsed.STRIPE_SECRET_KEY.startsWith("sk_live_"),
+  };
+}
+
+export function getStripeWebhookEnv(env: Environment = process.env) {
+  return {
+    ...getStripeEnv(env),
+    ...z
+      .object({
+        STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").min(16),
+      })
+      .parse(env),
+  };
+}
+
+export function isStripeBillingEnabled(env: Environment = process.env) {
+  return (
+    z
+      .enum(["true", "false"])
+      .default("false")
+      .parse(env.STRIPE_BILLING_ENABLED) === "true"
+  );
+}
+
+export function getBillingSetupTokenSecret(env: Environment = process.env) {
+  const secret = z.string().min(32).parse(env.BILLING_SETUP_TOKEN_SECRET);
+  if (
+    [env.API_KEY_PEPPER, env.CRON_SECRET, env.STRIPE_WEBHOOK_SECRET].includes(
+      secret,
+    )
+  )
+    throw new Error("Billing setup requires a dedicated token secret");
+  return secret;
+}
+
 export function getDatabaseEnv(env: Environment = process.env) {
   return databaseEnv.parse({
     DATABASE_URL: env.DATABASE_URL || env.POSTGRES_URL,
