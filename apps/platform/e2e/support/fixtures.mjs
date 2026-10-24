@@ -29,7 +29,23 @@ export const test = base.extend({
       await sql.end({ timeout: 1 });
     }
   },
+  _isolation: [
+    async ({ context, db }, use) => {
+      await resetTestDatabase(db);
+      await control("reset", {});
+      await installBrowserGuards(context);
+      try {
+        await use();
+      } finally {
+        const state = await control("state");
+        expect(state.violations).toEqual([]);
+        expect(state.stripe.unsupported ?? []).toEqual([]);
+      }
+    },
+    { auto: true },
+  ],
 });
+
 export async function installBrowserGuards(context) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -52,14 +68,6 @@ export async function installBrowserGuards(context) {
     socket.close();
   });
 }
-test.beforeEach(async ({ context, db }) => {
-  await resetTestDatabase(db);
-  await control("reset", {});
-  await installBrowserGuards(context);
-});
-test.afterEach(async () => {
-  expect((await control("state")).violations).toEqual([]);
-});
 export { expect };
 
 export async function connectFreshAgent(page) {
