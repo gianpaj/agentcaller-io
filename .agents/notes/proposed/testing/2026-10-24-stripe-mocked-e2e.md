@@ -55,3 +55,25 @@ ownership and acceptance. Phase 0 must prove interception in the actual Next
 process, the loopback issuer and real worker HTTP bridge. Keep this note proposed
 until implementation and its boundary evidence are accepted. Track remaining
 work in [release readiness](../../../../docs/release-readiness.md).
+
+## Shared runtime evidence
+
+- Worktree branch: `codex/stripe-mocked-e2e`, based on the approved discovery
+  and planning changes. The original checkout stays untouched.
+- `pnpm test:stripe-e2e` passes four boundary tests with owned PostgreSQL:
+  real browser login/consent and MCP-to-Stripe SDK setup, Node HTTP/fetch blocking,
+  injected accounting time, and actual worker HTTP authentication/rejected claim.
+- MSW 2.15.0 matches the existing Vitest peer range. Playwright is pinned at 1.64.1.
+  Node preload installs interception before Next; named Node HTTP imports require
+  `syncBuiltinESMExports()`. Blocked requests return an explicit 599 response and
+  record a violation instead of relying on thrown-handler behavior.
+- The local app uses `localhost` to match Next's callback origin. The provider
+  coordinator/database bind to loopback. Next's development version lookup is
+  mocked so it does not require the npm registry during a test.
+- Successful funded voice execution, full collection and failure scenarios remain
+  assigned to the implementation lanes. The worker boundary proof denies an
+  unknown attempt before any provider object is constructed.
+
+See the [runtime guide](../../../../docs/testing/stripe-e2e.md) for commands and
+the shared fixture contract. This note remains proposed until the composed
+journey and its acceptance evidence are complete.
