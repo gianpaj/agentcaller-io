@@ -27,7 +27,7 @@ Because `one_active_rate_card_per_country` permits one active rate card per
 country and `connect_jobs.businessRate` pins that single country card, each
 active ES and IT rate card must be sized to cover mobile termination before live
 tests. Review outbound routing, authorized caller IDs, consent and disclosure
-under [dispatch setup](../../../../apps/docs/content/docs/dispatch.mdx). No
+under [connect-me deployment](../../../../docs/operations.md#connect-me-deployment). No
 provider configuration or funding restriction was changed, and no live call was
 placed.
 

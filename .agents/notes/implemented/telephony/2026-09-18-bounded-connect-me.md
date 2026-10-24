@@ -49,7 +49,7 @@ live pilot. Paid connect-me creation returns an actionable 503. Job deletion rem
 blocked until cleanup and financial reconciliation can be proven.
 
 Setup, provider sources and the controlled live procedure are canonical in
-[dispatch documentation](../../../../apps/docs/content/docs/dispatch.mdx).
+the [operations runbook](../../../../docs/operations.md#connect-me-deployment).
 
 ## Offline verification
 

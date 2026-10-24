@@ -1036,10 +1036,11 @@ Billing tests include `billing.integration.test.ts`, `billing-money.test.ts`,
 PostgreSQL suites have their own tests. Browser, provider and target-host
 acceptance remain separate from offline coverage.
 
-The canonical user-facing setup and operating instructions are the
+The canonical user-facing instructions are the
 [MCP guide](../apps/docs/content/docs/mcp.mdx),
 [billing guide](../apps/docs/content/docs/billing.mdx), and
-[dispatch guide](../apps/docs/content/docs/dispatch.mdx). Keep implementation
+[dispatch guide](../apps/docs/content/docs/dispatch.mdx). Setup and operating
+instructions live in the [operations runbook](../docs/operations.md). Keep implementation
 inventories aligned with these files instead of creating placeholder modules.
 
 ## 13. Phase status and acceptance gates

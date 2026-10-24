@@ -1,10 +1,9 @@
 ---
 title: Agent discovery
-description: Find the API contract, API-key instructions, and conditional MCP OAuth discovery.
+description: Find the API contract, credential instructions and MCP OAuth metadata.
 ---
 
-AgentCaller publishes discovery resources from the platform at
-`https://agentcaller.io`:
+AgentCaller publishes these discovery resources at `https://agentcaller.io`:
 
 | Resource                                    | Purpose                                                                           |
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -13,18 +12,11 @@ AgentCaller publishes discovery resources from the platform at
 | `/.well-known/api-catalog`                  | Links the call API to its OpenAPI description, documentation, and health endpoint |
 | `/openapi.json`                             | Describes the active call API                                                     |
 | `/auth.md`                                  | Explains API-key provisioning and conditional human-approved OAuth access         |
-| `/.well-known/oauth-protected-resource/mcp` | Advertises the MCP resource and configured OAuth issuer when MCP is enabled       |
+| `/.well-known/oauth-protected-resource/mcp` | Advertises the MCP resource and its OAuth issuer                                  |
 
 The homepage returns `Link` headers with the `api-catalog`, `service-desc`,
-`service-doc`, and `describedby` relations. The static discovery documents are
-public and do not require a database connection or provider credentials. MCP
-metadata requires an enabled, configured deployment; it returns HTTP 503 when
-onboarding is disabled or unconfigured.
-
-Discovery describes production only. The catalog, `auth.md`, robots and sitemap
-use absolute `https://agentcaller.io` URLs, so an agent that starts from a
-preview or self-hosted deployment is sent to production. Previews require
-Vercel login and are not meant for agent discovery.
+`service-doc`, and `describedby` relations. The discovery documents are public.
+MCP metadata returns HTTP 503 while MCP onboarding is unavailable.
 
 ## Credentials
 
@@ -32,12 +24,11 @@ API-key access uses an enabled client profile and an operator-provisioned `ac_`
 key in the `Authorization: Bearer` header. Portal login does not issue API keys.
 There is no public API-key issuance endpoint.
 
-[MCP onboarding](/mcp) uses the configured Supabase OAuth issuer and human
-tool-access consent. It can provision the verified human's client profile without
-an operator-created profile. `MCP_ENABLED` defaults to `false`; when enabled,
-the resource metadata points to the issuer that owns client registration, code
-exchange, and refresh tokens. Access tokens must target the exact MCP resource
-audience. Generic browser tokens do not grant delegated API access.
+[MCP onboarding](/mcp) uses OAuth with human tool-access consent, and creates
+the human's client profile on first approval. The resource metadata points to
+the issuer that owns client registration, code exchange and refresh tokens.
+Access tokens must target the exact MCP resource audience. Generic browser
+tokens do not grant delegated API access.
 
 Resource-bound OAuth supports MCP, billing endpoints, call quotes,
 `stripe_postpaid` creation, and reading or cancelling the integration's own calls.
@@ -45,43 +36,4 @@ Call listing, deletion, transcripts, recordings, and legacy x402 or operator-fun
 creation require API keys. API keys need an explicit integration link before
 they can spend. Read `/auth.md` for the credential workflows and
 [saved-card billing](/billing) for separate human spending and card approval.
-Paid calling remains disabled pending release acceptance.
-
-## Maintenance
-
-Add or remove entries in `apps/platform/src/app/sitemap.ts` when indexable public
-platform pages change. Keep portal pages, login, password recovery, and tenant
-data out of the sitemap. Documentation on a different host belongs in that
-host's sitemap.
-
-Keep `/openapi.json` aligned with the public route handlers and shared contracts.
-The legacy root `openapi.yaml` describes the waitlist API and is not the
-platform's API description.
-
-## Validation
-
-Check the deployed responses for HTTP 200 and their media types: `text/plain`
-for robots, XML for the sitemap, `application/linkset+json` for the catalog,
-JSON for OpenAPI, and `text/markdown` for authentication instructions.
-
-Run the public scanner after deployment:
-
-```bash
-curl --fail-with-body https://isitagentready.com/api/scan \
-  -H 'Content-Type: application/json' \
-  --data '{"url":"https://agentcaller.io"}'
-```
-
-Expect `pass` for `checks.discoverability.robotsTxt`,
-`checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`, and
-`checks.discovery.apiCatalog`.
-
-Auth.md scanner status has not been revalidated against these credential flows.
-AgentCaller supports human-approved OAuth access when configured; it does not
-offer autonomous agent registration, anonymous credential issuance, or an
-`agent_auth` registration extension. See the
-[Auth.md implementation guide](https://workos.com/auth-md/docs/apps) for the
-registration protocol. Re-run the scan after deployment and record the returned
-status; publishing OAuth discovery alone does not implement Auth.md registration.
-
-A passing discovery check does not establish readiness to place or bill calls.
+Paid calling is not yet available.

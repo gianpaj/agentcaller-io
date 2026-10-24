@@ -31,7 +31,9 @@ The active product is the pnpm/Turborepo workspace:
   payment state, and webhook delivery.
 - `apps/voice-agent` owns the realtime voice session and should own the complete
   SIP lifecycle.
-- `apps/docs` documents the public API.
+- `apps/docs` documents the public API for agents and humans who call it.
+- `docs/operations.md` is the operator runbook: configuration, provider setup,
+  scheduled drains, testing and discovery checks.
 - `packages/contracts` owns schemas shared across process boundaries.
 - `packages/database` owns the active Drizzle model.
 - `supabase/migrations` is the append-only database history.
@@ -117,6 +119,8 @@ requires it.
 - Add or update tests for state transitions, retries, provider failures, and
   security boundaries affected by a change.
 - Update the README and `apps/docs` when implementation changes make them false.
+  Keep environment variables, internal routes, migrations, provider setup and
+  implementation mechanics out of `apps/docs`; put them in `docs/operations.md`.
 - Record significant review findings and durable decisions in a dated file under
   `.agents/notes`. Separate evidence, decisions, and open questions. Do not add
   notes for routine edits.
