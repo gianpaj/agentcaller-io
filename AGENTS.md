@@ -19,6 +19,10 @@ Before making a material change, read:
 3. `docs/specs/2026-07-10-agentcaller-mvp-design.md` for the original product
    intent. Treat it as historical design, not proof of implementation.
 
+For outstanding work and release status, consult the relevant sections of
+[Release readiness](docs/release-readiness.md). It is the canonical checklist;
+decision records provide the supporting rationale and verification evidence.
+
 ## Source of truth
 
 The active product is the pnpm/Turborepo workspace:

@@ -2,10 +2,12 @@
 
 Date: 2026-10-18. Updated: 2026-10-24.
 Status: implemented and tested offline; paid release remains gated.
+Current outstanding work is tracked in the
+[release-readiness checklist](../docs/release-readiness.md).
 
 This plan describes the implementation on `codex/agent-discovery`. The
 [implementation record](../.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-tracks billing decisions and release checks. The
+tracks billing decisions and implementation evidence. The
 [discovery integration record](../.agents/notes/implemented/discovery/2026-10-23-agent-discovery.md)
 records validation of the combined billing, MCP and discovery code.
 Neither record establishes hosted Stripe, issuer, MCP-host or carrier acceptance.
@@ -1042,6 +1044,9 @@ inventories aligned with these files instead of creating placeholder modules.
 
 ## 13. Phase status and acceptance gates
 
+The table describes milestone criteria. Open/closed release status is maintained
+only in the [release-readiness checklist](../docs/release-readiness.md).
+
 | Phase                      | Implemented and tested offline                                                                      | Remaining release acceptance                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | 0. Dependencies and policy | Pinned SDKs, schema/migration fixtures and bounded exposure policy                                  | Approved tariffs/tax, real issuer resource binding, host compatibility, carrier duration/metering and merchant risk controls |
@@ -1248,46 +1253,13 @@ formatting. These results do not cover remote migrations, hosted Checkout,
 issuer/host acceptance, real calls or production deployment. See the integration
 record for evidence rather than treating this test count as a release gate.
 
-## 15. Blocking decisions and safe defaults
+## 15. Remaining work and implemented defaults
 
-### Blocks a paid pilot
-
-- **Approved customer tariff.** Business answer is confirmed as the charging
-  trigger, including an answered call whose handoff fails. Exact fees, rounding,
-  tax treatment and service-fault credits remain open. Country-level tariff
-  coverage and carrier overruns need evidence; no arbitrary $0.50 call promise.
-- **Provider safety and metering.** Verify duration enforcement, room cleanup,
-  actual end observations and provider reconciliation in deployed LiveKit/Telnyx.
-  Confirm recording disabled at both providers. Missing evidence must not be
-  billed as the minimum or silently treated as free.
-- **Merchant and legal scope.** Stripe account/currency eligibility, variable
-  off-session agreement, customer countries, consumer cancellation/refund rules,
-  tax invoices and financial retention require a concrete merchant decision.
-- **Financial risk operations.** The per-account unpaid-exposure cap is confirmed
-  at USD 10. Set an aggregate pilot exposure ceiling, write-off/refund authority
-  and operator recovery contact. Card setup cannot guarantee future funds.
-- **Deployment operations.** Confirm applied migrations, worker deployment,
-  exact scheduler frequency, provider credentials, webhook reachability and
-  monitoring. The repository alone cannot attest to those resources.
-- **Multi-customer call identity.** Consent records the human's introduction name;
-  admission pins it and the worker consumes it. Verify actual disclosure and
-  introductions in each enabled language during controlled provider acceptance.
-- **Veterinarian example.** Decide which administrative requests fit the current
-  regulated-services exclusion. Restrict the pilot to clearly allowed business
-  connection requests until that policy is approved.
-
-### Blocks the MVP OAuth and agent-onboarding release
-
-- Confirm issuer availability, resource audience/client binding, discovery,
-  registration and refresh/revocation in the deployed project and target host.
-  A failed probe blocks the MVP; it does not defer OAuth to a later release.
-- Verify the implemented first-time profile creation and safe OAuth/billing
-  continuations against the deployed identity provider and host. A pilot
-  eligibility allowlist is acceptable; manual profile linking or API-key copying
-  cannot substitute for the customer acceptance flow.
-- Verify ordinary setup links, durable polling and safe retry/reconnect in the
-  target host. Native URL elicitation is unimplemented optional future work.
-  Host compatibility and tool consent do not establish spending authorization.
+The [release-readiness checklist](../docs/release-readiness.md) owns the current
+outstanding work: issuer/host proof, policy and tariffs, browser coverage, hosted
+Stripe acceptance, telephony, personal-data deletion, operations and complete
+release acceptance. It separates required pilot work from optional integrations
+and broader prototype gaps. Detailed test procedures remain in section 14.
 
 ### Implemented calling scope awaiting commercial approval
 
