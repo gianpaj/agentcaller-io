@@ -60,7 +60,7 @@ describe("API discovery", () => {
     expect(response.headers.get("content-type")).toContain("application/json");
     const spec = await response.json();
     expect(spec.openapi).toBe("3.1.1");
-    expect(spec.servers).toEqual([{ url: "https://agentcaller.io" }]);
+    expect(spec.servers).toEqual([{ url: "/" }]);
     expect(spec.components.securitySchemes.apiKey.scheme).toBe("bearer");
     expect(spec.security).toEqual([{ apiKey: [] }]);
     expect(spec.paths["/api/health"].get.security).toEqual([]);
