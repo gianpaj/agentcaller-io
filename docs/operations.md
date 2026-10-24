@@ -8,8 +8,9 @@ documentation for agents and humans lives in `apps/docs`; release gates live in
 
 `apps/platform/vercel.json` runs three Vercel Cron jobs every minute:
 `/api/internal/connect/drain`, `/api/internal/billing/drain` and
-`/api/internal/webhooks/drain`. Each accepts `GET` (Vercel Cron) or `POST` with
-`Authorization: Bearer $CRON_SECRET`. The connect drain is designed for a
+`/api/internal/webhooks/drain`. Each accepts `GET` (Vercel Cron) or `POST`;
+both require `Authorization: Bearer $CRON_SECRET`, which Vercel Cron sends when
+`CRON_SECRET` is set on the project. The connect drain is designed for a
 30-second interval; one minute is the Vercel Cron minimum. Local development is
 covered in the README.
 
