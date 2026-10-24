@@ -12,12 +12,14 @@ export async function startCoordinator(appUrl) {
     deletedRooms = [],
     violations = [];
   let failRoomCleanup = false;
+  const callbackPrompts = new Map();
   const state = () => ({
     identity: identity.snapshot(),
     stripe: stripe.snapshot(),
     dispatches,
     deletedRooms,
     violations,
+    callbackPrompts: Object.fromEntries(callbackPrompts),
   });
   const server = createServer(async (incoming, outgoing) => {
     try {
@@ -53,6 +55,7 @@ export async function startCoordinator(appUrl) {
             deletedRooms = [];
             violations = [];
             failRoomCleanup = false;
+            callbackPrompts.clear();
             response = Response.json(state());
           } else if (url.pathname === "/control/stripe")
             response = await stripe.request(input);
@@ -66,6 +69,21 @@ export async function startCoordinator(appUrl) {
             ) {
               failRoomCleanup = input.enabled === true;
               response = Response.json({ enabled: failRoomCleanup });
+            } else if (
+              input.target === "livekit" &&
+              ["callback-prompt-ready", "release-callback-prompt"].includes(
+                input.action,
+              )
+            ) {
+              if (typeof input.attemptId !== "string")
+                throw new Error("Callback prompt requires an attempt ID");
+              if (input.action === "release-callback-prompt")
+                callbackPrompts.set(input.attemptId, "released");
+              else if (!callbackPrompts.has(input.attemptId))
+                callbackPrompts.set(input.attemptId, "held");
+              response = Response.json({
+                status: callbackPrompts.get(input.attemptId),
+              });
             } else
               response = Response.json(
                 await (input.target === "identity" ? identity : stripe).control(

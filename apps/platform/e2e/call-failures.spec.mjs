@@ -165,12 +165,22 @@ test("human disconnect before callback acceptance prevents the handoff", async (
   const completion = runVoiceScenario({
     dispatch,
     outcome: "connected",
-    digitDelayMs: 4000,
+    holdCallbackPrompt: true,
     expectedReason: "cancelled",
     finishAllowed: false,
   });
   void completion.catch(() => {});
+  const attemptId = JSON.parse(dispatch.metadata).attemptId;
+  const releasePrompt = () =>
+    control("command", {
+      target: "livekit",
+      action: "release-callback-prompt",
+      attemptId,
+    });
   try {
+    await expect
+      .poll(async () => (await control("state")).callbackPrompts[attemptId])
+      .toBe("held");
     await expect
       .poll(
         async () =>
@@ -182,8 +192,10 @@ test("human disconnect before callback acceptance prevents the handoff", async (
       .toBe(1);
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await expect(page.getByText("Disconnected", { exact: true })).toBeVisible();
+    await releasePrompt();
     await completion;
   } finally {
+    await releasePrompt();
     await completion.catch(() => {});
   }
   await drainConnectHttp();

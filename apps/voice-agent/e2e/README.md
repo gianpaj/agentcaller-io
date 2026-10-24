@@ -9,8 +9,13 @@ It passes synthetic environment values and `E2E_VOICE_SCENARIO` as JSON.
 - `outcome` also supports `busy`, `no_answer`, `voicemail`, `uncertain_answer`,
   `ivr_unresolved`, `refused`, `callback_declined`, `callback_timeout` and
   `cleanup_failure`. `callbackOutcome: "busy" | "no_answer"` fails that leg.
-- `digit` overrides the callback keypress; `digitDelayMs` delays it by at most
-  ten seconds. An intruder's 1 is emitted first and cannot accept the call.
+- `digit` overrides the callback keypress. An intruder's 1 is emitted first
+  and cannot accept the call.
+- `holdCallbackPrompt: true` holds provider session readiness before the worker's
+  acceptance timer starts. The coordinator records `callbackPrompts[attemptId]`
+  as `held`; the parent commits revocation and sends the LiveKit fixture command
+  `release-callback-prompt` with that `attemptId`. Readiness waits at most 15 seconds;
+  application acceptance and leg-duration bounds stay intact.
 - `hangupLeg: "callback"` ends a bridged conversation from the callback side.
 - `dropResponseFor: "dial"` loses one actual committed response and verifies
   transport retry keeps the event ID and does not repeat the SIP dial.

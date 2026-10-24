@@ -234,6 +234,12 @@ if (scenario.proof) {
         });
         expect(events.some((event) => event.action === "accept")).toBe(false);
       }
+      if (scenario.holdCallbackPrompt) {
+        expect(state.dtmf).toContainEqual({
+          identity: "callback_" + state.attemptId,
+          digit: "1",
+        });
+      }
       if (scenario.dropResponseFor) {
         expect(dropped).toBe(true);
         const retried = events.filter(

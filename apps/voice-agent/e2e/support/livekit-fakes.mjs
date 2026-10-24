@@ -1,6 +1,35 @@
 import { EventEmitter } from "node:events";
 import assert from "node:assert/strict";
 
+async function waitForCallbackPrompt(attemptId) {
+  const headers = {
+    "content-type": "application/json",
+    "x-e2e-token": process.env.E2E_CONTROL_TOKEN,
+  };
+  const ready = await fetch(process.env.E2E_CONTROL_URL + "/control/command", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      target: "livekit",
+      action: "callback-prompt-ready",
+      attemptId,
+    }),
+  });
+  assert.equal(ready.status, 200);
+  const deadline = Date.now() + 15_000;
+  while (true) {
+    const response = await fetch(
+      process.env.E2E_CONTROL_URL + "/control/state",
+      { headers },
+    );
+    assert.equal(response.status, 200);
+    if ((await response.json()).callbackPrompts[attemptId] === "released")
+      return;
+    assert.ok(Date.now() < deadline, "Callback prompt release timed out");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 export function resetProviders(state, scenario = {}) {
   Object.assign(state, {
     scenario,
@@ -82,6 +111,12 @@ export function agentsModule(state) {
       this.agent = options.agent;
       this.room = options.room;
       this.options.start = options;
+      // Hold provider readiness before the real worker starts its acceptance timer.
+      if (
+        state.scenario.holdCallbackPrompt &&
+        this.room.name === state.claim.callbackRoom
+      )
+        await waitForCallbackPrompt(state.attemptId);
     }
     async interrupt() {
       this.interrupted = true;
@@ -119,13 +154,7 @@ export function agentsModule(state) {
             this.room.emit("dtmfReceived", Number(digit), digit, { identity });
           }
         };
-        const delay = state.scenario.digitDelayMs ?? 0;
-        assert.ok(
-          Number.isInteger(delay) && delay >= 0 && delay <= 10_000,
-          "Keep simulated DTMF delay bounded",
-        );
-        if (delay) state.timers.push(setTimeout(deliver, delay));
-        else queueMicrotask(deliver);
+        queueMicrotask(deliver);
       }
       this.lastSpeech = text;
       return { waitForPlayout: async () => {} };
