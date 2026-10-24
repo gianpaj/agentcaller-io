@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { billingContactNameSchema } from "./billing";
 
 export const CALL_NOW_TTL_MS = 30 * 60_000;
 
@@ -34,6 +35,7 @@ export const connectMeTaskSchema = z
       .string()
       .regex(/^\+34(?:6\d{8}|7[1-4]\d{7})$/, "Use a Spanish mobile number"),
     callbackLanguage: z.enum(["es", "it", "en"]),
+    callerName: billingContactNameSchema.optional(),
     purpose: z.string().trim().min(1).max(300),
     maxAttempts: z.number().int().min(1).max(6).default(6),
     retryDelaySeconds: z.number().int().min(300).max(86400).default(300),
@@ -61,7 +63,9 @@ export const connectMeTaskSchema = z
         }
       })
       .transform((value) =>
-        value === "now" ? ("now" as const) : callingWindowObjectSchema.parse(value),
+        value === "now"
+          ? ("now" as const)
+          : callingWindowObjectSchema.parse(value),
       ),
     expiresAt: z.string().datetime(),
     ringingSeconds: z.number().int().min(10).max(60).default(40),
@@ -149,9 +153,9 @@ export function isBusinessDestination(destination: string, country: string) {
   return country === "ES"
     ? /^\+34(?:[89][1-8]\d{7}|6\d{8}|7[1-48]\d{7})$/.test(destination)
     : country === "IT" &&
-    /^\+39(?:0(?!0|878)\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(
-      destination,
-    );
+        /^\+39(?:0(?!0|878)\d{5,10}|3[2-9]\d{7,8}|(?:31|43)\d{8})$/.test(
+          destination,
+        );
 }
 
 export function businessDestinationError(
@@ -161,8 +165,7 @@ export function businessDestinationError(
   if (!/^\+\d+$/.test(destination)) return businessDestinationErrors.format;
   const prefix = country === "ES" ? "+34" : country === "IT" ? "+39" : null;
   if (!prefix) return businessDestinationErrors.unsupported;
-  if (!destination.startsWith(prefix))
-    return businessDestinationErrors.country;
+  if (!destination.startsWith(prefix)) return businessDestinationErrors.country;
   const national = destination.slice(prefix.length);
   if (country === "ES" && national.length !== 9)
     return businessDestinationErrors.spanishLength;

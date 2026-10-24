@@ -167,10 +167,21 @@ describe("connect workflow", () => {
     expect(sipFailure()).toBe("dial_unknown");
   });
   it("discloses automation in both business languages and independently prompts callback", () => {
-    expect(businessMessage.es).toContain("asistente automático");
-    expect(businessMessage.it).toContain("assistente automatico");
+    expect(businessMessage("es")).toContain("asistente automático");
+    expect(businessMessage("it")).toContain("assistente automatico");
     expect(callbackMessage.es).toContain("Pulse 1");
     expect(callbackMessage.it).toContain("Prema 1");
     expect(callbackMessage.en).toContain("Press 1");
   });
+});
+
+it("introduces the approved caller in Spanish and Italian", async () => {
+  const { businessMessage } = await import("./connect-flow");
+  expect(businessMessage("es", "Marta Ruiz")).toContain(
+    "asistente automático de Marta Ruiz",
+  );
+  expect(businessMessage("it", "Marta Ruiz")).toContain(
+    "assistente automatico di Marta Ruiz",
+  );
+  expect(businessMessage("es")).toContain("AgentCaller");
 });

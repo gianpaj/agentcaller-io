@@ -1,7 +1,14 @@
 # TODO
 
-## Providers
+## Payments
 
+- Stripe with Stripe Intent (i have the previous plan to verify to codex for agentcaller)
+- Stripe Link Agent Wallet for US customers
+  - using Shared Payment Tokens (SPT) – i believe that's the simplest for the user / agent with an existing Link wallet and not very frequent us. Higher merchant fees but I can live with this for now.
+
+how do I instruct Codex to do implement Link Agent Wallet (we'll hide/remove x402 to simplify our code base)
+
+## Providers
 
 ### Twilio
 
@@ -16,7 +23,6 @@ High-quality voice with 16kHz audio and excellent international coverage
 Cloud communications platform with programmable voice and global PSTN reach
 
 ### Telnyx
-
 
 ### Cloudonix
 
@@ -34,7 +40,6 @@ Connect to your own Asterisk PBX via the Asterisk REST Interface
 
 https://docs.dograh.com/integrations/telephony/overview
 
-
 ## see
 
 <https://docs.dograh.com/sdks/outbound-calls>
@@ -49,10 +54,10 @@ Pricing is **outbound termination rates only** (what you pay per minute of call 
 
 ### Pricing comparison (as of May 2026, USD per minute)
 
-| Provider       | To Spain Landline/Fixed (from EEA) | To Spain Mobile (from EEA) | Billing Increment | Notes / Volume Discounts | Phone Number Cost (example) | Best For Open-Source Integration |
-|----------------|------------------------------------|----------------------------|-------------------|---------------------------|-----------------------------|----------------------------------|
-| **Twilio**    | **$0.0178**                       | **$0.0486**               | Per second (most routes) | Automatic volume discounts at high usage | ~$1.15/mo per local/international number | Native support in almost every framework (easiest) |
-| **Plivo**     | **$0.0071**                       | **$0.0314**               | Per second       | Volume discounts available | ~$1–2/mo (Spain or EU numbers) | Excellent — full Voice API + SIP trunking |
-| **Telnyx**    | Starting ~$0.005–$0.007 (international) | Same range               | Per second       | Strong automatic volume discounts; global price sheet | Spain local from $1/mo     | Great (SIP + Voice API) — very popular with LiveKit/Pipecat |
-| **Vonage**    | ~$0.008–$0.015 (international PSTN) | Similar                   | Per second       | Custom/volume deals common | Competitive EU numbers     | Good native support in most frameworks |
-| **Infobip**   | Custom (portal calculator)        | Custom                    | Per second       | Enterprise volume pricing | Custom                     | Solid for Europe, SIP-friendly   |
+| Provider    | To Spain Landline/Fixed (from EEA)      | To Spain Mobile (from EEA) | Billing Increment        | Notes / Volume Discounts                              | Phone Number Cost (example)              | Best For Open-Source Integration                            |
+| ----------- | --------------------------------------- | -------------------------- | ------------------------ | ----------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| **Twilio**  | **$0.0178**                             | **$0.0486**                | Per second (most routes) | Automatic volume discounts at high usage              | ~$1.15/mo per local/international number | Native support in almost every framework (easiest)          |
+| **Plivo**   | **$0.0071**                             | **$0.0314**                | Per second               | Volume discounts available                            | ~$1–2/mo (Spain or EU numbers)           | Excellent — full Voice API + SIP trunking                   |
+| **Telnyx**  | Starting ~$0.005–$0.007 (international) | Same range                 | Per second               | Strong automatic volume discounts; global price sheet | Spain local from $1/mo                   | Great (SIP + Voice API) — very popular with LiveKit/Pipecat |
+| **Vonage**  | ~$0.008–$0.015 (international PSTN)     | Similar                    | Per second               | Custom/volume deals common                            | Competitive EU numbers                   | Good native support in most frameworks                      |
+| **Infobip** | Custom (portal calculator)              | Custom                     | Per second               | Enterprise volume pricing                             | Custom                                   | Solid for Europe, SIP-friendly                              |

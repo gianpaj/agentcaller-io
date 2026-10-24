@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ drain: vi.fn(), env: vi.fn() }));
 vi.mock("@/lib/connect-scheduler", () => ({ drainConnectJobs: mocks.drain }));
-vi.mock("@/lib/env", () => ({ getCronEnv: mocks.env }));
+vi.mock("@/lib/env", () => ({
+  getCronEnv: mocks.env,
+  isStripeBillingEnabled: () => false,
+}));
 import { POST } from "./route";
 const secret = "offline-cron-secret-".repeat(3);
 let errors: ReturnType<typeof vi.spyOn>;

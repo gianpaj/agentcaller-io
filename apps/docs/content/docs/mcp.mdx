@@ -1,0 +1,90 @@
+---
+title: MCP onboarding
+description: OAuth tool access and the remaining billing release checks
+---
+
+AgentCaller exposes a remote MCP endpoint at `/mcp`, disabled by default.
+The six tools cover setup, billing readiness, quotes, scheduling, call status
+and usage. [Saved-card billing](/billing) uses separate human spending
+consent and monthly Stripe invoices. Paid calling stays disabled pending release
+acceptance. Existing API-key and operator routes retain their behavior.
+
+## Tools
+
+| Tool                 | Operation       | Input                                                                 |
+| -------------------- | --------------- | --------------------------------------------------------------------- |
+| `setup_billing`      | `billing:setup` | `idempotencyKey`; optional `setupRequestId` to poll an existing setup |
+| `get_billing_status` | `billing:read`  | none                                                                  |
+| `quote_call`         | `calls:create`  | A `connect_me` call with integer `maxAmountCents` (1–50,000)          |
+| `schedule_call`      | `calls:create`  | The quoted call plus `quoteVersion` and `idempotencyKey`              |
+| `get_call_status`    | `calls:read`    | `callId`                                                              |
+| `get_usage`          | `billing:read`  | optional `before` cursor (ISO timestamp)                              |
+
+The call inputs are the same as the [saved-card API](/billing#agent-api).
+Only `connect_me` calls are accepted, and amounts are integer USD cents.
+Tools return JSON text and the same object as `structuredContent`. Errors set
+`isError` and return `{ "error": "..." }`.
+
+When billing is not set up, `schedule_call` returns
+`error: "billing_setup_required"` with a `setupUrl`. Ask the human to open the
+link, then retry the unchanged call with the same `idempotencyKey`.
+
+## Configure an isolated deployment
+
+Apply the Supabase migrations in timestamp order. Set `NEXT_PUBLIC_APP_URL` to
+the exact application origin and configure the existing Supabase environment.
+The canonical MCP resource is that origin plus `/mcp`.
+
+Configure Supabase's OAuth server with authorization path `/oauth/consent`.
+Use authorization code with PKCE and the target host's supported client registration.
+The issuer owns registered redirects, code exchange and refresh tokens. Consent
+accepts only HTTPS or loopback HTTP redirect URIs, so native clients that
+register a custom scheme such as `cursor://` cannot connect. See
+[Supabase OAuth setup](https://supabase.com/docs/guides/auth/oauth-server/getting-started).
+
+The platform requires asymmetrically signed ES256/RS256 access tokens with the
+configured Supabase issuer, a verified human subject, OAuth `client_id`, expiry,
+issue time and the exact MCP resource audience. Generic browser tokens and
+tokens with only `aud: authenticated` are rejected. Prove the deployed issuer
+can honor resource binding before claiming host compatibility. No host has a
+completed end-to-end acceptance test in this implementation increment.
+
+`MCP_ENABLED=true` enables discovery, consent and the transport in an isolated
+environment. It does not enable billing or dialing. HTTP is allowed only on
+loopback for development. Browser requests must use the configured application
+origin or an exact origin in `MCP_ALLOWED_ORIGINS`; server clients may omit Origin.
+Protected-resource metadata is at `/.well-known/oauth-protected-resource/mcp`.
+The endpoint serves stateless current (2026-07-28) and legacy (2025) requests.
+It accepts `POST` only and responds with JSON; there is no SSE stream. Request
+bodies are limited to 64 KB.
+
+## Human connection flow
+
+An eligible user can sign in through the configured GitHub provider and approve
+tool access without a pre-created client profile or copied API key. Profile
+ownership comes from the verified Supabase UID. Disabled profiles stay disabled;
+an email or integration name cannot claim a legacy account.
+
+Tool consent always grants all four operations (`billing:setup`,
+`billing:read`, `calls:create` and `calls:read`); a subset cannot be chosen. Spending approval and saved-card
+setup are separate requirements. OAuth approval cannot authorize a paid call.
+The host can refresh credentials or reconnect without creating another connection.
+Delegated OAuth tokens cannot authorize human portal settings or consent actions.
+
+The human can disconnect an integration under **Settings → Connected
+integrations**. Subsequent requests are denied even while a token remains valid.
+Disconnecting also revokes the issuer grant and its refresh tokens. Refresh and
+repeated issuer consent cannot restore a revoked connection. Spending can be
+revoked separately under **Settings → Billing**. Both paths block further
+worker permissions. Disconnecting cancels the open calls billed through that
+integration. Revoking spending cancels all open saved-card calls.
+Human reauthorization of revoked connections is a separate workflow.
+
+## Verification
+
+Offline tests cover signed-token validation, ownership, constrained login return,
+consent denial/replay, discovery and both transport eras. Tools return ordinary setup links and support polling;
+native URL elicitation is not implemented. `pnpm test:billing-db`
+uses a fresh local PostgreSQL container to test concurrent first login and
+consent, foreign-owner constraints, RLS and revocation. These tests do not prove
+Supabase project configuration or compatibility with a particular MCP host.

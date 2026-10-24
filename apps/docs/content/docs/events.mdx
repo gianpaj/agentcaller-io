@@ -5,7 +5,37 @@ description: Track a dispatch without losing a terminal result.
 
 Poll `GET /api/v1/calls/{id}` or receive signed events at the webhook endpoint configured in the control room.
 
-Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Payment state moves separately through `authorized`, `settling`, `settled`, or `failed`. Operator-funded jobs use `not_required` throughout and never settle through x402.
+Call state moves through `queued`, `dialing`, `in_progress`, then `completed`, `failed`, or `cancelled`. Terminal states never reopen.
+
+Payment state is separate from call state:
+
+| Funding    | Payment states                                                         |
+| ---------- | ---------------------------------------------------------------------- |
+| x402       | `authorized`, then `settling`, then `settled` or `failed`              |
+| Saved card | `accruing` while usage is held, then `accrued` once usage is finalized |
+| Operator   | `not_required` throughout                                              |
+
+Call completion does not imply payment settlement.
+
+## Event types
+
+| Type               | Sent when                                      | `data`                                                      |
+| ------------------ | ---------------------------------------------- | ----------------------------------------------------------- |
+| `call.queued`      | The call is accepted                           | `{ callId, state }`                                         |
+| `call.dialing`     | The business is being dialed (x402 tasks only) | `{ callId, state, outcome }`                                |
+| `call.in_progress` | The business answered (x402 tasks only)        | `{ callId, state, outcome }`                                |
+| `call.completed`   | The call ended normally                        | `{ callId, state, outcome }` or `{ callId, state, reason }` |
+| `call.failed`      | The call failed                                | As above, or `{ callId, reason }` when dispatch fails       |
+| `call.cancelled`   | The call was cancelled                         | `{ callId, state }` or `{ callId, state, reason }`          |
+| `payment.settled`  | An x402 payment was captured                   | `{ callId, amountMicros, transaction }`                     |
+| `payment.failed`   | An x402 capture failed                         | `{ callId, error }`                                         |
+
+`connect_me` jobs send only `call.queued` and their terminal event. Poll the call
+to follow dialing, attempts and legs. Saved-card calls send no `payment.*`
+events; read their usage with `GET /api/v1/billing/usage`.
+
+A `payment.settled` event with `amountMicros: 0` and no `transaction` means the
+call never rang, so nothing was captured.
 
 ## Webhook delivery
 
@@ -18,25 +48,42 @@ Each delivery is a `POST` with a JSON body of `{ id, timestamp, type, data }` an
 | `AgentCaller-Signature` | `sha256=<hex>`                                                   |
 
 The signature is `HMAC-SHA256(secret, "{timestamp}.{rawBody}")`, hex-encoded. Your signing secret is
-shown next to the webhook endpoint in the control room, and is unique to your client.
+shown next to the webhook endpoint in the control room, and is unique to your client. It is created
+once and cannot be rotated yet.
 
 ```js
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 function verify(rawBody, headers, secret) {
   const timestamp = headers["agentcaller-timestamp"];
-  const expected = createHmac("sha256", secret)
-    .update(`${timestamp}.${rawBody}`)
-    .digest("hex");
-  const received = headers["agentcaller-signature"].replace(/^sha256=/, "");
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+  const signature = headers["agentcaller-signature"];
+  if (!timestamp || !signature?.startsWith("sha256=")) return false;
+  const expected = Buffer.from(
+    createHmac("sha256", secret)
+      .update(`${timestamp}.${rawBody}`)
+      .digest("hex"),
+  );
+  const received = Buffer.from(signature.slice("sha256=".length));
+  return (
+    expected.length === received.length && timingSafeEqual(expected, received)
+  );
 }
 ```
 
 Verify the signature against the raw request body before parsing it, reject timestamps outside your
 tolerance window, store the event ID for replay protection, and make your handler idempotent.
-Deliveries are retried with exponential backoff, capped at one hour between attempts and ten
-attempts in total. Redirects are not followed, and endpoints must be public HTTPS addresses.
+
+- **Success:** only a `2xx` response within 10 seconds counts as delivered. Redirects are not
+  followed and count as failures.
+- **Retries:** failures retry with exponential backoff, capped at one hour between attempts and ten
+  attempts in total. The event ID stays the same across retries; the timestamp and signature are
+  new on each attempt. After ten failures the event is not sent again.
+- **Order:** events are delivered concurrently and retries can interleave with newer events. Use
+  the call's `state` and terminal status rather than arrival order.
+- **No endpoint:** events produced while no endpoint is configured are discarded. They are not sent
+  after you add one later. Poll for anything you missed.
+- **Destination:** endpoints must be public HTTPS addresses. Private-network addresses are rejected
+  when you save the endpoint and again on each delivery.
 
 ## Connect-me jobs
 
@@ -49,8 +96,7 @@ Polling returns `job`, the current `attempts` (a row changes until it is
 `outcome.reason` is a `connectReasons` value, including `connected`, `cancelled`,
 `voicemail`, `worker_lost`, `dial_unknown`, `refused`, `attempts_exhausted`,
 `callback_declined`, `callback_timeout`, `callback_hangup`, `uncertain_answer`,
-`expired`, `spend_limit`, and `duration_limit`. Call completion does not imply
-payment settlement.
+`expired`, `spend_limit`, and `duration_limit`.
 
 `POST /api/v1/calls/{id}/cancel` authorizes by tenant, closes the durable job before
 cleanup, and prevents late acceptance from reopening it. The portal offers the

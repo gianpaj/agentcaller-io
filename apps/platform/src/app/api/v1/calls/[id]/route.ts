@@ -1,3 +1,6 @@
+import { authenticateBillingPrincipal, isOAuthRequest } from "@/lib/agent-auth";
+import { getAgentCallStatus } from "@/lib/billing-agent";
+import { billingErrorResponse } from "@/lib/billing-policy";
 import {
   calls,
   paymentSettlements,
@@ -31,6 +34,21 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  if (isOAuthRequest(request)) {
+    try {
+      return Response.json(
+        {
+          data: await getAgentCallStatus(
+            await authenticateBillingPrincipal(request),
+            (await context.params).id,
+          ),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (error) {
+      return billingErrorResponse(error);
+    }
+  }
   try {
     const client = await authenticateApiRequest(request);
     const { id } = await context.params;

@@ -1,3 +1,6 @@
+import { authenticateBillingPrincipal } from "@/lib/agent-auth";
+import { BillingSetupRequired, reserveStripeCall } from "@/lib/billing-usage";
+import { billingErrorResponse } from "@/lib/billing-policy";
 import { calls } from "@agentcaller/database";
 import { and, desc, eq, isNull, lt } from "drizzle-orm";
 import { authenticateApiRequest, ApiError } from "@/lib/auth";
@@ -53,6 +56,32 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (request.headers.get("x-agentcaller-funding") === "stripe_postpaid") {
+    try {
+      if (
+        request.headers.has("payment-signature") ||
+        request.headers.has("x-payment")
+      )
+        throw new ApiError(422, "Choose one payment method");
+      return Response.json(
+        {
+          data: await reserveStripeCall(
+            await authenticateBillingPrincipal(request),
+            request.headers.get("idempotency-key") ?? "",
+            await request.json(),
+          ),
+        },
+        { status: 201, headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (error) {
+      if (error instanceof BillingSetupRequired)
+        return Response.json(
+          { error: "billing_setup_required", ...error.setup },
+          { status: 409, headers: { "Cache-Control": "no-store" } },
+        );
+      return billingErrorResponse(error);
+    }
+  }
   try {
     return await submitCall(request, await authenticateApiRequest(request));
   } catch (error) {

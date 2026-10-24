@@ -3,22 +3,64 @@ title: AgentCaller API
 description: Dispatch real business calls from an AI agent.
 ---
 
-AgentCaller gives an AI agent a paid, bounded path to phone-only businesses.
+AgentCaller gives an AI agent a bounded, paid path to phone-only businesses.
 
 ## Supported work
 
-- Restaurant reservations
-- Appointment scheduling
-- Availability checks
-- Information requests
+- **Connect me (`connect_me`):** call a business, wait for a person to agree to
+  hold, then call you back and join the two calls.
+- **Reservations, appointments, availability checks and information requests:**
+  the agent completes a typed task and returns its outcome.
 
-Calls are available in English and Spanish for Spain and the United States. Every call discloses that it is automated and states its purpose.
+| Task         | Business destinations | Business language | Callback language |
+| ------------ | --------------------- | ----------------- | ----------------- |
+| `connect_me` | Spain, Italy          | `es`, `it`        | `es`, `it`, `en`  |
+| Other tasks  | Spain, United States  | `en`, `es`        | —                 |
+
+Every call discloses that it is automated and states its purpose.
+
+## Funding
+
+All three paths use `POST /api/v1/calls` with an `Idempotency-Key` header. The
+`X-AgentCaller-Funding` header selects the path.
+
+| Path                   | Header            | Tasks        | Accepted response |
+| ---------------------- | ----------------- | ------------ | ----------------- |
+| [Saved card](/billing) | `stripe_postpaid` | `connect_me` | `201`             |
+| x402 (USDC on Base)    | omitted           | Other tasks  | `202`             |
+| Operator               | `operator`        | `connect_me` | `202`             |
+
+- **Saved-card paid calling is disabled** until its release checks pass.
+- x402 does not fund `connect_me`; such a request returns `503`.
+- Operator funding requires an operator profile that only the platform owner can
+  enable. The header alone grants nothing.
+
+Paid paths require a payment authorization or a saved card before a call is
+created. Charges follow one rule for every paid path: a leg that rings without
+an answer costs its connection fee, an answered leg adds started minutes, and a
+call that never rings costs nothing. See [Dispatch a call](/dispatch#limits).
 
 ## Request lifecycle
 
-1. Send a typed call request with your API key and idempotency key.
-2. Receive an x402 `402 Payment Required` response.
-3. Retry with the signed Base payment authorization.
-4. Receive a `202 Accepted` call resource, then poll it or receive signed webhooks.
+**Saved card:**
 
-AgentCaller never initiates a purchase, handles payment cards, places emergency calls, or redials automatically.
+1. Connect through [MCP onboarding](/mcp) and complete
+   [billing setup](/billing).
+2. Request a quote with `POST /api/v1/calls/quote`.
+3. Submit the call with the returned `quoteVersion`, and receive `201`.
+4. Poll the call or receive signed [webhooks](/events).
+
+**x402:**
+
+1. Send a typed call request with your API key and idempotency key.
+2. Receive `402 Payment Required` with a `PAYMENT-REQUIRED` header.
+3. Retry the same request with a signed `PAYMENT-SIGNATURE`.
+4. Receive `202 Accepted`, then poll the call or receive signed webhooks.
+
+## Boundaries
+
+The agent is instructed never to make purchases, take payment card details,
+discuss regulated services or handle emergencies. Destinations must be full
+E.164 numbers, so short codes and emergency numbers are rejected. Only
+scheduled `connect_me` jobs dial again, and only after a confirmed busy or
+no-answer result. No other task redials automatically.

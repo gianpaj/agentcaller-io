@@ -1,11 +1,19 @@
 ---
 title: Dispatch a call
-description: Create a typed call request with paid or operator funding.
+description: Create a typed call request with x402 or operator funding.
 ---
 
 `POST https://agentcaller.io/api/v1/calls`
 
-Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The first request returns an x402 challenge. Retry the exact request with `PAYMENT-SIGNATURE`.
+This page covers x402 and operator funding. Saved-card calls use the same
+endpoint with `X-AgentCaller-Funding: stripe_postpaid` and a different body;
+see [Saved-card billing](/billing). The [overview](/) compares the
+three paths.
+
+Supply `Authorization: Bearer ac_…` and an `Idempotency-Key` header of at most
+128 characters. After validation, rate limits and rate-card checks pass, the
+first request returns `402` with an x402 challenge in the `PAYMENT-REQUIRED`
+header. Retry the same request with a base64-encoded `PAYMENT-SIGNATURE`.
 
 ```json
 {
@@ -27,7 +35,31 @@ Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The
 }
 ```
 
+## Responses
+
+Successful responses wrap the call in `{ "data": call }` and return `202`. A
+call whose dispatch fails is still returned with `202`, with `state: "failed"`.
+
+Reusing an idempotency key returns the original call with `202`, even if the
+body differs. Use a new key for a new request.
+
+| Status | Meaning                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | `Idempotency-Key` is missing or longer than 128 characters                                                               |
+| `402`  | Payment is required; retry with `PAYMENT-SIGNATURE`                                                                      |
+| `403`  | Operator funding was requested without an enabled operator profile                                                       |
+| `422`  | Validation failed: `{ "error": "Invalid request", "issues": [...] }`, or a policy check failed with `{ "error": "..." }` |
+| `429`  | The calls-per-minute or active-call limit was reached                                                                    |
+| `503`  | No active rate card, x402 is not configured, or x402 was used for `connect_me`                                           |
+
 ## Limits
+
+| Field                | Rule                             |
+| -------------------- | -------------------------------- |
+| `maxDurationSeconds` | 60–1800                          |
+| `maxAmountUsd`       | Greater than 0, at most 500      |
+| `clientReference`    | Optional, at most 120 characters |
+| `voiceId`            | Optional, at most 80 characters  |
 
 `maxDurationSeconds` is enforced on the call itself: AgentCaller hangs up when it elapses.
 
@@ -35,12 +67,19 @@ Supply `Authorization: Bearer ac_…` and a unique `Idempotency-Key` header. The
 fee and one started minute, and you are never charged more than it — but it does not by itself end
 a call. Size `maxDurationSeconds` to the spend you are willing to authorize.
 
-You are charged the connection fee plus every started minute, capped at `maxAmountUsd`. A call that
-connects and fails still incurs the connection fee and one started minute.
+Charges are capped at `maxAmountUsd` and measured from the telephony answer signal:
+
+- **Answered:** the connection fee plus every started minute from the answer, even if the task
+  fails afterwards.
+- **Busy or no answer:** the connection fee only.
+- **Never rang** (cancelled before the answer, an invalid or blocked destination, or a platform
+  failure): nothing.
+
+Cancelling an answered call bills the started minutes up to the cancellation.
 
 ## Voices
 
-`voiceId` is optional and defaults to the platform voice for your language. Supplying one that is
+`voiceId` is optional and defaults to the `ara` voice for every language. Supplying one that is
 not enabled for your client returns `422`. Ask an operator to enable a voice before using it.
 
 ## Correlation
@@ -50,15 +89,17 @@ responses. Use it to tie a call to your own records.
 
 ## Bounded business-to-mobile connection
 
-Paid `connect_me` requests return `503`: the existing `batch-settlement`
-integration cannot authorize variable capture across retries and expiry, and its
-one-hour timeout cannot fund a multi-day job. Operator-funded testing below uses
-explicit administrative authorization and charges the platform's provider
-accounts directly. It does not manufacture a payment receipt. Other task types
-keep their existing payment requirements.
+`connect_me` can be funded by a [saved card](/billing) or by an operator.
+Saved-card paid calling stays disabled until its release checks pass. x402
+cannot fund `connect_me`: its `batch-settlement` integration cannot authorize
+variable capture across retries and expiry, and its one-hour timeout cannot fund
+a multi-day job. Such a request returns `503`. Operator-funded testing below
+uses explicit administrative authorization and charges the platform's provider
+accounts directly. It does not manufacture a payment receipt.
 
-The request uses the existing endpoint, tenant credentials and idempotency key.
-This example uses a scheduled weekly window:
+An operator request uses the same endpoint, tenant credentials and idempotency
+key. This example uses a scheduled weekly window and fits the default USD 5
+operator cap with the test rate card (USD 2.50 per attempt):
 
 ```json
 {
@@ -66,7 +107,7 @@ This example uses a scheduled weekly window:
   "destinationCountry": "ES",
   "language": "es",
   "maxDurationSeconds": 900,
-  "maxAmountUsd": 10,
+  "maxAmountUsd": 5,
   "task": {
     "type": "connect_me",
     "callbackNumber": "+34612345678",
@@ -79,7 +120,7 @@ This example uses a scheduled weekly window:
       "end": "17:00"
     },
     "expiresAt": "2026-09-19T15:00:00.000Z",
-    "maxAttempts": 6,
+    "maxAttempts": 2,
     "retryDelaySeconds": 300,
     "ringingSeconds": 40,
     "waitingSeconds": 120,
@@ -109,6 +150,8 @@ For **Call now**, use this task in the same request:
 ```
 
 These are syntax examples, not authorized destinations or live deadlines.
+`callerName` is optional: the name the business hears, at most 80 letters,
+spaces, apostrophes, periods or hyphens.
 `callingWindow` is required: supply either the literal `"now"` or the weekly
 object. Call now requires an explicit `maxAttempts: 1`; omitting it or setting
 it above one is invalid. It ignores timezone, weekdays and local hours, including
@@ -202,7 +245,8 @@ Schedule authenticated `POST /api/internal/connect/drain` every 30 seconds with
 locks and unique indexes serialize ticks and worker claims. Dispatch timeouts
 are not retried; a 90-second stale lease stops the attempt. Workers heartbeat every
 10 seconds and fail closed when the platform cannot confirm permission.
-The endpoint reports `paidJobsBlocked` for x402; enabled operator jobs can dispatch.
+The endpoint reports `paidCallingEnabled`, which is `true` only when saved-card
+paid calling is enabled. Enabled operator jobs can dispatch either way.
 
 For local development, root `pnpm dev` starts this scheduler automatically next
 to the platform through Turbo. It reads `CRON_SECRET` (at least 32 characters)
@@ -218,6 +262,13 @@ request/response bodies, task contents, and raw exception messages. A dispatch
 failure never causes an immediate redispatch; lease expiry and cleanup retain
 ownership of an uncertain attempt.
 
+Callbacks taking at least one second log `Slow connect operation` with the action,
+call and attempt IDs, total time, funding authorization time, command time, HTTP
+status and permission result when available. A separate transaction timing splits
+connection acquisition plus the `BEGIN` round trip (`transactionStartMs`) from
+transaction execution and commit (`transactionMs`). These timings help distinguish
+connection contention from slow database work without logging callback contents.
+
 The worker uses the pinned SDK's `waitUntilAnswered`, `ringingTimeout` and
 `maxCallDuration` on each SIP leg. These are **LiveKit SIP service limits**, not
 Telnyx carrier-enforced guarantees. The upstream SIP service starts its duration
@@ -225,8 +276,12 @@ budget during dialing, so ringing can reduce remaining conversation time.
 Application phase timers and repeated room deletion provide additional cleanup.
 The [LiveKit SIP implementation](https://github.com/livekit/sip/blob/main/pkg/sip/outbound.go)
 provides the duration timeout independently of the voice worker.
-Unknown/cancelled attempts remain eligible for repeated cleanup until operator
-reconciliation; absence from a room is not proof that an in-flight dial failed.
+LiveKit's explicit room-not-found response counts as a successful deletion;
+other deletion failures remain visible and retryable. Attempts ending in
+`dial_unknown`, `worker_lost`, `cancelled` or `configuration_error` keep repeated
+cleanup through the later of their cleanup deadline or 15 minutes after ending,
+even when rooms are absent. Room absence does not prove an in-flight dial failed
+or resolve provider reconciliation.
 The website permits a fresh manual submission after cancellation or a
 configuration failure only when the call is terminal and none of its attempts
 has a recorded dial leg. A recorded leg preserves the reconciliation block even

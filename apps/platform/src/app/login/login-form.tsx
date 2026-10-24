@@ -3,14 +3,15 @@
 import { useActionState } from "react";
 import { signIn } from "./actions";
 
-export function LoginForm() {
+export function LoginForm({ next = "/app" }: { next?: string }) {
   const [state, action, pending] = useActionState(
     signIn,
     { error: "" },
-    "/login",
+    `/login?${new URLSearchParams({ next })}`,
   );
   return (
     <form action={action} className="grid gap-5">
+      <input type="hidden" name="next" value={next} />
       <label className="grid gap-2 text-sm font-medium">
         Email
         <input
