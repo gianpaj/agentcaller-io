@@ -3,9 +3,11 @@ import { expect, test } from "vitest";
 import { createDatabase } from "@agentcaller/database";
 import { closeBillingPeriod } from "../src/lib/billing-invoices";
 import { drainBilling } from "../src/lib/billing-drain";
-import { stripeClient } from "../src/lib/stripe";
+import { stripeClient, stripeApiVersion } from "../src/lib/stripe";
+import { fixtureStripeApiVersion } from "./support/fake-stripe.mjs";
 
 test("run the real accounting job with an explicit billing clock", async () => {
+  expect(fixtureStripeApiVersion).toBe(stripeApiVersion);
   const { db, client } = createDatabase(process.env.DATABASE_URL);
   try {
     if (process.env.E2E_BILLING_AT) {
