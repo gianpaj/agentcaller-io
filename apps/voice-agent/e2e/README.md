@@ -11,11 +11,13 @@ It passes synthetic environment values and `E2E_VOICE_SCENARIO` as JSON.
   `cleanup_failure`. `callbackOutcome: "busy" | "no_answer"` fails that leg.
 - `digit` overrides the callback keypress. An intruder's 1 is emitted first
   and cannot accept the call.
-- `holdCallbackPrompt: true` holds provider session readiness before the worker's
-  acceptance timer starts. The coordinator records `callbackPrompts[attemptId]`
-  as `held`; the parent commits revocation and sends the LiveKit fixture command
-  `release-callback-prompt` with that `attemptId`. Readiness waits at most 15 seconds;
-  application acceptance and leg-duration bounds stay intact.
+- `holdCallbackPrompt: true` holds provider session readiness inside the flow-level
+  acceptance bound. The coordinator records `callbackPrompts[attemptId]` as `held`;
+  the parent commits revocation and sends the LiveKit fixture command
+  `release-callback-prompt` with that `attemptId`. The hold waits at most 15 seconds
+  and rejects acceptance budgets at or below that deadline. The revocation scenario
+  reserves 30 seconds for acceptance and 40 for handoff, with its quote checked
+  against the call cap. Application timers and leg-duration bounds stay active.
 - `hangupLeg: "callback"` ends a bridged conversation from the callback side.
 - `dropResponseFor: "dial"` loses one actual committed response and verifies
   transport retry keeps the event ID and does not repeat the SIP dial.

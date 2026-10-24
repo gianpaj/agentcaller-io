@@ -151,7 +151,14 @@ test("human disconnect before callback acceptance prevents the handoff", async (
   db,
 }) => {
   const agent = await enrolledAgent(page);
-  const { call } = await reserveCall(agent.token, "revoke-before-accept");
+  const { call, input, quote } = await reserveCall(
+    agent.token,
+    "revoke-before-accept",
+    {
+      task: { acceptanceSeconds: 30, handoffSeconds: 40 },
+    },
+  );
+  expect(quote.maximumCents).toBeLessThanOrEqual(input.maxAmountCents);
   expect(call.isError).toBeUndefined();
   await drainConnectHttp();
   const dispatch = (await control("state")).dispatches.find(

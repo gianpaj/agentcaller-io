@@ -54,8 +54,10 @@ isolation. Browser contexts also guard WebSockets.
 
 Worker scenarios use short positive real-time observations. Revocation tests hold
 callback provider readiness until the human revocation commits, then release the
-prompt and DTMF. The real acceptance timer starts after provider readiness; call
-bounds remain active. Hangup follows the acknowledged bridge, and moved participants retain room membership so deletion
+prompt and DTMF. The flow-level acceptance bound includes readiness. This scenario
+reserves a 30-second acceptance budget around the 15-second fixture hold deadline
+and a 40-second handoff budget; the fake rejects an acceptance budget that cannot
+outlast the hold. The quote must fit the call cap, and call bounds remain active. Hangup follows the acknowledged bridge, and moved participants retain room membership so deletion
 emits both legs' end observations. The actual scheduler confirms cleanup;
 no test fabricates successful call, cleanup, usage or collection fields in SQL.
 

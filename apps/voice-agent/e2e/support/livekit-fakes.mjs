@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import assert from "node:assert/strict";
 
+const CALLBACK_PROMPT_TIMEOUT_MS = 15_000;
+
 async function waitForCallbackPrompt(attemptId) {
   const headers = {
     "content-type": "application/json",
@@ -16,7 +18,7 @@ async function waitForCallbackPrompt(attemptId) {
     }),
   });
   assert.equal(ready.status, 200);
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + CALLBACK_PROMPT_TIMEOUT_MS;
   while (true) {
     const response = await fetch(
       process.env.E2E_CONTROL_URL + "/control/state",
@@ -111,12 +113,18 @@ export function agentsModule(state) {
       this.agent = options.agent;
       this.room = options.room;
       this.options.start = options;
-      // Hold provider readiness before the real worker starts its acceptance timer.
+      // The flow-level acceptance clock includes this provider readiness wait.
       if (
         state.scenario.holdCallbackPrompt &&
         this.room.name === state.claim.callbackRoom
-      )
+      ) {
+        assert.ok(
+          state.claim.input.task.acceptanceSeconds * 1000 >
+            CALLBACK_PROMPT_TIMEOUT_MS,
+          "Acceptance must outlast the bounded callback readiness hold",
+        );
         await waitForCallbackPrompt(state.attemptId);
+      }
     }
     async interrupt() {
       this.interrupted = true;
