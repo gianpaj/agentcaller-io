@@ -61,6 +61,10 @@ export function getStripeEnv(env: Environment = process.env) {
   };
 }
 
+export function isStripeConfigured(env: Environment = process.env) {
+  return stripeEnv.safeParse(env).success;
+}
+
 export function getStripeWebhookEnv(env: Environment = process.env) {
   return {
     ...getStripeEnv(env),

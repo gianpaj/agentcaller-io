@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getDatabaseEnv, getLiveKitEnv, getR2Env, getSupabaseEnv } from "./env";
+import {
+  getDatabaseEnv,
+  getLiveKitEnv,
+  getR2Env,
+  getSupabaseEnv,
+  isStripeConfigured,
+} from "./env";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -82,5 +88,17 @@ describe("scoped server environment", () => {
 
     expect(() => getLiveKitEnv()).toThrow();
     expect(() => getR2Env()).toThrow();
+  });
+});
+
+describe("isStripeConfigured", () => {
+  it("requires a Stripe secret key", () => {
+    expect(isStripeConfigured({})).toBe(false);
+    expect(isStripeConfigured({ STRIPE_SECRET_KEY: "pk_test_abc" })).toBe(
+      false,
+    );
+    expect(isStripeConfigured({ STRIPE_SECRET_KEY: "sk_test_abc123" })).toBe(
+      true,
+    );
   });
 });
