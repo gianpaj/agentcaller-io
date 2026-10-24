@@ -98,7 +98,8 @@ including Call now. Operator
 funding is reserved for platform testing. The platform pays the call itself,
 and the call reports `paymentState: "not_required"`.
 
-This operator-funded example uses a scheduled weekly window:
+Send an operator-funded request with `X-AgentCaller-Funding: operator`; it
+needs no `PAYMENT-SIGNATURE`. This example uses a scheduled weekly window:
 
 ```json
 {
