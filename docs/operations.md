@@ -309,8 +309,9 @@ curl --fail-with-body https://isitagentready.com/api/scan \
 Expect `pass` for `checks.discoverability.robotsTxt`,
 `checks.discoverability.sitemap`, `checks.discoverability.linkHeaders`, and
 `checks.discovery.apiCatalog`. Record the Auth.md result for the deployed
-version. The discovery-only deployment reported `registrationMissing`, because
-AgentCaller offers human-approved OAuth, not autonomous agent registration; the
-combined MCP and billing deployment has not been scanned. See the
+version. The discovery-only deployment, which offered only manual API-key
+provisioning, reported `registrationMissing`. AgentCaller does not offer
+autonomous agent registration, and the combined MCP and billing deployment has
+not been scanned. See the
 [Auth.md implementation guide](https://workos.com/auth-md/docs/apps). A passing
 discovery check does not establish readiness to place or bill calls.
