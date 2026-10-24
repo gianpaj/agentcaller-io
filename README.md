@@ -358,9 +358,12 @@ pnpm typecheck
 pnpm test
 pnpm test:connect-db # isolated disposable PostgreSQL; requires Docker
 pnpm test:billing-db # isolated onboarding/migration PostgreSQL tests
+pnpm test:stripe-e2e # mocked first call through monthly collection; Docker + Chromium
 pnpm format:check
 pnpm build
 ```
+
+See [mocked Stripe tests](docs/testing/stripe-e2e.md) for setup and provider boundaries.
 
 The 2026-08-18 review records baseline failures. The worker build emits its
 entrypoint; repository-wide formatting drift remains. When changing a scoped package, run its checks directly

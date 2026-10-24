@@ -1,44 +1,9 @@
 import {
-  connectMeTaskSchema,
+  callInputJsonSchema,
   createCallSchema,
   createStripeCallSchema,
   quoteStripeCallSchema,
 } from "@agentcaller/contracts";
-import { z } from "zod";
-
-function callInputSchema(schema: z.ZodType) {
-  return z.toJSONSchema(schema, {
-    io: "input",
-    unrepresentable: "any",
-    override({ zodSchema, jsonSchema }) {
-      // The runtime schema validates this custom input before transforming it.
-      if (zodSchema === connectMeTaskSchema.shape.callingWindow) {
-        jsonSchema.anyOf = [
-          { const: "now", type: "string" },
-          {
-            type: "object",
-            required: ["timezone", "weekdays", "start", "end"],
-            properties: {
-              timezone: {
-                type: "string",
-                maxLength: 64,
-                description: "IANA timezone",
-              },
-              weekdays: {
-                type: "array",
-                minItems: 1,
-                maxItems: 7,
-                items: { type: "integer", minimum: 1, maximum: 7 },
-              },
-              start: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" },
-              end: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" },
-            },
-          },
-        ];
-      }
-    },
-  });
-}
 
 const callId = {
   name: "id",
@@ -101,9 +66,9 @@ export const openapi = {
       },
     },
     schemas: {
-      CreateCall: callInputSchema(createCallSchema),
-      CreateStripeCall: callInputSchema(createStripeCallSchema),
-      QuoteStripeCall: callInputSchema(quoteStripeCallSchema),
+      CreateCall: callInputJsonSchema(createCallSchema),
+      CreateStripeCall: callInputJsonSchema(createStripeCallSchema),
+      QuoteStripeCall: callInputJsonSchema(quoteStripeCallSchema),
     },
   },
   paths: {

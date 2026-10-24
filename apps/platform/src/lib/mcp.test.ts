@@ -101,6 +101,45 @@ describe("stateless MCP protocol compatibility", () => {
       result.result.tools.map((tool: { name: string }) => tool.name),
     ).toEqual(["get_billing_status", "get_usage"]);
   });
+  it.each(["modern", "legacy"] as const)(
+    "describes all granted tools and calling windows over %s transport",
+    async (era) => {
+      const { result } = await request("tools/list", {}, era, {
+        ...principal,
+        operations: [
+          "billing:read",
+          "billing:setup",
+          "calls:read",
+          "calls:create",
+        ],
+      });
+      expect(result.error).toBeUndefined();
+      expect(
+        result.result.tools.map((tool: { name: string }) => tool.name),
+      ).toEqual([
+        "setup_billing",
+        "get_billing_status",
+        "quote_call",
+        "schedule_call",
+        "get_call_status",
+        "get_usage",
+      ]);
+      for (const name of ["quote_call", "schedule_call"]) {
+        const tool = result.result.tools.find(
+          (tool: { name: string }) => tool.name === name,
+        );
+        expect(
+          tool.inputSchema.properties.task.properties.callingWindow.anyOf,
+        ).toEqual([
+          { type: "string", const: "now" },
+          expect.objectContaining({
+            type: "object",
+            required: ["timezone", "weekdays", "start", "end"],
+          }),
+        ]);
+      }
+    },
+  );
   it("does not retain one request's principal or permissions in another", async () => {
     const { result } = await request("tools/list", {}, "modern", {
       ...principal,

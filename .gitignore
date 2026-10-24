@@ -25,3 +25,7 @@ Thumbs.db
 .env*
 !.env.example
 supabase/.temp/
+
+# Browser test diagnostics are temporary and can include private setup links
+test-results/
+playwright-report/

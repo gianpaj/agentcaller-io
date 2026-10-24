@@ -5,6 +5,7 @@ import {
   legLimit,
 } from "./connect-me";
 export * from "./connect-me";
+export * from "./json-schema";
 export * from "./agent-auth";
 export * from "./billing";
 
