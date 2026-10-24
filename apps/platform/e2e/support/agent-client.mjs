@@ -4,11 +4,12 @@ import {
   PROTOCOL_VERSION_META_KEY,
 } from "@modelcontextprotocol/server";
 
-export async function agentRequest(token, method, params = {}) {
-  const response = await fetch(process.env.NEXT_PUBLIC_APP_URL + "/mcp", {
+/** Keep transport status visible for authentication and authorization scenarios. */
+export async function agentResponse(token, method, params = {}) {
+  return fetch(process.env.NEXT_PUBLIC_APP_URL + "/mcp", {
     method: "POST",
     headers: {
-      authorization: "Bearer " + token,
+      ...(token ? { authorization: "Bearer " + token } : {}),
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
       "MCP-Protocol-Version": "2026-07-28",
@@ -29,6 +30,9 @@ export async function agentRequest(token, method, params = {}) {
       },
     }),
   });
+}
+export async function agentRequest(token, method, params = {}) {
+  const response = await agentResponse(token, method, params);
   const body = await response.json();
   if (!response.ok || body.error)
     throw new Error(
