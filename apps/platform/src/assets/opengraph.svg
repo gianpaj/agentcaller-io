@@ -1,0 +1,147 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="630"
+  viewBox="0 0 1200 630"
+>
+  <title>AgentCaller — Give your agent a phone line.</title>
+  <desc>
+    An API for the businesses you still have to call. An agent connects to a
+    business through a phone call.
+  </desc>
+  <defs>
+    <radialGradient id="glow">
+      <stop stop-color="#c6ff4a" stop-opacity="0.07" />
+      <stop offset="1" stop-color="#c6ff4a" stop-opacity="0" />
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path
+        d="M40 0H0V40"
+        fill="none"
+        stroke="#c6ff4a"
+        stroke-opacity="0.035"
+      />
+    </pattern>
+    <g
+      id="phone"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path
+        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.79a2 2 0 0 1-.45 2.11L8.09 9.89a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.89.34 1.83.58 2.79.7A2 2 0 0 1 22 16.92Z"
+      />
+      <path d="M14.05 2a9 9 0 0 1 7.95 7.95M14.05 6a5 5 0 0 1 3.95 3.95" />
+    </g>
+  </defs>
+
+  <rect width="1200" height="630" fill="#080a0d" />
+  <rect width="1200" height="630" fill="url(#grid)" />
+  <ellipse cx="920" cy="300" rx="340" ry="300" fill="url(#glow)" />
+
+  <use href="#phone" transform="translate(61 55) scale(1.25)" color="#c6ff4a" />
+  <!-- prettier-ignore -->
+  <text x="106" y="80" fill="#ecf5eb" font-family="Lato, sans-serif" font-size="29" font-weight="700" letter-spacing="-0.6">AgentCaller<tspan fill="#8c9a92" font-weight="400">.io</tspan></text>
+
+  <g
+    font-family="Lato, sans-serif"
+    font-size="74"
+    font-weight="700"
+    letter-spacing="-2.5"
+  >
+    <text x="60" y="245" fill="#ecf5eb">Give your agent</text>
+    <text x="60" y="331" fill="#c6ff4a">a phone line.</text>
+  </g>
+  <g fill="#a0aca5" font-family="Lato, sans-serif" font-size="27">
+    <text x="63" y="398">An API for the businesses</text>
+    <text x="63" y="435">you still have to call.</text>
+  </g>
+
+  <g
+    fill="none"
+    stroke="#c6ff4a"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M768 291h14l5-7 6 14 6-24 6 34 6-23 5 6h14" />
+    <path d="M938 291h13l5-7 6 14 6-24 6 34 6-23 5 6h15" />
+    <path d="m821 286 5 5-5 5m171-10 5 5-5 5" />
+  </g>
+
+  <rect
+    x="680"
+    y="249"
+    width="84"
+    height="84"
+    rx="20"
+    fill="#0d1117"
+    stroke="#273129"
+    stroke-width="2"
+  />
+  <g
+    fill="none"
+    stroke="#ecf5eb"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <rect x="700" y="272" width="44" height="35" rx="5" />
+    <path d="m710 283 6 6-6 6m13 0h10" />
+  </g>
+
+  <rect x="830" y="237" width="108" height="108" rx="27" fill="#c6ff4a" />
+  <use href="#phone" transform="translate(860 267) scale(2)" color="#080a0d" />
+
+  <rect
+    x="1004"
+    y="249"
+    width="84"
+    height="84"
+    rx="20"
+    fill="#0d1117"
+    stroke="#273129"
+    stroke-width="2"
+  />
+  <g
+    fill="none"
+    stroke="#ecf5eb"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path
+      d="m1024 286 5-13h34l5 13m-44 0a5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0m-41 5v20h38v-20m-23 20v-14h10v14m-1-38v13m-11-13-2 13m24-13 2 13"
+    />
+  </g>
+
+  <g font-family="Lato, sans-serif" font-size="21" text-anchor="middle">
+    <text x="722" y="384" fill="#a0aca5">Your agent</text>
+    <text x="884" y="384" fill="#c6ff4a" font-weight="700">Phone call</text>
+    <text x="1046" y="384" fill="#a0aca5">Business</text>
+  </g>
+
+  <path d="M60 526h1080" stroke="#273129" />
+  <text
+    x="63"
+    y="568"
+    fill="#8c9a92"
+    font-family="Lato, sans-serif"
+    font-size="18"
+    letter-spacing="0.3"
+  >
+    A task. A call. An answer.
+  </text>
+  <text
+    x="1137"
+    y="568"
+    fill="#ecf5eb"
+    font-family="Lato, sans-serif"
+    font-size="18"
+    text-anchor="end"
+  >
+    agentcaller.io
+  </text>
+</svg>
