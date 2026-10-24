@@ -1,5 +1,5 @@
 import { timingSafeCompare } from "@/lib/auth";
-import { getCronEnv } from "@/lib/env";
+import { getCronEnv, isStripeConfigured } from "@/lib/env";
 import { drainBilling } from "@/lib/billing-drain";
 export const maxDuration = 300;
 export async function POST(request: Request) {
@@ -10,6 +10,13 @@ export async function POST(request: Request) {
     )
   )
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Without a Stripe key nobody can enroll, so there is nothing to reconcile.
+  // Skip instead of failing every minute.
+  if (!isStripeConfigured())
+    return Response.json(
+      { skipped: "stripe_not_configured" },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   try {
     return Response.json(await drainBilling(), {
       headers: { "Cache-Control": "no-store" },
