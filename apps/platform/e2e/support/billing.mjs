@@ -61,7 +61,9 @@ export async function drainBillingHttp() {
     },
   );
   expect(response.status).toBe(200);
-  return response.json();
+  const body = await response.json();
+  expect(body).not.toHaveProperty("skipped");
+  return body;
 }
 
 /** Drives our own approval UI; only Stripe's hosted boundary is fake. */
