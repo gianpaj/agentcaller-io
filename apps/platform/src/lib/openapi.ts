@@ -79,8 +79,8 @@ export const openapi = {
     description:
       "Pre-production call platform. Saved-card connect_me billing requires separate human spending approval, a saved card, current integration authority, and enabled paid calling. x402 connect_me remains blocked; operator-funded testing requires an enabled operator profile. Recording creation and retention are incomplete.",
   },
-  // Relative to the document's host, so a preview or self-hosted deployment
-  // never sends credentials to production.
+  // Discovery describes production. The relative URL resolves to whichever
+  // host served this document; the catalog and auth.md link to production.
   servers: [{ url: "/" }],
   externalDocs: { url: "https://docs.agentcaller.io" },
   security: [{ apiKey: [] }],

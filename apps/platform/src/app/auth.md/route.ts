@@ -45,7 +45,7 @@ API key. Disabled profiles remain disabled.
 
 Present the issued token in \`Authorization: Bearer <access-token>\`. The token
 must have the configured issuer, OAuth client identity, verified human subject,
-and the exact MCP resource audience: https://agentcaller.io/mcp for this origin.
+and the exact MCP resource audience: https://agentcaller.io/mcp in production.
 Generic browser session tokens are not accepted as delegated API credentials.
 Issuer resource binding and compatibility with a target MCP host still require
 deployment acceptance tests.

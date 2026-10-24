@@ -21,6 +21,11 @@ public and do not require a database connection or provider credentials. MCP
 metadata requires an enabled, configured deployment; it returns HTTP 503 when
 onboarding is disabled or unconfigured.
 
+Discovery describes production only. The catalog, `auth.md`, robots and sitemap
+use absolute `https://agentcaller.io` URLs, so an agent that starts from a
+preview or self-hosted deployment is sent to production. Previews require
+Vercel login and are not meant for agent discovery.
+
 ## Credentials
 
 API-key access uses an enabled client profile and an operator-provisioned `ac_`
