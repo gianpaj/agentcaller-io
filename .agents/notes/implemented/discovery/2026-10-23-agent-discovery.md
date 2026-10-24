@@ -92,3 +92,22 @@ passes all 29 billing database tests.
 Changed files pass formatting checks. Repository formatting still flags 50
 files, each byte-identical to the billing branch. The merged implementation has
 not been deployed or checked with the public scanner.
+
+## October 24 documentation host
+
+`docs.agentcaller.io` now resolves and serves the documentation app from the
+`agentcaller-docs` Vercel project. Pages moved to the site root, so discovery
+links point to `https://docs.agentcaller.io` and old `/docs/*` paths redirect.
+The OpenAPI server URL is relative, so a preview or self-hosted copy targets its
+own host. The API catalog sends its `api-catalog` Link header on GET and HEAD.
+
+## Open questions
+
+- Should OpenAPI responses gain schemas for the call object, call and payment
+  states, `nextCursor` and the error body? Agents currently get only text
+  descriptions of results.
+- Will the Auth.md scanner accept manual operator provisioning, or does the
+  protocol require a live registration endpoint? See the October 23 public
+  verification.
+- The merged billing, MCP and discovery implementation has not yet been checked
+  with the public scanner after deployment.
