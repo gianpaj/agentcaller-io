@@ -28,6 +28,9 @@ export function GET() {
       headers: {
         "Content-Type":
           'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
+        // RFC 9727 section 2: HEAD on the well-known URI advertises the catalog
+        // relation. Next.js answers HEAD with this GET response.
+        Link: '</.well-known/api-catalog>; rel="api-catalog"',
       },
     },
   );

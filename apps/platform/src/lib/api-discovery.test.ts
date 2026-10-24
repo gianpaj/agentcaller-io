@@ -12,6 +12,9 @@ describe("API discovery", () => {
     expect(response.headers.get("content-type")).toBe(
       'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
     );
+    expect(response.headers.get("link")).toBe(
+      '</.well-known/api-catalog>; rel="api-catalog"',
+    );
     const { linkset } = await response.json();
     expect(linkset).toHaveLength(1);
     expect(linkset[0]).toEqual({
