@@ -86,17 +86,12 @@ export async function startRuntime({ signal } = {}) {
       CONNECT_CALLER_ID_IT: "+39061234560",
       CONNECT_CALLBACK_CALLER_ID: "+34911234561",
     };
-    const preload = fileURLToPath(
-      new URL("./server-preload.mjs", import.meta.url),
-    );
     env.NODE_OPTIONS =
       "--import=" + new URL("./server-preload.mjs", import.meta.url).href;
     let output = "";
     child = spawn(
       process.execPath,
       [
-        "--import",
-        preload,
         fileURLToPath(import.meta.resolve("next/dist/bin/next")),
         "dev",
         "--webpack",
