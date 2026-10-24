@@ -725,6 +725,48 @@ run("agent onboarding with disposable PostgreSQL", () => {
       ),
     ).rejects.toMatchObject({ status: 409 });
   });
+  it("charges the connection fee for a business leg that rang unanswered", async () => {
+    const { principal } = await enrolled();
+    vi.stubEnv("STRIPE_BILLING_ENABLED", "true");
+    const quote = await quoteStripeCall(principal, callIntent(), first.db, now);
+    const call = await reserveStripeCall(
+      principal,
+      "call",
+      { ...callIntent(), quoteVersion: quote.quoteVersion },
+      first.db,
+      now,
+    );
+    const attempt = await claimConnectAttempt(call.id, first.db, now);
+    const workerId = randomUUID();
+    const command = (action: "claim" | "dial") =>
+      connectCommand(
+        call.id,
+        {
+          action,
+          eventId: randomUUID(),
+          attemptId: attempt!.id,
+          workerId,
+          leg: "business",
+        },
+        first.db,
+        now,
+      );
+    expect(await command("claim")).toMatchObject({ allowed: true });
+    expect(await command("dial")).toMatchObject({ allowed: true });
+    await first.db
+      .update(callAttempts)
+      .set({ reason: "no_answer", endedAt: now, roomsCleanedAt: now })
+      .where(eq(callAttempts.id, attempt!.id));
+    await first.db
+      .update(calls)
+      .set({ state: "failed", endedAt: now })
+      .where(eq(calls.id, call.id));
+    expect(await finalizeStripeUsage(call.id, first.db, now)).toMatchObject({
+      state: "finalized",
+      measuredMicros: "10000",
+      finalCents: 1,
+    });
+  });
   it("blocks worker permissions after revocation and retains late accounting observations", async () => {
     const { principal, owner, connection } = await enrolled();
     vi.stubEnv("STRIPE_BILLING_ENABLED", "true");

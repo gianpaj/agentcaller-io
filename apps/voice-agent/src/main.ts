@@ -13,10 +13,11 @@ import { dirname, resolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { SipClient, RoomServiceClient } from "livekit-server-sdk";
+import { SipCallError, SipClient, RoomServiceClient } from "livekit-server-sdk";
 import { reportEvent, type TranscriptEntry } from "./platform.js";
 
 import { connectLiveKit } from "./connect-livekit.js";
+import { sipFailure } from "./connect-flow.js";
 
 const dispatchSchema = z.object({
   callId: z.uuid(),
@@ -145,6 +146,8 @@ export default defineAgent({
         : 0;
       await reportEvent(callId, {
         type,
+        // startedAt is set only once LiveKit reports the SIP answer; the platform bills from it.
+        answered: startedAt !== undefined,
         durationSeconds,
         outcome,
         transcript: transcriptFrom(session),
@@ -189,7 +192,14 @@ export default defineAgent({
       await rooms.deleteRoom(roomName).catch(() => { });
       console.error("Voice session failed for", callId);
       await reportTerminal("call.failed", {
-        reason: "agent_session_failed",
+        // Before the answer, report the SIP result so busy and no-answer are told apart from
+        // routing or platform failures, which are not billed.
+        reason:
+          startedAt === undefined
+            ? sipFailure(
+                error instanceof SipCallError ? error.sipStatusCode : undefined,
+              )
+            : "agent_session_failed",
         message: error instanceof Error ? error.message : "unknown",
       });
       throw error;

@@ -89,7 +89,7 @@ The active product is a pnpm/Turborepo:
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `apps/platform`       | Next.js API, developer portal, authentication, call ledger, settlement, and webhook delivery |
 | `apps/voice-agent`    | LiveKit realtime voice worker                                                                |
-| `apps/docs`           | Fumadocs developer documentation                                                             |
+| `apps/docs`           | Fumadocs developer documentation, served at https://docs.agentcaller.io                      |
 | `packages/contracts`  | Shared Zod request and state definitions                                                     |
 | `packages/database`   | Active Drizzle schema and database client                                                    |
 | `supabase/migrations` | Append-only database migration history                                                       |
@@ -305,6 +305,15 @@ need their own recurring drain trigger; the development script is local only.
 The voice worker dev command loads `apps/voice-agent/.env`. Values already set
 in the environment stay in place. The production start command does not read
 that file.
+
+## Deploying the docs
+
+The `agentcaller-docs` Vercel project builds `apps/docs` (Root Directory) from
+`main` and serves it at https://docs.agentcaller.io. Previews use the same
+project. Vercel skips builds for commits that do not affect `apps/docs` or its
+dependencies. The Cloudflare `docs` CNAME points to the target Vercel lists for
+the domain, with the proxy off. Pages live at the site root; old `/docs/*` URLs
+redirect permanently.
 
 ## Deploying the voice worker
 

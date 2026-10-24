@@ -63,6 +63,8 @@ it("does not exempt existing task types from x402", () => {
 });
 it("never sends operator jobs to settlement, even when called repeatedly", async () => {
   const call = { fundingSource: "operator" } as typeof calls.$inferSelect;
-  expect(await settleCallOnce(call, 60)).toBe(false);
-  expect(await settleCallOnce(call, undefined)).toBe(false);
+  expect(await settleCallOnce(call, { kind: "connected", seconds: 60 })).toBe(
+    false,
+  );
+  expect(await settleCallOnce(call, { kind: "unanswered" })).toBe(false);
 });

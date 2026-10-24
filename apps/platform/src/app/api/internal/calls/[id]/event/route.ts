@@ -6,7 +6,7 @@ import { database } from "@/lib/database";
 import { getAgentCallbackEnv } from "@/lib/env";
 import { errorResponse } from "@/lib/http";
 import { isRecordingKeyForCall } from "@/lib/r2";
-import { settleCallOnce } from "@/lib/settlement";
+import { settleCallOnce, usageFromReport } from "@/lib/settlement";
 import { queueWebhook } from "@/lib/webhooks";
 
 const TERMINAL_STATES = ["completed", "failed", "cancelled"] as const;
@@ -20,6 +20,8 @@ const eventSchema = z.object({
     "call.cancelled",
   ]),
   durationSeconds: z.number().int().min(0).max(1800).optional(),
+  // The worker's SIP answer signal. Absent from older workers, which only reach in_progress once answered.
+  answered: z.boolean().optional(),
   outcome: z.record(z.string(), z.unknown()).optional(),
   transcript: z
     .array(
@@ -117,7 +119,15 @@ export async function POST(
       outcome: event.outcome,
     });
 
-    if (terminal) await settleCallOnce(updated, event.durationSeconds);
+    if (terminal)
+      await settleCallOnce(
+        updated,
+        usageFromReport({
+          answered: event.answered ?? call.state === "in_progress",
+          durationSeconds: event.durationSeconds,
+          reason: event.outcome?.reason,
+        }),
+      );
     return Response.json({ data: updated });
   } catch (error) {
     return errorResponse(error);

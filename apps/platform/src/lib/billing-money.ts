@@ -53,7 +53,7 @@ export function quoteConnectCents(
 }
 
 export type LegUsageEvidence =
-  | { state: "unanswered" }
+  | { state: "unanswered"; rate: UsdRate }
   | { state: "unknown" }
   | { state: "connected"; connectedAt: Date; endedAt: Date; rate: UsdRate };
 
@@ -72,8 +72,13 @@ export function assessCallUsage(
     return { state: "metering_pending" as const };
   let micros = 0n;
   for (const leg of legs) {
-    if (leg.state !== "connected") continue;
+    if (leg.state === "unknown") continue;
     usdRateSchema.parse(leg.rate);
+    // A leg that rang without an answer pays only its connection fee.
+    if (leg.state === "unanswered") {
+      micros += BigInt(leg.rate.connectionFeeMicros);
+      continue;
+    }
     const start = leg.connectedAt.getTime(),
       end = leg.endedAt.getTime();
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end))

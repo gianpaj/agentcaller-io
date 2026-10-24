@@ -1,12 +1,13 @@
 "use client";
 
-import { History, Phone, Settings } from "lucide-react";
+import { CreditCard, History, Phone, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const destinations = [
   { href: "/app", label: "Recents", Icon: History },
   { href: "/app/calls/new", label: "New call", Icon: Phone },
+  { href: "/app/billing", label: "Billing", Icon: CreditCard },
   { href: "/app/settings", label: "Settings", Icon: Settings },
 ] as const;
 
@@ -18,7 +19,7 @@ export function CallNavigation() {
       aria-label="Call navigation"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-(--line) bg-(--panel) pb-[env(safe-area-inset-bottom)]"
     >
-      <div className="mx-auto grid w-full max-w-2xl grid-cols-3 gap-2 px-3 py-2 sm:px-6">
+      <div className="mx-auto grid w-full max-w-2xl grid-cols-4 gap-2 px-3 py-2 sm:px-6">
         {destinations.map(({ href, label, Icon }) => {
           const active =
             href === "/app"

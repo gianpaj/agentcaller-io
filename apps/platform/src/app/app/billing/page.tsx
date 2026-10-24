@@ -9,11 +9,13 @@ import {
 } from "@agentcaller/database";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { database } from "@/lib/database";
-import { requireHumanSession, ensureClientProfileForUser } from "@/lib/portal";
+import { requireHumanSession, findClientProfileForUser } from "@/lib/portal";
 import { isStripeBillingEnabled } from "@/lib/env";
+import { isBillingPortalConfigured } from "@/lib/billing-portal";
 import {
   changeBillingLimits,
   linkApiKey,
+  openBillingPortal,
   openInvoice,
   replaceCard,
   stopCollection,
@@ -68,14 +70,17 @@ export default async function BillingPage({
   searchParams: Promise<{ collection?: string }>;
 }) {
   const { user } = await requireHumanSession(),
-    profile = await ensureClientProfileForUser(user.id),
+    profile = await findClientProfileForUser(user.id),
     db = database();
-  const [account] = await db
-    .select()
-    .from(billingAccounts)
-    .where(eq(billingAccounts.clientId, profile.id));
+  // Viewing billing must never provision a profile.
+  const [account] = profile
+    ? await db
+        .select()
+        .from(billingAccounts)
+        .where(eq(billingAccounts.clientId, profile.id))
+    : [];
   const query = await searchParams;
-  if (!account)
+  if (!profile || !account)
     return (
       <section className="grid gap-5">
         <h1 className="text-3xl font-semibold">Billing</h1>
@@ -233,6 +238,15 @@ export default async function BillingPage({
         </p>
       )}
       <h2 className="text-xl font-semibold">Monthly usage and invoices</h2>
+      {account.stripeCustomerId && isBillingPortalConfigured() && (
+        <form action={openBillingPortal} className="grid gap-3">
+          <p>
+            View invoice history and update billing details in Stripe. Change
+            your card with the card setup above.
+          </p>
+          <button className={button}>Open Stripe billing portal</button>
+        </form>
+      )}
       {periods.map((period) => (
         <p key={period.id}>
           {period.startsAt.toISOString().slice(0, 7)} UTC:{" "}

@@ -18,16 +18,47 @@ const connected = (ms: number, tariff = rate) => ({
   endedAt: new Date(connectedAt.getTime() + ms),
   rate: tariff,
 });
+const unanswered = (tariff = rate) => ({
+  state: "unanswered" as const,
+  rate: tariff,
+});
 
 describe("confirmed connected usage", () => {
   it("charges connected business usage without requiring callback or handoff", () => {
     expect(
-      assessCallUsage([connected(60_000), { state: "unanswered" }], 100, true),
+      assessCallUsage(
+        [connected(60_000), unanswered({ ...rate, connectionFeeMicros: 0 })],
+        100,
+        true,
+      ),
     ).toMatchObject({
       state: "finalized",
       measuredMicros: "2000",
       finalCents: 1,
     });
+  });
+  it("charges only the connection fee for each leg that rang unanswered", () => {
+    expect(
+      assessCallUsage(
+        [
+          unanswered({ ...rate, connectionFeeMicros: 20_000 }),
+          unanswered({ ...rate, connectionFeeMicros: 20_000 }),
+        ],
+        100,
+        true,
+      ),
+    ).toMatchObject({
+      state: "finalized",
+      measuredMicros: "40000",
+      finalCents: 4,
+    });
+    expect(
+      assessCallUsage(
+        [connected(30_000), unanswered({ ...rate, connectionFeeMicros: 5000 })],
+        100,
+        true,
+      ),
+    ).toMatchObject({ measuredMicros: "7000", finalCents: 1 });
   });
   it("rounds all legs and attempts once and measures milliseconds directly", () => {
     expect(
@@ -59,12 +90,19 @@ describe("confirmed connected usage", () => {
     expect(assessCallUsage([{ state: "unknown" }], 100, true)).toEqual({
       state: "metering_pending",
     });
-    expect(assessCallUsage([{ state: "unanswered" }], 100, false)).toEqual({
+    expect(assessCallUsage([unanswered()], 100, false)).toEqual({
       state: "metering_pending",
     });
-    expect(assessCallUsage([{ state: "unanswered" }], 100, true)).toMatchObject(
-      { state: "finalized", finalCents: 0 },
-    );
+    expect(
+      assessCallUsage([unanswered(), { state: "unknown" }], 100, true),
+    ).toEqual({ state: "metering_pending" });
+    expect(
+      assessCallUsage(
+        [unanswered({ ...rate, connectionFeeMicros: 0 })],
+        100,
+        true,
+      ),
+    ).toMatchObject({ state: "finalized", finalCents: 0 });
   });
   it("caps customer liability and exposes provider overrun separately", () => {
     expect(
