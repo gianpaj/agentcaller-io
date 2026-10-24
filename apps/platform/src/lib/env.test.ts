@@ -92,11 +92,10 @@ describe("scoped server environment", () => {
 });
 
 describe("isStripeConfigured", () => {
-  it("requires a Stripe secret key", () => {
+  it("is false only when no Stripe secret key is set", () => {
     expect(isStripeConfigured({})).toBe(false);
-    expect(isStripeConfigured({ STRIPE_SECRET_KEY: "pk_test_abc" })).toBe(
-      false,
-    );
+    expect(isStripeConfigured({ STRIPE_SECRET_KEY: "" })).toBe(false);
+    expect(isStripeConfigured({ STRIPE_SECRET_KEY: "pk_test_abc" })).toBe(true);
     expect(isStripeConfigured({ STRIPE_SECRET_KEY: "sk_test_abc123" })).toBe(
       true,
     );

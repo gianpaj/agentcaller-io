@@ -61,8 +61,9 @@ export function getStripeEnv(env: Environment = process.env) {
   };
 }
 
+/** False only when no key is set. A malformed key still fails in getStripeEnv. */
 export function isStripeConfigured(env: Environment = process.env) {
-  return stripeEnv.safeParse(env).success;
+  return Boolean(env.STRIPE_SECRET_KEY);
 }
 
 export function getStripeWebhookEnv(env: Environment = process.env) {
