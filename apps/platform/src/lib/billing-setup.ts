@@ -607,6 +607,7 @@ export async function beginBillingCheckout(
             reference,
             operation.request.checkoutOrigin!,
             operation.request.checkoutExpiresAt!,
+            now,
           ),
           { idempotencyKey: stripeSetupOperationKey(reference) },
         );
