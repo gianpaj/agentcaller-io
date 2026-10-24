@@ -10,7 +10,8 @@ Spanish, with per-call time and spend limits.
 > [!IMPORTANT]
 > This repository is a pre-production prototype. Its main components exist and
 > type-check, but the system is not ready to place or bill unattended production
-> calls. See [Feasibility](#feasibility) for the release blockers.
+> calls. See [Release readiness](docs/release-readiness.md) for outstanding work
+> and [Feasibility](#feasibility) for the current assessment.
 
 ## Product boundary
 
@@ -100,6 +101,24 @@ belong to the earlier Vite waitlist application. Turbo does not build that
 surface, and its OpenAPI document does not describe the active call API. Treat it
 as legacy until it is removed or deliberately restored.
 
+## Agent discovery
+
+The platform publishes `/robots.txt`, `/sitemap.xml`,
+`/.well-known/api-catalog`, `/openapi.json`, and `/auth.md`. Homepage `Link`
+headers point agents to the catalog, API description, documentation, and
+credential provisioning instructions. The API uses operator-provisioned bearer
+keys with the `ac_` prefix. Optional MCP OAuth onboarding requires human sign-in
+and tool consent, and can create a first client profile. `MCP_ENABLED` defaults
+to `false`.
+
+When MCP is enabled and configured, `/.well-known/oauth-protected-resource/mcp`
+advertises the `/mcp` resource and configured Supabase authorization server.
+OAuth bearer credentials authorize the integration's granted billing and paid
+call operations. Paid Stripe calling retains its separate release gates and
+stays disabled by default.
+
+See [discovery maintenance and validation](apps/docs/content/docs/discovery.mdx).
+
 ## Architecture
 
 The overall split is appropriate for the product:
@@ -147,7 +166,7 @@ acceptance checks pass. Existing x402/operator behavior retains its own gates.
 See the [MCP guide](apps/docs/content/docs/mcp.mdx),
 [billing guide](apps/docs/content/docs/billing.mdx) and
 [billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
-for configuration, invariants and remaining release checks.
+for configuration, invariants and implementation evidence.
 
 The most important provider mismatches are documented upstream:
 
@@ -166,22 +185,12 @@ include the [FCC's AI voice ruling](https://docs.fcc.gov/public/attachments/FCC-
 and [Spain's calling rules](https://www.boe.es/buscar/act.php?id=BOE-A-2023-15071).
 These links provide context, not legal advice.
 
-## Smallest path to a credible pilot
+## Remaining work
 
-1. Make the voice worker deployable and give it sole ownership of dialing,
-   answer detection, connected duration, terminal outcomes, and hangup.
-2. Define typed results for each task and validate them before publishing a
-   successful terminal event.
-3. Replace the payment flow with a supported variable-capture scheme, then test
-   authorization, settlement, expiry, replay, failure, and cancellation against
-   Base Sepolia.
-4. Enforce task and destination policy before dispatch. Treat model instructions
-   as conversation guidance, not a security boundary.
-5. Either implement consented recording and deterministic retention or remove
-   recording from the MVP. Test deletion as a resumable cross-system workflow.
-6. Run controlled English and Spanish calls that cover answer, no answer, busy,
-   voicemail, refusal, cancellation, timeout, and provider failure before a
-   capped pilot.
+[Release readiness](docs/release-readiness.md) is the canonical checklist for
+the saved-card `connect_me` pilot, broader product gaps, and optional future
+integrations. It distinguishes implemented behavior from outstanding validation
+and release gates, with links to the supporting decision records.
 
 ## Local development
 

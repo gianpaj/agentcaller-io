@@ -129,10 +129,9 @@ uses `aud: authenticated`; this does not meet the MCP resource requirement.
 
 ## Open release checks
 
-- Confirm resource-bound Supabase issuance and target MCP host behavior.
-- Approve customer tariff, rounding, tax, reservation/retry and calling scope.
-- Verify carrier bounds, metering, caller introductions and Stripe settings.
-- Complete hosted Stripe card/invoice acceptance and operational accounting review.
+The [release-readiness checklist](../../../../docs/release-readiness.md) is the
+canonical open/closed work list. This record preserves implementation evidence
+and rationale; its phase table describes acceptance criteria.
 
 ## Phase status
 
