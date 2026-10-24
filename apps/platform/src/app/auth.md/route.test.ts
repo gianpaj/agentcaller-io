@@ -25,4 +25,6 @@ it("publishes the API-key and conditional OAuth credential workflows", async () 
   expect(markdown).toContain("does not offer autonomous agent registration");
   expect(markdown).toContain("https://docs.agentcaller.io/mcp");
   expect(markdown).toContain("https://docs.agentcaller.io/billing");
+  // Environment variables are deployment detail, not agent instructions.
+  expect(markdown).not.toMatch(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/);
 });
