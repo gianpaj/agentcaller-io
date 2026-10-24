@@ -29,34 +29,21 @@ When billing is not set up, `schedule_call` returns
 `error: "billing_setup_required"` with a `setupUrl`. Ask the human to open the
 link, then retry the unchanged call with the same `idempotencyKey`.
 
-## Configure an isolated deployment
+## Connect
 
-Apply the Supabase migrations in timestamp order. Set `NEXT_PUBLIC_APP_URL` to
-the exact application origin and configure the existing Supabase environment.
-The canonical MCP resource is that origin plus `/mcp`.
+| Setting           | Value                                                             |
+| ----------------- | ----------------------------------------------------------------- |
+| Endpoint          | `https://agentcaller.io/mcp`                                      |
+| Resource metadata | `https://agentcaller.io/.well-known/oauth-protected-resource/mcp` |
+| Transport         | Stateless Streamable HTTP, `POST` only, JSON responses, no SSE    |
+| Protocol versions | 2026-07-28 and the 2025 versions                                  |
+| Request body      | At most 64 KB                                                     |
 
-Configure Supabase's OAuth server with authorization path `/oauth/consent`.
-Use authorization code with PKCE and the target host's supported client registration.
-The issuer owns registered redirects, code exchange and refresh tokens. Consent
-accepts only HTTPS or loopback HTTP redirect URIs, so native clients that
-register a custom scheme such as `cursor://` cannot connect. See
-[Supabase OAuth setup](https://supabase.com/docs/guides/auth/oauth-server/getting-started).
-
-The platform requires asymmetrically signed ES256/RS256 access tokens with the
-configured Supabase issuer, a verified human subject, OAuth `client_id`, expiry,
-issue time and the exact MCP resource audience. Generic browser tokens and
-tokens with only `aud: authenticated` are rejected. Prove the deployed issuer
-can honor resource binding before claiming host compatibility. No host has a
-completed end-to-end acceptance test in this implementation increment.
-
-`MCP_ENABLED=true` enables discovery, consent and the transport in an isolated
-environment. It does not enable billing or dialing. HTTP is allowed only on
-loopback for development. Browser requests must use the configured application
-origin or an exact origin in `MCP_ALLOWED_ORIGINS`; server clients may omit Origin.
-Protected-resource metadata is at `/.well-known/oauth-protected-resource/mcp`.
-The endpoint serves stateless current (2026-07-28) and legacy (2025) requests.
-It accepts `POST` only and responds with JSON; there is no SSE stream. Request
-bodies are limited to 64 KB.
+Authorize with OAuth authorization code and PKCE against the issuer named in the
+resource metadata. Redirect URIs must be HTTPS or loopback HTTP, so clients that
+register a custom scheme such as `cursor://` cannot connect. Access tokens must
+target the exact `https://agentcaller.io/mcp` audience. The endpoint and its
+metadata return `503` while MCP onboarding is unavailable.
 
 ## Human connection flow
 
@@ -79,12 +66,3 @@ revoked separately under **Settings → Billing**. Both paths block further
 worker permissions. Disconnecting cancels the open calls billed through that
 integration. Revoking spending cancels all open saved-card calls.
 Human reauthorization of revoked connections is a separate workflow.
-
-## Verification
-
-Offline tests cover signed-token validation, ownership, constrained login return,
-consent denial/replay, discovery and both transport eras. Tools return ordinary setup links and support polling;
-native URL elicitation is not implemented. `pnpm test:billing-db`
-uses a fresh local PostgreSQL container to test concurrent first login and
-consent, foreign-owner constraints, RLS and revocation. These tests do not prove
-Supabase project configuration or compatibility with a particular MCP host.

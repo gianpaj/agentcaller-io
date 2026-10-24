@@ -132,23 +132,3 @@ Stripe customer portal for invoice history and billing details. AgentCaller
 refuses to open a portal configuration that is inactive, belongs to the other
 Stripe mode, or enables payment method updates. Invoices charge the card saved
 through consented setup, so card replacement stays in that flow.
-
-## Configuration and acceptance
-
-Apply migrations in timestamp order, including the separate payment enum migration.
-Set independent server-only `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
-`BILLING_SETUP_TOKEN_SECRET`. Set `STRIPE_PRICING_VERSION` to a reviewed tariff
-version and explicitly approve matching active USD `rate_cards`; legacy rows are
-not automatically approved. Keep `STRIPE_BILLING_ENABLED=false`.
-
-Signed raw webhooks enter `/api/stripe/webhook`; storage retains routing IDs and
-safe processing codes, not payment payloads. The authenticated minute cron at
-`/api/internal/billing/drain` processes events, usage, periods and invoices.
-Leases and stable keys recover API delivery failures; they do not retry payments.
-Webhook ingestion and accounting remain available when admission is disabled.
-
-Release requires approved prices and tax treatment, resource-bound Supabase
-issuance, target MCP host acceptance, carrier bounds/metering and Stripe test-mode
-end-to-end checks. Native URL elicitation is an additional host integration;
-ordinary setup links and polling work without it. Link Agent Wallet remains a
-future option subject to invoice compatibility checks in the repository plan.
