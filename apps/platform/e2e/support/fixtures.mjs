@@ -30,9 +30,7 @@ export const test = base.extend({
     }
   },
 });
-test.beforeEach(async ({ context, db }) => {
-  await resetTestDatabase(db);
-  await control("reset", {});
+export async function installBrowserGuards(context) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (
@@ -45,6 +43,19 @@ test.beforeEach(async ({ context, db }) => {
     await control("violation", { origin: url.origin });
     return route.abort();
   });
+  await context.routeWebSocket("**/*", async (socket) => {
+    const url = new URL(socket.url());
+    const origin = url.origin.replace(/^ws/, "http");
+    if (origin === process.env.NEXT_PUBLIC_APP_URL)
+      return socket.connectToServer();
+    await control("violation", { origin: url.origin });
+    socket.close();
+  });
+}
+test.beforeEach(async ({ context, db }) => {
+  await resetTestDatabase(db);
+  await control("reset", {});
+  await installBrowserGuards(context);
 });
 test.afterEach(async () => {
   expect((await control("state")).violations).toEqual([]);

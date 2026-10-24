@@ -19,28 +19,35 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return port;
 }
-export async function startRuntime() {
+export async function startRuntime({ signal } = {}) {
   const artifactDir = await mkdtemp(join(tmpdir(), "agentcaller-e2e-"));
-  const pg = await startPostgres();
-  let coordinator, child, sql;
+  let pg, coordinator, child, sql;
+  const abort = () => child?.kill("SIGTERM");
+  signal?.addEventListener("abort", abort, { once: true });
   const stop = async () => {
-    if (child && child.exitCode === null) {
+    if (child && child.exitCode === null && child.signalCode === null) {
       child.kill("SIGTERM");
       await Promise.race([
         new Promise((resolve) => child.once("exit", resolve)),
         new Promise((resolve) => setTimeout(resolve, 5000)),
       ]);
-      if (child.exitCode === null) child.kill("SIGKILL");
+      if (child.exitCode === null && child.signalCode === null)
+        child.kill("SIGKILL");
     }
     await coordinator?.stop();
     await sql?.end({ timeout: 2 });
-    pg.stop();
+    pg?.stop();
+    signal?.removeEventListener("abort", abort);
     await rm(artifactDir, { recursive: true, force: true });
   };
   try {
+    signal?.throwIfAborted();
+    pg = await startPostgres({ signal });
+    signal?.throwIfAborted();
     sql = openTestDatabase(pg.url);
     await migrateTestDatabase(sql);
     await resetTestDatabase(sql);
+    signal?.throwIfAborted();
     const port = await freePort();
     const appUrl = "http://localhost:" + port;
     coordinator = await startCoordinator(appUrl);
@@ -114,6 +121,7 @@ export async function startRuntime() {
     child.stderr.on("data", collect);
     const deadline = Date.now() + 90_000;
     while (true) {
+      signal?.throwIfAborted();
       if (child.exitCode !== null)
         throw new Error("E2E Next process exited: " + output);
       try {

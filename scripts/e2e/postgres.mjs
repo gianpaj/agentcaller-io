@@ -8,7 +8,7 @@ const run = (args) =>
   }).trim();
 
 /** Every caller owns its container; never accept an application DATABASE_URL. */
-export async function startPostgres() {
+export async function startPostgres({ signal } = {}) {
   const name = "agentcaller-e2e-" + randomUUID();
   const stop = () => {
     try {
@@ -18,6 +18,7 @@ export async function startPostgres() {
     }
   };
   try {
+    signal?.throwIfAborted();
     run([
       "run",
       "--detach",
@@ -32,6 +33,7 @@ export async function startPostgres() {
     ]);
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
+      signal?.throwIfAborted();
       try {
         run(["exec", name, "pg_isready", "-U", "postgres"]);
         ready = true;
