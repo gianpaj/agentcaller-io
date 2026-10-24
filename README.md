@@ -164,7 +164,8 @@ controls and monthly Stripe Invoicing are implemented and tested offline.
 **Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
 acceptance checks pass. Existing x402/operator behavior retains its own gates.
 
-See the [operations runbook](docs/operations.md#mcp-and-oauth),
+See the operations runbook for [MCP and OAuth](docs/operations.md#mcp-and-oauth)
+and [Stripe billing](docs/operations.md#stripe-billing), the
 [billing guide](apps/docs/content/docs/billing.mdx) and
 [billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
 for configuration, invariants and implementation evidence.
