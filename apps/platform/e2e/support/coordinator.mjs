@@ -11,6 +11,7 @@ export async function startCoordinator(appUrl) {
   let dispatches = [],
     deletedRooms = [],
     violations = [];
+  let failRoomCleanup = false;
   const state = () => ({
     identity: identity.snapshot(),
     stripe: stripe.snapshot(),
@@ -51,19 +52,28 @@ export async function startCoordinator(appUrl) {
             dispatches = [];
             deletedRooms = [];
             violations = [];
+            failRoomCleanup = false;
             response = Response.json(state());
           } else if (url.pathname === "/control/stripe")
             response = await stripe.request(input);
           else if (url.pathname === "/control/violation") {
             violations.push(input.origin);
             response = Response.json({ recorded: true });
-          } else if (url.pathname === "/control/command")
-            response = Response.json(
-              await (input.target === "identity" ? identity : stripe).control(
-                input.action,
-                input,
-              ),
-            );
+          } else if (url.pathname === "/control/command") {
+            if (
+              input.target === "livekit" &&
+              input.action === "cleanup-failure"
+            ) {
+              failRoomCleanup = input.enabled === true;
+              response = Response.json({ enabled: failRoomCleanup });
+            } else
+              response = Response.json(
+                await (input.target === "identity" ? identity : stripe).control(
+                  input.action,
+                  input,
+                ),
+              );
+          }
         }
       } else if (
         url.pathname.startsWith("/auth/") ||
@@ -76,8 +86,15 @@ export async function startCoordinator(appUrl) {
         dispatches.push(dispatch);
         response = Response.json(dispatch);
       } else if (url.pathname.endsWith("/DeleteRoom")) {
-        deletedRooms.push(JSON.parse(body).room);
-        response = Response.json({});
+        if (failRoomCleanup)
+          response = Response.json(
+            { code: "unavailable", msg: "Simulated provider cleanup failure" },
+            { status: 503 },
+          );
+        else {
+          deletedRooms.push(JSON.parse(body).room);
+          response = Response.json({});
+        }
       }
       if (!response)
         response = Response.json(
