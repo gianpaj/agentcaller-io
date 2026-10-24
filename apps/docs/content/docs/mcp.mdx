@@ -30,13 +30,14 @@ link, then retry the unchanged call with the same `idempotencyKey`.
 
 ## Connect
 
-| Setting           | Value                                                             |
-| ----------------- | ----------------------------------------------------------------- |
-| Endpoint          | `https://agentcaller.io/mcp`                                      |
-| Resource metadata | `https://agentcaller.io/.well-known/oauth-protected-resource/mcp` |
-| Transport         | Stateless Streamable HTTP, `POST` only, JSON responses, no SSE    |
-| Protocol versions | 2026-07-28 and the 2025 versions                                  |
-| Request body      | At most 64 KB                                                     |
+| Setting           | Value                                                              |
+| ----------------- | ------------------------------------------------------------------ |
+| Endpoint          | `https://agentcaller.io/mcp`                                       |
+| Resource metadata | `https://agentcaller.io/.well-known/oauth-protected-resource/mcp`  |
+| Transport         | Stateless Streamable HTTP, `POST` only, JSON responses, no SSE     |
+| Protocol versions | 2026-07-28 and the 2025 versions                                   |
+| Request body      | At most 64 KB                                                      |
+| Browser origin    | Server clients omit `Origin`; unapproved browser origins get `403` |
 
 Authorize with OAuth authorization code and PKCE against the issuer named in the
 resource metadata. Redirect URIs must be HTTPS or loopback HTTP, so clients that
