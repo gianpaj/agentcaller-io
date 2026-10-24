@@ -81,6 +81,7 @@ if (scenario.proof) {
     const events = [];
     const originalFetch = globalThis.fetch;
     let dropped = false;
+    let droppedEventId;
     const observe = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (url, init) => {
@@ -113,6 +114,7 @@ if (scenario.proof) {
           }
           if (!dropped && scenario.dropResponseFor === event.action) {
             dropped = true;
+            droppedEventId = event.eventId;
             await response.body?.cancel();
             throw new TypeError("Simulated lost worker response");
           }
@@ -129,19 +131,26 @@ if (scenario.proof) {
       };
       await connectLiveKit(ctx, state.callId, state.attemptId);
       const claim = events.find((event) => event.action === "claim");
+      if (scenario.claimAllowed === false) {
+        expect(claim?.allowed).not.toBe(true);
+        expect(state.dials).toHaveLength(0);
+        expect(state.moves).toHaveLength(0);
+        return;
+      }
       expect(claim?.allowed).toBe(true);
       expect(state.claim.businessRoom).toBe(dispatch.room);
       const expected = scenario.outcome ?? "connected";
-      const finish = events.findLast((event) => event.action === "finish");
-      expect(finish?.allowed).toBe(true);
-      expect(finish?.reason).toBe(
-        expected === "cleanup_failure"
+      const expectedReason =
+        scenario.expectedReason ??
+        (expected === "cleanup_failure"
           ? "connected"
           : scenario.callbackOutcome &&
               ["busy", "no_answer"].includes(scenario.callbackOutcome)
             ? "callback_timeout"
-            : expected,
-      );
+            : expected);
+      const finish = events.findLast((event) => event.action === "finish");
+      expect(finish?.allowed).toBe(scenario.finishAllowed ?? true);
+      expect(finish?.reason).toBe(expectedReason);
 
       const answered = events.filter(
         (event) => event.action === "connected" && event.allowed,
@@ -173,14 +182,18 @@ if (scenario.proof) {
         expect(dial.options.maxCallDuration).toBeGreaterThan(0);
         expect(dial.options.maxCallDuration).toBeLessThanOrEqual(bound);
         expect(dial.options.fromNumber).not.toBe(dial.destination);
+        expect(dial.options.fromNumber).toBe(
+          dial.leg === "callback"
+            ? process.env.CONNECT_CALLBACK_CALLER_ID
+            : state.claim.input.destinationCountry === "IT"
+              ? process.env.CONNECT_CALLER_ID_IT
+              : process.env.CONNECT_CALLER_ID_ES,
+        );
         expect(dial.options.participantAttributes["agentcaller.attempt"]).toBe(
           state.attemptId,
         );
       }
-      if (
-        ["connected", "cleanup_failure"].includes(expected) &&
-        !scenario.callbackOutcome
-      ) {
+      if (expectedReason === "connected") {
         expect(state.dials.map((dial) => dial.leg)).toEqual([
           "business",
           "callback",
@@ -224,7 +237,7 @@ if (scenario.proof) {
       if (scenario.dropResponseFor) {
         expect(dropped).toBe(true);
         const retried = events.filter(
-          (event) => event.action === scenario.dropResponseFor,
+          (event) => event.eventId === droppedEventId,
         );
         expect(retried).toHaveLength(2);
         expect(retried[0].eventId).toBe(retried[1].eventId);

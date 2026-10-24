@@ -107,7 +107,7 @@ export function agentsModule(state) {
             : state.scenario.outcome === "callback_timeout"
               ? ""
               : "1");
-        queueMicrotask(() => {
+        const deliver = () => {
           // The wrong participant's 1 must never grant acceptance.
           state.dtmf.push({ identity: "business_intruder", digit: "1" });
           this.room.emit("dtmfReceived", 1, "1", {
@@ -118,7 +118,14 @@ export function agentsModule(state) {
             state.dtmf.push({ identity, digit });
             this.room.emit("dtmfReceived", Number(digit), digit, { identity });
           }
-        });
+        };
+        const delay = state.scenario.digitDelayMs ?? 0;
+        assert.ok(
+          Number.isInteger(delay) && delay >= 0 && delay <= 10_000,
+          "Keep simulated DTMF delay bounded",
+        );
+        if (delay) state.timers.push(setTimeout(deliver, delay));
+        else queueMicrotask(deliver);
       }
       this.lastSpeech = text;
       return { waitForPlayout: async () => {} };
@@ -203,11 +210,9 @@ export function serverModule(state) {
             outcome,
           )
         ) {
-          state.rooms
-            .get(room)
-            ?.emit("participantDisconnected", {
-              identity: options.participantIdentity,
-            });
+          state.rooms.get(room)?.emit("participantDisconnected", {
+            identity: options.participantIdentity,
+          });
           throw new SipError(
             {
               busy: 486,
