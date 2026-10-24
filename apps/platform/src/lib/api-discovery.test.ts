@@ -63,6 +63,23 @@ describe("API discovery", () => {
     );
   });
 
+  it("publishes no accept-anything schemas", async () => {
+    // unrepresentable: "any" turns a Zod type JSON Schema cannot express into {}.
+    // Fail here rather than advertise an unvalidated field.
+    const { components } = await getOpenapi().json();
+    const empty: string[] = [];
+    const walk = (value: unknown, path: string) => {
+      if (Array.isArray(value))
+        return value.forEach((item, i) => walk(item, `${path}[${i}]`));
+      if (!value || typeof value !== "object") return;
+      if (Object.keys(value).length === 0) empty.push(path);
+      for (const [key, item] of Object.entries(value))
+        walk(item, `${path}.${key}`);
+    };
+    walk(components.schemas, "schemas");
+    expect(empty).toEqual([]);
+  });
+
   it("describes every public API operation without advertising internal routes", async () => {
     const response = getOpenapi();
     expect(response.status).toBe(200);
