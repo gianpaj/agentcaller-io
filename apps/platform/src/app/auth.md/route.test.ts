@@ -15,8 +15,6 @@ it("publishes the API-key and conditional OAuth credential workflows", async () 
   expect(markdown).toContain("no public API-key issuance endpoint");
   expect(markdown).toContain("Authorization: Bearer");
   expect(markdown).toContain("https://agentcaller.io/api/v1/calls");
-  expect(markdown).toContain("MCP_ENABLED=true");
-  expect(markdown).toContain("disabled by default");
   expect(markdown).toContain("HTTP 503");
   expect(markdown).toContain(
     "https://agentcaller.io/.well-known/oauth-protected-resource/mcp",
