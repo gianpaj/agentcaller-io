@@ -36,16 +36,16 @@ second project.
 
 ### 1. Create the project (Vercel dashboard, import Git repository)
 
-| Setting           | Value                                               |
-| ----------------- | --------------------------------------------------- |
-| Repository        | `gianpaj/agentcaller-io`                            |
-| Project name      | `agentcaller-docs`                                  |
-| Root Directory    | `apps/docs`                                         |
-| Framework preset  | Next.js (auto-detected)                             |
-| Install / Build   | defaults (pnpm from root `packageManager`)          |
-| Node.js           | 24.x                                                |
-| Production branch | `main`                                              |
-| Env vars          | none                                                |
+| Setting           | Value                                      |
+| ----------------- | ------------------------------------------ |
+| Repository        | `gianpaj/agentcaller-io`                   |
+| Project name      | `agentcaller-docs`                         |
+| Root Directory    | `apps/docs`                                |
+| Framework preset  | Next.js (auto-detected)                    |
+| Install / Build   | defaults (pnpm from root `packageManager`) |
+| Node.js           | 24.x                                       |
+| Production branch | `main`                                     |
+| Env vars          | none                                       |
 
 Keep "Include files outside the root directory" enabled (the default) so
 that the root `pnpm-lock.yaml` and `pnpm-workspace.yaml` settings apply,
@@ -93,12 +93,15 @@ curl -sI https://docs.agentcaller.io/docs      # 200
 Then click the Docs links on `agentcaller.io` and in the portal settings
 page.
 
-## Out of scope / follow-ups
+## Follow-ups (done 2026-10-24)
 
-- Change the Fumadocs `baseUrl` from `/docs` to `/` so URLs read
-  `docs.agentcaller.io/dispatch` rather than `/docs/dispatch`. This is a
-  separate code change.
-- Update README with where the docs deploy once the setup is live.
+- The Fumadocs `baseUrl` is now `/`, so pages are served at the site root, for
+  example `docs.agentcaller.io/dispatch`. Old `/docs/*` URLs return a permanent
+  redirect.
+- The README documents the docs deployment.
+- The setup used Vercel's built-in skipping of unaffected projects instead of
+  `turbo-ignore`, which is deprecated. The CNAME target is the
+  project-specific value Vercel recommended.
 
 ## Rollback
 

@@ -5,7 +5,7 @@ description: OAuth tool access and the remaining billing release checks
 
 AgentCaller exposes a remote MCP endpoint at `/mcp`, disabled by default.
 The six tools cover setup, billing readiness, quotes, scheduling, call status
-and usage. [Saved-card billing](/docs/billing) uses separate human spending
+and usage. [Saved-card billing](/billing) uses separate human spending
 consent and monthly Stripe invoices. Paid calling stays disabled pending release
 acceptance. Existing API-key and operator routes retain their behavior.
 
@@ -20,7 +20,7 @@ acceptance. Existing API-key and operator routes retain their behavior.
 | `get_call_status`    | `calls:read`    | `callId`                                                              |
 | `get_usage`          | `billing:read`  | optional `before` cursor (ISO timestamp)                              |
 
-The call inputs are the same as the [saved-card API](/docs/billing#agent-api).
+The call inputs are the same as the [saved-card API](/billing#agent-api).
 Only `connect_me` calls are accepted, and amounts are integer USD cents.
 Tools return JSON text and the same object as `structuredContent`. Errors set
 `isError` and return `{ "error": "..." }`.

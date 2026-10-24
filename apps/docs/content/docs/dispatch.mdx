@@ -7,7 +7,7 @@ description: Create a typed call request with x402 or operator funding.
 
 This page covers x402 and operator funding. Saved-card calls use the same
 endpoint with `X-AgentCaller-Funding: stripe_postpaid` and a different body;
-see [Saved-card billing](/docs/billing). The [overview](/docs) compares the
+see [Saved-card billing](/billing). The [overview](/) compares the
 three paths.
 
 Supply `Authorization: Bearer ac_…` and an `Idempotency-Key` header of at most
@@ -89,7 +89,7 @@ responses. Use it to tie a call to your own records.
 
 ## Bounded business-to-mobile connection
 
-`connect_me` can be funded by a [saved card](/docs/billing) or by an operator.
+`connect_me` can be funded by a [saved card](/billing) or by an operator.
 Saved-card paid calling stays disabled until its release checks pass. x402
 cannot fund `connect_me`: its `batch-settlement` integration cannot authorize
 variable capture across retries and expiry, and its one-hour timeout cannot fund

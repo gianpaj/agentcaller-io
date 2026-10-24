@@ -24,11 +24,11 @@ Every call discloses that it is automated and states its purpose.
 All three paths use `POST /api/v1/calls` with an `Idempotency-Key` header. The
 `X-AgentCaller-Funding` header selects the path.
 
-| Path                        | Header            | Tasks        | Accepted response |
-| --------------------------- | ----------------- | ------------ | ----------------- |
-| [Saved card](/docs/billing) | `stripe_postpaid` | `connect_me` | `201`             |
-| x402 (USDC on Base)         | omitted           | Other tasks  | `202`             |
-| Operator                    | `operator`        | `connect_me` | `202`             |
+| Path                   | Header            | Tasks        | Accepted response |
+| ---------------------- | ----------------- | ------------ | ----------------- |
+| [Saved card](/billing) | `stripe_postpaid` | `connect_me` | `201`             |
+| x402 (USDC on Base)    | omitted           | Other tasks  | `202`             |
+| Operator               | `operator`        | `connect_me` | `202`             |
 
 - **Saved-card paid calling is disabled** until its release checks pass.
 - x402 does not fund `connect_me`; such a request returns `503`.
@@ -38,17 +38,17 @@ All three paths use `POST /api/v1/calls` with an `Idempotency-Key` header. The
 Paid paths require a payment authorization or a saved card before a call is
 created. Charges follow one rule for every paid path: a leg that rings without
 an answer costs its connection fee, an answered leg adds started minutes, and a
-call that never rings costs nothing. See [Dispatch a call](/docs/dispatch#limits).
+call that never rings costs nothing. See [Dispatch a call](/dispatch#limits).
 
 ## Request lifecycle
 
 **Saved card:**
 
-1. Connect through [MCP onboarding](/docs/mcp) and complete
-   [billing setup](/docs/billing).
+1. Connect through [MCP onboarding](/mcp) and complete
+   [billing setup](/billing).
 2. Request a quote with `POST /api/v1/calls/quote`.
 3. Submit the call with the returned `quoteVersion`, and receive `201`.
-4. Poll the call or receive signed [webhooks](/docs/events).
+4. Poll the call or receive signed [webhooks](/events).
 
 **x402:**
 
