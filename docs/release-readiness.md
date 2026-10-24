@@ -163,9 +163,10 @@ These are not prerequisites for the bounded saved-card pilot:
 
 ## Retired waitlist data
 
-- [ ] Locate the Neon waitlist database and record verified absence or execute an
-      explicit retention, export or deletion decision. Include backups in that
-      decision. Database access is required to verify the table and stored data.
+- [x] Check for an active Neon waitlist project. On 2026-10-24, the owner
+      reported that the project does not exist and cannot be found in either
+      Vercel or Neon dashboards. Stored data and provider backups were not
+      independently inspected.
 
 The Vercel projects connected to this repository build `apps/platform` and
 `apps/docs`. Neither project defines `DATABASE_URL`; the platform's database
