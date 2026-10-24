@@ -147,6 +147,9 @@ These are not prerequisites for the bounded saved-card pilot:
   task-specific results and independently tested language behavior.
 - Generic x402 variable usage authorization and settlement need a supported
   payment scheme and durable crash/replay recovery. This is separate from Stripe.
+  Testnet onboarding and an end-to-end payment harness are missing, including
+  configurable testnet support, test-wallet funding and authorization, and
+  verification/settlement assertions tied to call usage.
 - Broader task/destination policy needs enforceable validation before dialing.
   Recording, consent capture, redaction and retention across any additional
   storage/providers require implementation before those features are enabled.
