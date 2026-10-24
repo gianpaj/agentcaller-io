@@ -17,6 +17,8 @@ environment. `.env.example` is allowed.
 Docker must be running. The launcher owns PostgreSQL, a loopback provider
 coordinator and a Next development server. It applies all migrations and supplies
 synthetic credentials. No provider account or payment credential is required.
+Guarded child processes run the installed Playwright and Vitest CLIs directly
+with Node; they do not download or invoke a package manager.
 The launcher removes its container, processes and temporary browser diagnostics
 on completion or failure. Run one suite per worktree at a time; use separate
 worktrees for concurrent development.

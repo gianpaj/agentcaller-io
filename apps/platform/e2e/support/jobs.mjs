@@ -2,14 +2,15 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 const exec = promisify(execFile);
+const vitest = fileURLToPath(
+  new URL("vitest.mjs", import.meta.resolve("vitest/package.json")),
+);
 
 export async function runAccounting(at) {
   await exec(
-    "corepack",
+    process.execPath,
     [
-      "pnpm",
-      "exec",
-      "vitest",
+      vitest,
       "run",
       "--config",
       "vitest.e2e.config.mjs",
@@ -25,8 +26,8 @@ export async function runAccounting(at) {
 }
 export async function runVoiceScenario(scenario = {}) {
   await exec(
-    "corepack",
-    ["pnpm", "exec", "vitest", "run", "--config", "vitest.e2e.config.mjs"],
+    process.execPath,
+    [vitest, "run", "--config", "vitest.e2e.config.mjs"],
     {
       cwd: fileURLToPath(new URL("../../../voice-agent", import.meta.url)),
       env: { ...process.env, E2E_VOICE_SCENARIO: JSON.stringify(scenario) },

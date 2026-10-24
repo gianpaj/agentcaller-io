@@ -1,7 +1,11 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { startRuntime } from "../apps/platform/e2e/support/runtime.mjs";
 
+const platformRequire = createRequire(
+  new URL("../apps/platform/package.json", import.meta.url),
+);
 const abort = new AbortController();
 let runtime, child;
 let stopping = false;
@@ -23,11 +27,15 @@ try {
   const args = process.argv
     .slice(2)
     .filter((arg, index) => !(index === 0 && arg === "--"));
-  child = spawn("corepack", ["pnpm", "exec", "playwright", "test", ...args], {
-    cwd: fileURLToPath(new URL("../apps/platform", import.meta.url)),
-    env: runtime.env,
-    stdio: "inherit",
-  });
+  child = spawn(
+    process.execPath,
+    [platformRequire.resolve("@playwright/test/cli"), "test", ...args],
+    {
+      cwd: fileURLToPath(new URL("../apps/platform", import.meta.url)),
+      env: runtime.env,
+      stdio: "inherit",
+    },
+  );
   const code = await new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", (code) => resolve(code ?? 1));
