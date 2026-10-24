@@ -42,8 +42,8 @@ profile for the verified human without an operator-created profile or copied
 API key. Disabled profiles remain disabled.
 
 Present the issued token in \`Authorization: Bearer <access-token>\`. The token
-must have the configured issuer, OAuth client identity, verified human subject,
-and the exact MCP resource audience: https://agentcaller.io/mcp in production.
+must have the advertised issuer, OAuth client identity, verified human subject,
+and the exact MCP resource audience: https://agentcaller.io/mcp.
 Generic browser session tokens are not accepted as delegated API credentials.
 
 Resource-bound OAuth supports the MCP tools, billing endpoints, call quotes,
