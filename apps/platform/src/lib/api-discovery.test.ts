@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 import { GET as getCatalog } from "@/app/.well-known/api-catalog/route";
@@ -73,9 +74,10 @@ describe("API discovery", () => {
     expect(spec.security).toEqual([{ apiKey: [] }]);
     expect(spec.paths["/api/health"].get.security).toEqual([]);
 
-    const apiRoot = new URL("../app/api/", import.meta.url);
+    const apiRoot = fileURLToPath(new URL("../app/api/", import.meta.url));
     const operations: string[] = [];
-    for (const file of readdirSync(apiRoot, { recursive: true }) as string[]) {
+    for (const entry of readdirSync(apiRoot, { recursive: true }) as string[]) {
+      const file = entry.split(sep).join("/");
       // Provider webhooks authenticate provider callbacks, not API clients.
       if (
         !file.endsWith("route.ts") ||
@@ -83,10 +85,10 @@ describe("API discovery", () => {
         file.startsWith("stripe/")
       )
         continue;
-      const source = readFileSync(join(apiRoot.pathname, file), "utf8");
+      const source = readFileSync(join(apiRoot, entry), "utf8");
       const path = `/api/${file.replace(/\/route\.ts$/, "").replace(/\[([^\]]+)\]/g, "{$1}")}`;
       for (const match of source.matchAll(
-        /export (?:async )?function (GET|POST|DELETE)\(/g,
+        /export (?:(?:async )?function |const )(GET|POST|PUT|PATCH|DELETE)\b/g,
       )) {
         if (path.includes("{operation}")) {
           const handler = source.slice(
@@ -110,7 +112,9 @@ describe("API discovery", () => {
     }
     const documented = Object.entries(spec.paths).flatMap(([path, item]) =>
       Object.keys(item as object)
-        .filter((method) => ["get", "post", "delete"].includes(method))
+        .filter((method) =>
+          ["get", "post", "put", "patch", "delete"].includes(method),
+        )
         .map((method) => `${method} ${path}`),
     );
     expect(documented.sort()).toEqual(operations.sort());
