@@ -1,13 +1,12 @@
 ---
 title: MCP onboarding
-description: OAuth tool access and the remaining billing release checks
+description: Connect an agent over MCP with human-approved OAuth
 ---
 
-AgentCaller exposes a remote MCP endpoint at `/mcp`, disabled by default.
-The six tools cover setup, billing readiness, quotes, scheduling, call status
-and usage. [Saved-card billing](/billing) uses separate human spending
-consent and monthly Stripe invoices. Paid calling stays disabled pending release
-acceptance. Existing API-key and operator routes retain their behavior.
+AgentCaller exposes a remote MCP endpoint at `/mcp`. The six tools cover
+setup, billing readiness, quotes, scheduling, call status and usage.
+[Saved-card billing](/billing) uses separate human spending consent and monthly
+Stripe invoices. Paid calling is not yet available.
 
 ## Tools
 
@@ -47,10 +46,9 @@ metadata return `503` while MCP onboarding is unavailable.
 
 ## Human connection flow
 
-An eligible user can sign in through the configured GitHub provider and approve
-tool access without a pre-created client profile or copied API key. Profile
-ownership comes from the verified Supabase UID. Disabled profiles stay disabled;
-an email or integration name cannot claim a legacy account.
+An eligible user signs in with GitHub and approves tool access. No API key or
+pre-created account is needed. Disabled accounts stay disabled, and an email or
+integration name cannot claim an existing account.
 
 Tool consent always grants all four operations (`billing:setup`,
 `billing:read`, `calls:create` and `calls:read`); a subset cannot be chosen. Spending approval and saved-card
@@ -62,7 +60,5 @@ The human can disconnect an integration under **Settings → Connected
 integrations**. Subsequent requests are denied even while a token remains valid.
 Disconnecting also revokes the issuer grant and its refresh tokens. Refresh and
 repeated issuer consent cannot restore a revoked connection. Spending can be
-revoked separately under **Settings → Billing**. Both paths block further
-worker permissions. Disconnecting cancels the open calls billed through that
+revoked separately under **Settings → Billing**. Disconnecting cancels the open calls billed through that
 integration. Revoking spending cancels all open saved-card calls.
-Human reauthorization of revoked connections is a separate workflow.

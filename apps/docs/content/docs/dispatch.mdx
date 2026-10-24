@@ -91,15 +91,12 @@ responses. Use it to tie a call to your own records.
 
 `connect_me` can be funded by a [saved card](/billing) or by an operator.
 Saved-card paid calling stays disabled until its release checks pass. x402
-cannot fund `connect_me`: its `batch-settlement` integration cannot authorize
-variable capture across retries and expiry, and its one-hour timeout cannot fund
-a multi-day job. Such a request returns `503`. Operator-funded testing below
-uses explicit administrative authorization and charges the platform's provider
-accounts directly. It does not manufacture a payment receipt.
+cannot fund `connect_me`, because a job that can retry over several days has no
+fixed price to authorize up front; such a request returns `503`. Operator
+funding is reserved for platform testing. The platform pays the call itself,
+and the call reports `paymentState: "not_required"`.
 
-An operator request uses the same endpoint, tenant credentials and idempotency
-key. This example uses a scheduled weekly window and fits the default USD 5
-operator cap with the test rate card (USD 2.50 per attempt):
+This operator-funded example uses a scheduled weekly window:
 
 ```json
 {
@@ -158,22 +155,14 @@ it above one is invalid. It ignores timezone, weekdays and local hours, includin
 midnight, weekends and daylight-saving transitions. It never postpones to another
 window or retries a busy/no-answer outcome.
 
-Call now means eligible for dispatch before `expiresAt`, not guaranteed instant
-worker availability. The scheduler and an available worker still have to pick up
-the job. Expiry also ends active sessions in both modes; it is not just the last
+Call now means the job may dial any time before `expiresAt`; dialing is not
+guaranteed to start instantly. Expiry also ends active sessions in both modes; it is not just the last
 time dialing may start. All funding, destination, duration and spend controls
 still apply.
 
-API callers must supply an explicit future `expiresAt`. For Call now, the
-platform's `submitCall` admission check limits that deadline to at most 30 minutes
-ahead. The shared schema validates its timestamp format; admission enforces the
-relative deadline.
-
-The portal defaults new calls to Call now. After client validation, it requests
-an expiry 30 minutes ahead from the server so device clock skew cannot invalidate
-the request. It retains that same timestamp across
-submission retries rather than extending the job's lifetime. The portal parser
-also enforces the 30-minute maximum.
+Supply an explicit future `expiresAt`. For Call now, it can be at most 30
+minutes ahead. The portal defaults new calls to Call now with a 30-minute
+expiry.
 
 Scheduled calls use the weekly object shown above. Supply actual business hours
 and a future expiry within seven days. Weekdays use Monday=1 through Sunday=7;
@@ -190,10 +179,10 @@ digits in the 32–39 ranges, or ten in the 31 and 43 ranges. These mobile patte
 follow [libphonenumber metadata](https://github.com/google/libphonenumber/blob/master/resources/PhoneNumberMetadata.xml).
 Premium-rate, service, emergency and short-code destinations remain excluded.
 The country code must match `destinationCountry`; prefix validation does not
-verify ownership, business use, reachability, or consent. The callback remains
-restricted to the existing Spanish mobile ranges (6 and 71–74).
+verify ownership, business use, reachability, or consent. The callback is
+restricted to Spanish mobile ranges (6 and 71–74).
 
-Only scheduled jobs with confirmed SIP busy/no-answer retry, at least five
+Only scheduled jobs with a confirmed busy or no-answer result retry, at least five
 minutes apart, within hours, expiry, attempt and spend limits. A terminal attempt
 never reopens.
 Refusal, voicemail, unclear IVR, uncertain detection and failed callback stop the
@@ -201,13 +190,5 @@ job. IVR navigation defaults to zero digits; an explicitly positive limit allows
 at most five clearly identified menu choices. No voicemail message is left.
 
 The spend cap must cover `maxAttempts` times both legs at their maximum
-durations, using pinned rate snapshots that include waiting and conversation.
-Reservations are not released between attempts. Expiry or the attempt count can
-still stop a job early.
-Configure conservative all-in rate cards that cover the exact destination
-classes, including mobile termination, provider surcharges and inference.
-Before a live mobile-destination test, verify the rate card, outbound routing,
-caller ID, recipient consent and disclosure requirements for that country. Current country-level rates cannot
-prove an actual Telnyx invoice ceiling. Missing connection/end observations leave
-measured cost null; worker loss never becomes zero usage. Connect jobs cannot use
-the legacy single-leg settlement helper.
+durations, at the rates fixed when the job is accepted, including waiting and
+conversation. Expiry or the attempt count can still stop a job early.

@@ -98,8 +98,8 @@ Polling returns `job`, the current `attempts` (a row changes until it is
 `callback_declined`, `callback_timeout`, `callback_hangup`, `uncertain_answer`,
 `expired`, `spend_limit`, and `duration_limit`.
 
-`POST /api/v1/calls/{id}/cancel` authorizes by tenant, closes the durable job before
-cleanup, and prevents late acceptance from reopening it. The portal offers the
-same cancellation. Cancellation also stops scheduled retries. Deletion is blocked
-until a provider cleanup and payment reconciliation path exists. Recording and
-transcripts are not collected for this task.
+`POST /api/v1/calls/{id}/cancel` ends the job immediately; a later acceptance
+cannot reopen it. The portal offers the
+same cancellation. Cancellation also stops scheduled retries. These jobs cannot be
+deleted yet (see [retention](/retention)). Recording and transcripts are not
+collected for this task.
