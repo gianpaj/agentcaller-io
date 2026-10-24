@@ -26,8 +26,9 @@ There is no public API-key issuance endpoint.
 
 [MCP onboarding](/mcp) uses OAuth with human tool-access consent, and creates
 the human's client profile on first approval. The resource metadata points to
-the issuer that owns client registration, code exchange and refresh tokens. Access tokens must target the exact MCP resource
-audience. Generic browser tokens do not grant delegated API access.
+the issuer that owns client registration, code exchange and refresh tokens.
+Access tokens must target the exact MCP resource audience. Generic browser
+tokens do not grant delegated API access.
 
 Resource-bound OAuth supports MCP, billing endpoints, call quotes,
 `stripe_postpaid` creation, and reading or cancelling the integration's own calls.

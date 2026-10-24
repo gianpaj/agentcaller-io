@@ -18,16 +18,17 @@ available.** There are no subscriptions or upfront payments.
 5. Let the agent poll readiness and submit its call. Opening a setup link or
    returning from Checkout cannot activate spending authority.
 
-Setup links expire
-in 24 hours; Checkout expires in 31 minutes. Links use a private continuation
-cookie after initial exchange. Share them only with the account owner.
+Setup links expire in 24 hours; Checkout expires in 31 minutes. Links use a
+private continuation cookie after initial exchange. Share them only with the
+account owner.
 
 ## Agent API
 
-MCP exposes `setup_billing`, `get_billing_status`, `quote_call`, `schedule_call`,
-`get_call_status` and `get_usage`. An API key must be explicitly linked to an
-owned integration under **Billing** in the portal navigation before it can spend.
-OAuth tokens require the resource-bound audience described in the MCP guide.
+MCP exposes `setup_billing`, `get_billing_status`, `quote_call`,
+`schedule_call`, `get_call_status` and `get_usage`. An API key must be
+explicitly linked to an owned integration under **Billing** in the portal
+navigation before it can spend. OAuth tokens require the resource-bound audience
+described in the MCP guide.
 
 | Endpoint                         | Purpose                                               |
 | -------------------------------- | ----------------------------------------------------- |
@@ -85,9 +86,10 @@ changed input with that key returns `409`.
 ## Allowances and usage
 
 Accepting a call reserves the full worst-case job, including both connected legs
-and all permitted attempts. The available amount is bounded by the account month, integration month,
-per-call ceilings and **USD 10 shared unpaid usage plus reservations** across
-all integrations and months. This is an exposure ceiling, not prepaid balance.
+and all permitted attempts. The available amount is bounded by the account
+month, integration month, per-call ceilings and **USD 10 shared unpaid usage
+plus reservations** across all integrations and months. This is an exposure
+ceiling, not prepaid balance.
 
 Usage is measured from telephony signals. Each dialed leg that rings incurs its
 connection fee, even when nobody answers (busy, no answer, or a callback that is
@@ -104,20 +106,22 @@ once all its calls have final usage.
 ## Monthly collection and controls
 
 Each month with usage produces one Stripe invoice, charged automatically to the
-saved card. Months with no usage produce no invoice. Positive totals below the USD card minimum of
-50 cents are waived with an audit record, without customer balance debt.
+saved card. Months with no usage produce no invoice. Positive totals below the
+USD card minimum of 50 cents are waived with an audit record, without customer
+balance debt.
 
 Stripe handles payment attempts, retries, reminders and card authentication.
 Refunds, disputes and partial payments are reviewed manually. Paying an invoice
 does not restore revoked spending.
 
-**Billing** in the portal navigation shows card details, periods, invoices and grants.
-Limit reductions cannot undercut committed usage or reservations. Revoking
-spending cancels outstanding calls.
-Withdrawing automatic collection blocks new calls, cancels open saved-card
-calls and pauses Stripe automation on unpaid invoices. A payment already in flight can complete; incurred usage
-remains due. Private hosted invoice URLs are available only to the verified human.
+**Billing** in the portal navigation shows card details, periods, invoices and
+grants. Limit reductions cannot undercut committed usage or reservations.
+Revoking spending cancels outstanding calls. Withdrawing automatic collection
+blocks new calls, cancels open saved-card calls and pauses Stripe automation on
+unpaid invoices. A payment already in flight can complete; incurred usage
+remains due. Private hosted invoice URLs are available only to the verified
+human.
 
 The billing page may also link to the Stripe customer portal for invoice history
-and billing details. To replace the card, use **Replace saved card or renew collection consent**
-on the billing page.
+and billing details. To replace the card, use **Replace saved card or renew
+collection consent** on the billing page.
