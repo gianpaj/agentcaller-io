@@ -27,7 +27,7 @@ API-key access uses an enabled client profile and an operator-provisioned `ac_`
 key in the `Authorization: Bearer` header. Portal login does not issue API keys.
 There is no public API-key issuance endpoint.
 
-[MCP onboarding](/docs/mcp) uses the configured Supabase OAuth issuer and human
+[MCP onboarding](/mcp) uses the configured Supabase OAuth issuer and human
 tool-access consent. It can provision the verified human's client profile without
 an operator-created profile. `MCP_ENABLED` defaults to `false`; when enabled,
 the resource metadata points to the issuer that owns client registration, code
@@ -39,7 +39,7 @@ Resource-bound OAuth supports MCP, billing endpoints, call quotes,
 Call listing, deletion, transcripts, recordings, and legacy x402 or operator-funded
 creation require API keys. API keys need an explicit integration link before
 they can spend. Read `/auth.md` for the credential workflows and
-[saved-card billing](/docs/billing) for separate human spending and card approval.
+[saved-card billing](/billing) for separate human spending and card approval.
 Paid calling remains disabled pending release acceptance.
 
 ## Maintenance

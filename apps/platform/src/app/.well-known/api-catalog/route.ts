@@ -13,7 +13,7 @@ export function GET() {
             },
           ],
           "service-doc": [
-            { href: "https://docs.agentcaller.io/docs", type: "text/html" },
+            { href: "https://docs.agentcaller.io", type: "text/html" },
           ],
           status: [
             {

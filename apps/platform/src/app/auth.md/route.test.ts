@@ -25,6 +25,6 @@ it("publishes the API-key and conditional OAuth credential workflows", async () 
   expect(markdown).toContain("exact MCP resource audience");
   expect(markdown).toContain("does not approve spending");
   expect(markdown).toContain("does not offer autonomous agent registration");
-  expect(markdown).toContain("https://docs.agentcaller.io/docs/mcp");
-  expect(markdown).toContain("https://docs.agentcaller.io/docs/billing");
+  expect(markdown).toContain("https://docs.agentcaller.io/mcp");
+  expect(markdown).toContain("https://docs.agentcaller.io/billing");
 });

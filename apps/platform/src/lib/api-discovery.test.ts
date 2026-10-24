@@ -23,7 +23,7 @@ describe("API discovery", () => {
         },
       ],
       "service-doc": [
-        { href: "https://docs.agentcaller.io/docs", type: "text/html" },
+        { href: "https://docs.agentcaller.io", type: "text/html" },
       ],
       status: [
         { href: "https://agentcaller.io/api/health", type: "application/json" },
@@ -39,9 +39,7 @@ describe("API discovery", () => {
     )?.value;
     expect(link).toContain('</.well-known/api-catalog>; rel="api-catalog"');
     expect(link).toContain('</openapi.json>; rel="service-desc"');
-    expect(link).toContain(
-      '<https://docs.agentcaller.io/docs>; rel="service-doc"',
-    );
+    expect(link).toContain('<https://docs.agentcaller.io>; rel="service-doc"');
     expect(link).toContain('</auth.md>; rel="describedby"');
     const billing = rules.find((rule) => rule.source === "/billing/:path*");
     expect(billing?.headers).toEqual(

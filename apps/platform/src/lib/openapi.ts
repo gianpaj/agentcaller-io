@@ -80,7 +80,7 @@ export const openapi = {
       "Pre-production call platform. Saved-card connect_me billing requires separate human spending approval, a saved card, current integration authority, and enabled paid calling. x402 connect_me remains blocked; operator-funded testing requires an enabled operator profile. Recording creation and retention are incomplete.",
   },
   servers: [{ url: "https://agentcaller.io" }],
-  externalDocs: { url: "https://docs.agentcaller.io/docs" },
+  externalDocs: { url: "https://docs.agentcaller.io" },
   security: [{ apiKey: [] }],
   components: {
     securitySchemes: {

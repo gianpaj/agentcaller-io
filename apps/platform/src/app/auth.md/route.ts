@@ -54,7 +54,7 @@ Resource-bound OAuth supports the MCP tools, billing endpoints, call quotes,
 \`stripe_postpaid\` call creation, and reading or cancelling the integration's
 own calls. Listing calls, deleting calls, transcripts, recordings, and legacy
 x402 or operator-funded creation require an API key. See the
-[MCP onboarding guide](https://docs.agentcaller.io/docs/mcp) for configuration,
+[MCP onboarding guide](https://docs.agentcaller.io/mcp) for configuration,
 connection, and revocation instructions.
 
 ## Spending and registration limits
@@ -62,7 +62,7 @@ connection, and revocation instructions.
 Human tool-access consent does not approve spending or save a payment card.
 Those steps require separate human approval. An API key must be explicitly
 linked to an owned integration before it can spend. See
-[saved-card billing](https://docs.agentcaller.io/docs/billing) for enrollment
+[saved-card billing](https://docs.agentcaller.io/billing) for enrollment
 and release gates. Authentication alone does not authorize a call: task,
 destination, funding, and call limits must also pass validation.
 
@@ -70,7 +70,7 @@ AgentCaller does not offer autonomous agent registration, anonymous credential
 issuance, or an Auth.md \`agent_auth\` registration extension. OAuth access
 requires the human connection flow above.
 
-API documentation: https://docs.agentcaller.io/docs
+API documentation: https://docs.agentcaller.io
 `;
 
 export function GET() {
