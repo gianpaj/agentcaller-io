@@ -38,10 +38,6 @@ The active product is the pnpm/Turborepo workspace:
 - `packages/database` owns the active Drizzle model.
 - `supabase/migrations` is the append-only database history.
 
-The root Vite app, `api`, root `openapi.yaml`, generated root API clients, and
-root Drizzle config belong to the earlier waitlist site. They are outside the
-Turbo workspace. Do not extend them for the call platform.
-
 ## Architectural direction
 
 Keep one owner for each hard problem:
@@ -108,7 +104,6 @@ requires it.
 - Keep `packages/database/src/schema.ts` aligned with Supabase migrations.
 - Preserve database constraints for idempotency, tenant ownership, and unique
   settlement.
-- Do not use the legacy root Drizzle config for platform migrations.
 
 ## Working method
 

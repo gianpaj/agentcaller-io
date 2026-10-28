@@ -1,7 +1,8 @@
 import type { Viewport } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PhoneCall, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { loadClientProfile } from "@/lib/portal";
 import { signOut } from "../login/actions";
 import { CallNavigation } from "./call-navigation";
@@ -54,11 +55,15 @@ export default async function CallLayout({
             href="/app"
             className="inline-flex min-h-12 items-center gap-2.5 text-lg font-semibold tracking-tight"
           >
-            <PhoneCall
-              size={22}
-              className="text-(--signal)"
-              aria-hidden="true"
-            />{" "}
+            <Image
+              src="/icon.svg"
+              loading="eager"
+              width={32}
+              height={32}
+              alt=""
+              className="shrink-0"
+              unoptimized
+            />
             AgentCaller
           </Link>
           <form action={signOut}>
