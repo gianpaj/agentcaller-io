@@ -13,7 +13,8 @@ const timezone = z
     } catch {
       return false;
     }
-  }, "Use an IANA timezone");
+  }, "Use an IANA timezone")
+  .describe("IANA timezone");
 
 const callingWindowObjectSchema = z
   .object({
@@ -27,6 +28,11 @@ const callingWindowObjectSchema = z
     (v) => v.start < v.end,
     "Window must end on the same day after its start",
   );
+
+export const callingWindowInputSchema = z.union([
+  z.literal("now"),
+  callingWindowObjectSchema,
+]);
 
 export const connectMeTaskSchema = z
   .object({

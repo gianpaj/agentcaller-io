@@ -10,20 +10,20 @@ and [billing decisions](../.agents/notes/proposed/billing/2026-10-18-stripe-impl
 
 ## Next task
 
-Build the [automated Stripe journey with mocked providers](../plans/2026-10-24-stripe-mocked-e2e.md),
-starting with the shared runtime and boundary proofs before parallel identity,
-billing and voice test work. The journey starts with a human who has no
-AgentCaller profile and ends with reconciled simulated monthly collection.
+The [mocked Stripe journey](testing/stripe-e2e.md) is implemented and tested from a
+fresh human/agent through simulated monthly collection. See its
+[verification evidence](../.agents/notes/implemented/testing/2026-10-24-stripe-mocked-e2e.md).
 
-Separately prove resource-bound OAuth issuance and one target MCP host's connection
-flow in an isolated deployment, using ordinary setup links and polling. Keep paid
-admission disabled while proving identity and tool consent. Mocked tests cannot
-establish issuer or host compatibility.
+Prove resource-bound OAuth issuance and one target MCP host's connection flow in
+an isolated deployment, using ordinary setup links and polling. Keep paid
+admission disabled while proving identity and tool consent. Then complete hosted
+Stripe sandbox and controlled carrier acceptance below; mocked tests cannot
+establish those provider behaviors.
 
 ## Required for the paid connect_me pilot
 
-All items below are open. A check needs linked evidence, not an implementation
-claim. Detailed scenarios are in the [billing plan](../plans/2026-10-18-stripe-agent-authorized-billing.md#14-testing-plan-and-environment).
+Unchecked items remain open. Completed checks link to their tested scope and
+evidence. Detailed scenarios are in the [billing plan](../plans/2026-10-18-stripe-agent-authorized-billing.md#14-testing-plan-and-environment).
 
 ### 1. Verify OAuth and MCP interoperability
 
@@ -50,19 +50,21 @@ and recorded end-to-end results. HTTPS/loopback redirect support must fit the ho
 Close with an approved policy and tariff version, matching rate-card configuration,
 and named merchant/operator responsibilities.
 
-### 3. Add human-flow browser coverage
+### 3. Human-flow browser coverage
 
-- [ ] Add the missing browser E2E suite for login/setup continuation, two-human
-      isolation, explicit consent, pending webhook state, limits, revocation, card
-      replacement and private invoice links.
-- [ ] Exercise setup-link resumption and unchanged-request retry after browser
-      or host closure. Browser return and opening a link must not grant spending.
+- [x] Add automated browser coverage for login/setup continuation, two-human
+      isolation, explicit consent, pending webhook state, spending limits,
+      revocation, card replacement and the human's private invoice link.
+- [x] Exercise setup-link resumption in a fresh browser session and unchanged
+      request/key retry after enrollment. Opening a link or returning from Checkout
+      cannot grant spending without verified provider evidence.
 
-Close with automated browser results. Static markup and mocked server-action
-tests do not cover the complete human workflow. The
-[mocked E2E plan](../plans/2026-10-24-stripe-mocked-e2e.md) defines the shared runtime,
-parallel work areas and complete application journey; hosted provider acceptance
-remains separate.
+Verified 2026-10-24 in the 32-case [mocked suite](testing/stripe-e2e.md), with
+[versioned evidence](../.agents/notes/implemented/testing/2026-10-24-stripe-mocked-e2e.md).
+The app, database, MCP and worker paths run for real; identity/payment/telephony
+providers are fake. Hosted issuer/host and Stripe acceptance remain in sections
+1 and 4. The [plan](../plans/2026-10-24-stripe-mocked-e2e.md) records the test boundaries
+and parallel ownership.
 
 ### 4. Complete hosted Stripe acceptance
 
