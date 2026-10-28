@@ -164,9 +164,10 @@ These are not prerequisites for the bounded saved-card pilot:
 ## Retired waitlist data
 
 - [x] Check for an active Neon waitlist project. On 2026-10-24, the owner
-      reported that the project does not exist and cannot be found in either
-      Vercel or Neon dashboards. Stored data and provider backups were not
-      independently inspected.
+      reported in [PR #21](https://github.com/gianpaj/agentcaller-io/pull/21)
+      that the project does not exist and cannot be found in either Vercel or
+      Neon dashboards. Stored data and provider backups were not independently
+      inspected.
 
 The Vercel projects connected to this repository build `apps/platform` and
 `apps/docs`. Neither project defines `DATABASE_URL`; the platform's database
