@@ -15,8 +15,6 @@ it("publishes the API-key and conditional OAuth credential workflows", async () 
   expect(markdown).toContain("no public API-key issuance endpoint");
   expect(markdown).toContain("Authorization: Bearer");
   expect(markdown).toContain("https://agentcaller.io/api/v1/calls");
-  expect(markdown).toContain("MCP_ENABLED=true");
-  expect(markdown).toContain("disabled by default");
   expect(markdown).toContain("HTTP 503");
   expect(markdown).toContain(
     "https://agentcaller.io/.well-known/oauth-protected-resource/mcp",
@@ -27,4 +25,6 @@ it("publishes the API-key and conditional OAuth credential workflows", async () 
   expect(markdown).toContain("does not offer autonomous agent registration");
   expect(markdown).toContain("https://docs.agentcaller.io/mcp");
   expect(markdown).toContain("https://docs.agentcaller.io/billing");
+  // Environment variables are deployment detail, not agent instructions.
+  expect(markdown).not.toMatch(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/);
 });

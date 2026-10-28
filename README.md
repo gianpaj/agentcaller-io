@@ -40,7 +40,7 @@ contract.
 to a Spanish mobile, with independently configured business and callback languages.
 Its contract, PostgreSQL attempt/leg ledger, scheduler, worker and private
 press-1 handoff are implemented and tested offline. Operators can use the
-[operator-funded test mode](apps/docs/content/docs/dispatch.mdx#operator-funded-testing)
+[operator-funded test mode](docs/operations.md#operator-funded-testing)
 without x402. It requires an enabled server-managed operator profile, an explicit
 funding header, and a per-job spend cap (`CONNECT_OPERATOR_MAX_USD`, default $5).
 **Paid connect-me requests remain disabled.** Stripe monthly invoicing has a
@@ -75,7 +75,7 @@ moves into the business room. The worker remains alive to supervise cleanup.
 Recording is disabled. LiveKit AMD plus conversational signals are fallible;
 Spanish/Italian accuracy and all real PSTN behavior remain unverified.
 
-See [dispatch setup and controlled test procedure](apps/docs/content/docs/dispatch.mdx)
+See the [connect-me deployment and controlled test procedure](docs/operations.md)
 and the [decision record](.agents/notes/implemented/telephony/2026-09-18-bounded-connect-me.md).
 The existing API exposes job details and cancellation; the portal shows outcomes
 and a cancel action. Job deletion is blocked pending provider cleanup and payment
@@ -89,10 +89,11 @@ The active product is a pnpm/Turborepo:
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `apps/platform`       | Next.js API, developer portal, authentication, call ledger, settlement, and webhook delivery |
 | `apps/voice-agent`    | LiveKit realtime voice worker                                                                |
-| `apps/docs`           | Fumadocs developer documentation, served at https://docs.agentcaller.io                      |
+| `apps/docs`           | Public API documentation for agents and humans, served at https://docs.agentcaller.io        |
 | `packages/contracts`  | Shared Zod request and state definitions                                                     |
 | `packages/database`   | Active Drizzle schema and database client                                                    |
 | `supabase/migrations` | Append-only database migration history                                                       |
+| `docs/operations.md`  | Operator runbook: configuration, scheduled drains, testing and discovery checks              |
 | `docs/specs`          | Historical product and implementation designs                                                |
 | `.agents/notes`       | Dated review evidence and architectural decisions                                            |
 
@@ -112,7 +113,7 @@ OAuth bearer credentials authorize the integration's granted billing and paid
 call operations. Paid Stripe calling retains its separate release gates and
 stays disabled by default.
 
-See [discovery maintenance and validation](apps/docs/content/docs/discovery.mdx).
+See [discovery maintenance and validation](docs/operations.md#discovery).
 
 ## Architecture
 
@@ -158,7 +159,8 @@ controls and monthly Stripe Invoicing are implemented and tested offline.
 **Paid calling stays disabled** until issuer/host, tariff, carrier and Stripe
 acceptance checks pass. Existing x402/operator behavior retains its own gates.
 
-See the [MCP guide](apps/docs/content/docs/mcp.mdx),
+See the operations runbook for [MCP and OAuth](docs/operations.md#mcp-and-oauth)
+and [Stripe billing](docs/operations.md#stripe-billing), the
 [billing guide](apps/docs/content/docs/billing.mdx) and
 [billing implementation record](.agents/notes/proposed/billing/2026-10-18-stripe-implementation.md)
 for configuration, invariants and implementation evidence.
