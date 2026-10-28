@@ -96,11 +96,6 @@ The active product is a pnpm/Turborepo:
 | `docs/specs`          | Historical product and implementation designs                                                |
 | `.agents/notes`       | Dated review evidence and architectural decisions                                            |
 
-The root `src`, `api`, `openapi.yaml`, `orval.config.ts`, and `drizzle.config.ts`
-belong to the earlier Vite waitlist application. Turbo does not build that
-surface, and its OpenAPI document does not describe the active call API. Treat it
-as legacy until it is removed or deliberately restored.
-
 ## Agent discovery
 
 The platform publishes `/robots.txt`, `/sitemap.xml`,
