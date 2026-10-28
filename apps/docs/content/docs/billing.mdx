@@ -3,10 +3,9 @@ title: Saved-card billing
 description: Enrollment, bounded reservations and monthly Stripe Invoicing
 ---
 
-Saved-card billing supports human enrollment, atomic call reservations, confirmed
-connected usage and monthly Stripe Invoicing. **Paid calling remains disabled.**
-The code is tested offline; provider configuration and live acceptance remain
-release gates. There are no subscriptions or upfront payments.
+A human saves a card once; their agent then books calls against monthly limits,
+and usage is invoiced through Stripe each month. **Paid calling is not yet
+available.** There are no subscriptions or upfront payments.
 
 ## Enroll through your agent
 
@@ -19,17 +18,17 @@ release gates. There are no subscriptions or upfront payments.
 5. Let the agent poll readiness and submit its call. Opening a setup link or
    returning from Checkout cannot activate spending authority.
 
-The server verifies the retrieved Session, succeeded off-session SetupIntent,
-attached card, customer, environment and consent generations. Setup links expire
-in 24 hours; Checkout expires in 31 minutes. Links use a private continuation
-cookie after initial exchange. Share them only with the account owner.
+Setup links expire in 24 hours; Checkout expires in 31 minutes. Links use a
+private continuation cookie after initial exchange. Share them only with the
+account owner.
 
 ## Agent API
 
-MCP exposes `setup_billing`, `get_billing_status`, `quote_call`, `schedule_call`,
-`get_call_status` and `get_usage`. An API key must be explicitly linked to an
-owned integration under **Billing** in the portal navigation before it can spend.
-OAuth tokens require the resource-bound audience described in the MCP guide.
+MCP exposes `setup_billing`, `get_billing_status`, `quote_call`,
+`schedule_call`, `get_call_status` and `get_usage`. An API key must be
+explicitly linked to an owned integration under **Billing** in the portal
+navigation before it can spend. OAuth tokens require the resource-bound audience
+described in the MCP guide.
 
 | Endpoint                         | Purpose                                               |
 | -------------------------------- | ----------------------------------------------------- |
@@ -86,69 +85,43 @@ changed input with that key returns `409`.
 
 ## Allowances and usage
 
-Admission reserves the full worst-case job, including both connected legs and
-all permitted attempts. The call, job, usage hold and counter commit together.
-The available amount is bounded by the account month, integration month,
-per-call ceilings and **USD 10 shared unpaid usage plus reservations** across
-all integrations and months. This is an exposure ceiling, not prepaid balance.
+Accepting a call reserves the full worst-case job, including both connected legs
+and all permitted attempts. The available amount is bounded by the account
+month, integration month, per-call ceilings and **USD 10 shared unpaid usage
+plus reservations** across all integrations and months. This is an exposure
+ceiling, not prepaid balance.
 
 Usage is measured from telephony signals. Each dialed leg that rings incurs its
 connection fee, even when nobody answers (busy, no answer, or a callback that is
 not picked up). A connected leg also incurs its started minutes from the answer.
 A business answer is billable even when the callback or handoff fails. The
-combined call is rounded up to a cent once. Customer
-usage cannot exceed its reservation. Provider overruns block service for review.
-Unknown timing keeps a hold. A terminal job with confirmed cleanup and no dial
-intent releases its reservation without inventing a charge.
+combined call is rounded up to a cent once and never exceeds its reservation.
+A job that ends without dialing releases its reservation at no charge.
 
 A scheduled job belongs to its first-start UTC month. No new attempt starts after
-that month ends. Active calls can finish within their existing bounds. The worker
-uses the introduction name approved by the human and pinned when reserving. Period
-close waits for cleanup and final usage; unresolved holds prevent invoicing.
+that month ends. Active calls can finish within their existing bounds. The call
+introduces you with the name the human approved at setup. A month is invoiced
+once all its calls have final usage.
 
 ## Monthly collection and controls
 
-Each closed positive month creates one held Stripe draft with one explicitly
-attached usage item. Unrelated pending items are excluded. The server verifies
-ownership, lines, currency and total before finalizing for automatic collection.
-Zero months create no invoice. Positive totals below the USD card minimum of
-50 cents are waived with an audit record, without customer balance debt.
+Each month with usage produces one Stripe invoice, charged automatically to the
+saved card. Months with no usage produce no invoice. Positive totals below the
+USD card minimum of 50 cents are waived with an audit record, without customer
+balance debt.
 
-Stripe owns payment attempts, retries, reminders and hosted authentication.
-AgentCaller retrieves current invoices and allocated successful card payments
-before marking usage collected. An out-of-band paid flag, credits, partial
-payments, refunds, disputes, voids and mismatched totals require review. A paid
-invoice cannot restore a revoked spending grant.
+Stripe handles payment attempts, retries, reminders and card authentication.
+Refunds, disputes and partial payments are reviewed manually. Paying an invoice
+does not restore revoked spending.
 
-**Billing** in the portal navigation shows card details, periods, invoices and grants.
-Limit reductions cannot undercut committed usage or reservations. Revoking
-spending cancels outstanding calls and blocks further worker permissions.
-Withdrawing automatic collection blocks new calls, cancels open saved-card
-calls and pauses Stripe automation on unpaid invoices. A payment already in flight can complete; incurred usage
-remains due. Private hosted invoice URLs are available only to the verified human.
+**Billing** in the portal navigation shows card details, periods, invoices and
+grants. Limit reductions cannot undercut committed usage or reservations.
+Revoking spending cancels outstanding calls. Withdrawing automatic collection
+blocks new calls, cancels open saved-card calls and pauses Stripe automation on
+unpaid invoices. A payment already in flight can complete; incurred usage
+remains due. Private hosted invoice URLs are available only to the verified
+human.
 
-When `STRIPE_PORTAL_CONFIGURATION_ID` is set, the billing page also links to the
-Stripe customer portal for invoice history and billing details. AgentCaller
-refuses to open a portal configuration that is inactive, belongs to the other
-Stripe mode, or enables payment method updates. Invoices charge the card saved
-through consented setup, so card replacement stays in that flow.
-
-## Configuration and acceptance
-
-Apply migrations in timestamp order, including the separate payment enum migration.
-Set independent server-only `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
-`BILLING_SETUP_TOKEN_SECRET`. Set `STRIPE_PRICING_VERSION` to a reviewed tariff
-version and explicitly approve matching active USD `rate_cards`; legacy rows are
-not automatically approved. Keep `STRIPE_BILLING_ENABLED=false`.
-
-Signed raw webhooks enter `/api/stripe/webhook`; storage retains routing IDs and
-safe processing codes, not payment payloads. The authenticated minute cron at
-`/api/internal/billing/drain` processes events, usage, periods and invoices.
-Leases and stable keys recover API delivery failures; they do not retry payments.
-Webhook ingestion and accounting remain available when admission is disabled.
-
-Release requires approved prices and tax treatment, resource-bound Supabase
-issuance, target MCP host acceptance, carrier bounds/metering and Stripe test-mode
-end-to-end checks. Native URL elicitation is an additional host integration;
-ordinary setup links and polling work without it. Link Agent Wallet remains a
-future option subject to invoice compatibility checks in the repository plan.
+The billing page may also link to the Stripe customer portal for invoice history
+and billing details. To replace the card, use **Replace saved card or renew
+collection consent** on the billing page.

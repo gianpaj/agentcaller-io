@@ -1,0 +1,156 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="630"
+  viewBox="0 0 1200 630"
+>
+  <title>AgentCaller — Give your agent a phone line.</title>
+  <desc>
+    An API for the businesses you still have to call. An agent connects to a
+    business through a phone call.
+  </desc>
+  <defs>
+    <!-- Brand mark source: apps/platform/src/app/icon.svg -->
+    <symbol id="brand-mark" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="#c6ff4a" />
+      <g fill="#080a0d" transform="translate(6.227168 39.982322) scale(0.033277005)">
+        <path d="M53.275 -359.4V-469.375L493.4625 -274.625V-195.375L53.275 -0.625V-110.6L402.375 -254.85000000000002V-215.14999999999998Z" />
+        <path d="M769.05 10.0Q704.0124999999999 10.0 651.5 -22.98125Q598.9875 -55.9625 568.4812499999999 -112.43125Q537.9749999999999 -168.9 537.9749999999999 -238.875Q537.9749999999999 -309.8375 568.4812499999999 -366.3125Q598.9875 -422.7875 651.49375 -456.26875Q704.0 -489.75 769.025 -489.75Q824.0 -489.75 866.5 -466.3Q909.0 -442.85 934.04375 -401.9125Q959.0875 -360.975 959.2249999999999 -309.0V-170.7625Q959.0749999999999 -118.7875 934.5249999999999 -77.84375Q909.9749999999999 -36.9 866.9937499999999 -13.45Q824.0124999999999 10.0 769.05 10.0ZM786.875 -93.0625Q848.1875 -93.0625 885.85625 -134.26875Q923.525 -175.475 923.525 -239.8625Q923.525 -283.125 906.4437499999999 -316.30625Q889.3625 -349.4875 858.70625 -368.0875Q828.05 -386.6875 786.8499999999999 -386.6875Q746.5999999999999 -386.6875 715.8999999999999 -368.075Q685.1999999999999 -349.4625 667.58125 -316.28125Q649.9625 -283.1 649.9625 -239.875Q649.9625 -196.65 667.58125 -163.46875Q685.1999999999999 -130.2875 715.9124999999999 -111.675Q746.625 -93.0625 786.875 -93.0625ZM916.5999999999999 0.0V-128.925L935.4749999999999 -245.8875L916.5999999999999 -361.825V-479.75H1025.6125V0.0Z" />
+        <path d="M1308.9125 10.0Q1237.9624999999999 10.0 1180.5124999999998 -22.9875Q1123.0625 -55.975 1090.08125 -112.95Q1057.1 -169.925 1057.1 -239.9Q1057.1 -310.85 1090.08125 -367.31875Q1123.0625 -423.7875 1180.5124999999998 -456.76875Q1237.9624999999999 -489.75 1308.9125 -489.75Q1364.8374999999999 -489.75 1413.2749999999999 -468.2875Q1461.7124999999999 -446.825 1495.675 -406.9125L1424.3125 -334.5625Q1403.2375 -359.6125 1373.63125 -372.1625Q1344.0249999999999 -384.7125 1308.9125 -384.7125Q1267.6999999999998 -384.7125 1236.0124999999998 -366.1Q1204.3249999999998 -347.4875 1186.7062499999997 -315.3Q1169.0874999999999 -283.1125 1169.0874999999999 -239.9Q1169.0874999999999 -197.6625 1186.7062499999997 -164.96875Q1204.3249999999998 -132.275 1236.0124999999998 -113.65625Q1267.6999999999998 -95.03750000000001 1308.9125 -95.03750000000001Q1344.0375 -95.03750000000001 1373.6499999999999 -107.5875Q1403.2624999999998 -120.1375 1424.35 -145.2L1495.7124999999999 -72.85Q1461.7375 -32.925 1413.2875 -11.462499999999999Q1364.8374999999999 10.0 1308.9125 10.0Z" />
+      </g>
+    </symbol>
+    <radialGradient id="glow">
+      <stop stop-color="#c6ff4a" stop-opacity="0.07" />
+      <stop offset="1" stop-color="#c6ff4a" stop-opacity="0" />
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path
+        d="M40 0H0V40"
+        fill="none"
+        stroke="#c6ff4a"
+        stroke-opacity="0.035"
+      />
+    </pattern>
+    <g
+      id="phone"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path
+        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.79a2 2 0 0 1-.45 2.11L8.09 9.89a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.89.34 1.83.58 2.79.7A2 2 0 0 1 22 16.92Z"
+      />
+      <path d="M14.05 2a9 9 0 0 1 7.95 7.95M14.05 6a5 5 0 0 1 3.95 3.95" />
+    </g>
+  </defs>
+
+  <rect width="1200" height="630" fill="#080a0d" />
+  <rect width="1200" height="630" fill="url(#grid)" />
+  <ellipse cx="920" cy="300" rx="340" ry="300" fill="url(#glow)" />
+
+  <use href="#brand-mark" x="60" y="46" width="40" height="40" />
+  <!-- prettier-ignore -->
+  <text x="116" y="80" fill="#ecf5eb" font-family="Lato, sans-serif" font-size="29" font-weight="700" letter-spacing="-0.6">AgentCaller<tspan fill="#8c9a92" font-weight="400">.io</tspan></text>
+
+  <g
+    font-family="Lato, sans-serif"
+    font-size="74"
+    font-weight="700"
+    letter-spacing="-2.5"
+  >
+    <text x="60" y="245" fill="#ecf5eb">Give your agent</text>
+    <text x="60" y="331" fill="#c6ff4a">a phone line.</text>
+  </g>
+  <g fill="#a0aca5" font-family="Lato, sans-serif" font-size="27">
+    <text x="63" y="398">An API for the businesses</text>
+    <text x="63" y="435">you still have to call.</text>
+  </g>
+
+  <g
+    fill="none"
+    stroke="#c6ff4a"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M768 291h14l5-7 6 14 6-24 6 34 6-23 5 6h14" />
+    <path d="M938 291h13l5-7 6 14 6-24 6 34 6-23 5 6h15" />
+    <path d="m821 286 5 5-5 5m171-10 5 5-5 5" />
+  </g>
+
+  <rect
+    x="680"
+    y="249"
+    width="84"
+    height="84"
+    rx="20"
+    fill="#0d1117"
+    stroke="#273129"
+    stroke-width="2"
+  />
+  <g
+    fill="none"
+    stroke="#ecf5eb"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <rect x="700" y="272" width="44" height="35" rx="5" />
+    <path d="m710 283 6 6-6 6m13 0h10" />
+  </g>
+
+  <rect x="830" y="237" width="108" height="108" rx="27" fill="#c6ff4a" />
+  <use href="#phone" transform="translate(860 267) scale(2)" color="#080a0d" />
+
+  <rect
+    x="1004"
+    y="249"
+    width="84"
+    height="84"
+    rx="20"
+    fill="#0d1117"
+    stroke="#273129"
+    stroke-width="2"
+  />
+  <g
+    fill="none"
+    stroke="#ecf5eb"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path
+      d="m1024 286 5-13h34l5 13m-44 0a5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0 5.5 5.5 0 0 0 11 0m-41 5v20h38v-20m-23 20v-14h10v14m-1-38v13m-11-13-2 13m24-13 2 13"
+    />
+  </g>
+
+  <g font-family="Lato, sans-serif" font-size="21" text-anchor="middle">
+    <text x="722" y="384" fill="#a0aca5">Your agent</text>
+    <text x="884" y="384" fill="#c6ff4a" font-weight="700">Phone call</text>
+    <text x="1046" y="384" fill="#a0aca5">Business</text>
+  </g>
+
+  <path d="M60 526h1080" stroke="#273129" />
+  <text
+    x="63"
+    y="568"
+    fill="#8c9a92"
+    font-family="Lato, sans-serif"
+    font-size="18"
+    letter-spacing="0.3"
+  >
+    A task. A call. An answer.
+  </text>
+  <text
+    x="1137"
+    y="568"
+    fill="#ecf5eb"
+    font-family="Lato, sans-serif"
+    font-size="18"
+    text-anchor="end"
+  >
+    agentcaller.io
+  </text>
+</svg>

@@ -163,6 +163,18 @@ These are not prerequisites for the bounded saved-card pilot:
   Recording, consent capture, redaction and retention across any additional
   storage/providers require implementation before those features are enabled.
 
+## Retired waitlist data
+
+- [x] Check for an active Neon waitlist project. On 2026-10-24, the owner
+      reported in [PR #21](https://github.com/gianpaj/agentcaller-io/pull/21)
+      that the project does not exist and cannot be found in either Vercel or
+      Neon dashboards. Stored data and provider backups were not independently
+      inspected.
+
+The Vercel projects connected to this repository build `apps/platform` and
+`apps/docs`. Neither project defines `DATABASE_URL`; the platform's database
+variables belong to its active Supabase integration.
+
 ## Maintaining this checklist
 
 Keep open/closed work here. Keep detailed acceptance procedures in the plan,
