@@ -57,6 +57,7 @@ export default async function CallLayout({
           >
             <Image
               src="/icon.svg"
+              loading="eager"
               width={32}
               height={32}
               alt=""

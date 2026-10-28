@@ -41,6 +41,7 @@ export default function HomePage() {
         >
           <Image
             src="/icon.svg"
+            loading="eager"
             width={36}
             height={36}
             alt=""
