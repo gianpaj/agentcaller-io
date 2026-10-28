@@ -1,4 +1,5 @@
-import { ArrowUpRight, PhoneCall } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { CallDemo } from "./call-demo";
 
@@ -38,7 +39,14 @@ export default function HomePage() {
           className="flex min-h-11 items-center gap-[0.7rem] text-[1.2rem] font-[650] tracking-[-0.03em] max-[480px]:gap-2 max-[480px]:text-base"
           aria-label="AgentCaller home"
         >
-          <PhoneCall size={22} className="text-(--signal)" aria-hidden="true" />
+          <Image
+            src="/icon.svg"
+            width={36}
+            height={36}
+            alt=""
+            className="shrink-0"
+            unoptimized
+          />
           <span>
             AgentCaller
             <span className="font-normal text-(--muted) max-[480px]:hidden">
