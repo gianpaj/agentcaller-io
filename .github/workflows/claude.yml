@@ -138,8 +138,8 @@ jobs:
             yourself: run the package-scoped typecheck, lint, and test scripts
             from AGENTS.md for every package the diff touches. List each command
             and its result in the final review. AGENTS.md names known
-            pre-existing formatting and voice-agent build failures; label them
-            as pre-existing rather than attributing them to this PR. If a check
+            pre-existing voice-agent build failures; label them as
+            pre-existing rather than attributing them to this PR. If a check
             cannot run, say so rather than claiming validation passed.
             Recheck the PR head before posting; if it changed, identify the
             reviewed SHA and state that the newer commit was not reviewed.

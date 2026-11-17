@@ -155,7 +155,7 @@ export default defineAgent({
     };
 
     ctx.addShutdownCallback(async () => {
-      await rooms.deleteRoom(roomName).catch(() => { });
+      await rooms.deleteRoom(roomName).catch(() => {});
       await reportTerminal("call.completed", { reason: "call_ended" });
     });
 
@@ -189,7 +189,7 @@ export default defineAgent({
           "Begin the call now with the required disclosure and purpose.",
       });
     } catch (error) {
-      await rooms.deleteRoom(roomName).catch(() => { });
+      await rooms.deleteRoom(roomName).catch(() => {});
       console.error("Voice session failed for", callId);
       await reportTerminal("call.failed", {
         // Before the answer, report the SIP result so busy and no-answer are told apart from

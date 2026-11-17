@@ -68,14 +68,14 @@ agentcaller-io/
 
 `waitlist` table:
 
-| column      | type                                   | notes              |
-|-------------|----------------------------------------|--------------------|
-| id          | BIGINT GENERATED ALWAYS AS IDENTITY PK |                    |
-| email       | TEXT NOT NULL UNIQUE                   | duplicate-safe key |
-| persona     | TEXT                                   | nullable; reserved for future use, no UI sets it yet |
-| referrer    | TEXT                                   | from request       |
-| user_agent  | TEXT                                   | from request       |
-| created_at  | TIMESTAMPTZ NOT NULL DEFAULT now()     |                    |
+| column     | type                                   | notes                                                |
+| ---------- | -------------------------------------- | ---------------------------------------------------- |
+| id         | BIGINT GENERATED ALWAYS AS IDENTITY PK |                                                      |
+| email      | TEXT NOT NULL UNIQUE                   | duplicate-safe key                                   |
+| persona    | TEXT                                   | nullable; reserved for future use, no UI sets it yet |
+| referrer   | TEXT                                   | from request                                         |
+| user_agent | TEXT                                   | from request                                         |
+| created_at | TIMESTAMPTZ NOT NULL DEFAULT now()     |                                                      |
 
 ### `api/waitlist.js`
 

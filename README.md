@@ -360,8 +360,8 @@ pnpm build
 ```
 
 The 2026-08-18 review records baseline failures. The worker build emits its
-entrypoint; repository-wide formatting drift remains. When changing a scoped package, run its checks directly
-as well:
+entrypoint. `pnpm format` runs oxfmt for code and Prettier for Markdown. When
+changing a scoped package, run its checks directly as well:
 
 ```bash
 pnpm --filter @agentcaller/platform typecheck

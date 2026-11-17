@@ -2,8 +2,8 @@
   "name": "agentcaller-io-workspace",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "dev": "turbo dev",
     "dev:scheduler": "node scripts/dev-connect-scheduler.mjs",
@@ -11,11 +11,13 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "node --test scripts/dev-connect-scheduler.test.mjs && turbo test",
-    "format:check": "prettier --check .",
+    "format": "oxfmt --write . && prettier --write \"**/*.{md,mdx}\"",
+    "format:check": "oxfmt --check . && prettier --check \"**/*.{md,mdx}\"",
     "test:connect-db": "node scripts/test-connect-db.mjs",
     "test:billing-db": "node scripts/test-billing-db.mjs"
   },
   "devDependencies": {
+    "oxfmt": "0.70.0",
     "prettier": "^3.8.1",
     "turbo": "^2.10.4",
     "typescript": "^6.0.3"

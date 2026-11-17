@@ -20,6 +20,9 @@ importers:
 
   .:
     devDependencies:
+      oxfmt:
+        specifier: 0.70.0
+        version: 0.70.0
       prettier:
         specifier: ^3.8.1
         version: 3.8.3
@@ -151,9 +154,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.14)
-      oxfmt:
-        specifier: 0.70.0
-        version: 0.70.0
       oxlint:
         specifier: ^1.85.0
         version: 1.85.0(oxlint-tsgolint@7.0.2003)
@@ -2088,6 +2088,9 @@ packages:
   '@smithy/core@3.29.2':
     resolution: {integrity: sha512-DXUk6yU0C1Q1tYvJh1VCtl8QOBcSoZpKwjTPkxT6A4MUQYHvgeKGByL8mrEdxnvhdf9nq5GyzmRb5n/vPgu3Lw==}
     engines: {node: '>=18.0.0'}
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
+        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.4.7':
     resolution: {integrity: sha512-UEMLOoA0Fl4uYBxh6l0uN0H6EJe/A89OGeDNTteQeXpJ20BcpfIr4wlCY9pel1jEAUHAxaYwuqrYlrKdXE1GKQ==}

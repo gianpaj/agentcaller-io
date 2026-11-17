@@ -25,10 +25,23 @@ describe("createCallSchema", () => {
   });
 
   it("rejects calls longer than 30 minutes", () => {
-    expect(() => createCallSchema.parse({ ...reservation, maxDurationSeconds: 1801 })).toThrow();
+    expect(() =>
+      createCallSchema.parse({ ...reservation, maxDurationSeconds: 1801 }),
+    ).toThrow();
   });
 
   it("rejects a reversed time window", () => {
-    expect(() => createCallSchema.parse({ ...reservation, task: { ...reservation.task, timeWindow: { ...reservation.task.timeWindow, startsAt: "2026-07-14T22:00:00.000Z" } } })).toThrow();
+    expect(() =>
+      createCallSchema.parse({
+        ...reservation,
+        task: {
+          ...reservation.task,
+          timeWindow: {
+            ...reservation.task.timeWindow,
+            startsAt: "2026-07-14T22:00:00.000Z",
+          },
+        },
+      }),
+    ).toThrow();
   });
 });

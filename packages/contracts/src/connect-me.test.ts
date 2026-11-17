@@ -56,7 +56,6 @@ describe("Call now", () => {
     );
   });
 
-
   it("reports nested callingWindow field paths instead of an opaque union error", () => {
     const { end: _end, ...withoutEnd } = scheduledWindow;
     const result = createCallSchema.safeParse({

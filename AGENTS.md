@@ -165,9 +165,9 @@ configured in each app's `.oxlintrc.json`. Its errors name the theme token or
 component variant to use instead. Follow that guidance rather than disabling
 the rule.
 
-The repository has known pre-existing formatting and voice-agent build failures.
-Report them accurately. Do not hide them, broaden a scoped task to fix them, or
-attribute them to an unrelated change.
+The repository has known pre-existing voice-agent build failures. Report them
+accurately. Do not hide them, broaden a scoped task to fix them, or attribute
+them to an unrelated change.
 
 Never commit `.env`, `.env.local`, provider credentials, wallet material, API
 keys, transcripts, recordings, or populated payload fixtures.
