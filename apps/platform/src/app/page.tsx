@@ -5,6 +5,12 @@ import { CallDemo } from "./call-demo";
 
 const docsUrl = "https://docs.agentcaller.io";
 
+const footerLinks = [
+  { href: docsUrl, label: "Documentation" },
+  { href: "https://github.com/gianpaj/agentcaller-io/", label: "GitHub" },
+  { href: "https://x.com/gianpaj", label: "X" },
+] as const;
+
 const capabilities = [
   {
     title: "A specific task",
@@ -170,12 +176,17 @@ export default function HomePage() {
         <p className="max-[480px]:basis-full">
           An API for the businesses you still have to call.
         </p>
-        <Link
-          href={docsUrl}
-          className="inline-flex min-h-11 items-center text-(--ink) hover:text-(--signal)"
-        >
-          Documentation
-        </Link>
+        <nav className="flex gap-x-6" aria-label="Footer">
+          {footerLinks.map(({ href, label }) => (
+            <Link
+              key={label}
+              href={href}
+              className="inline-flex min-h-11 items-center text-(--ink) hover:text-(--signal)"
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
       </footer>
     </div>
   );
